@@ -1,0 +1,19 @@
+[package]
+name = "dm-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Dora Manager CLI — terminal interface for managing dora-rs environments"
+
+[[bin]]
+name = "dm"
+path = "src/main.rs"
+
+[dependencies]
+dm-core = { path = "../dm-core" }
+anyhow.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+clap = { version = "4", features = ["derive"] }
+colored = "3"
+indicatif = "0.17"

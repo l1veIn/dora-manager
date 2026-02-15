@@ -1,0 +1,19 @@
+[package]
+name = "dm-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Dora Manager HTTP API server — REST/WebSocket interface for web UIs"
+
+[[bin]]
+name = "dm-server"
+path = "src/main.rs"
+
+[dependencies]
+dm-core = { path = "../dm-core" }
+anyhow.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
