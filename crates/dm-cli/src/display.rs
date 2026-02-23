@@ -105,10 +105,7 @@ pub fn print_status_report(report: &StatusReport) {
 
     match &report.active_version {
         Some(ver) => {
-            let actual = report
-                .actual_version
-                .as_deref()
-                .unwrap_or("?");
+            let actual = report.actual_version.as_deref().unwrap_or("?");
             println!("  dora version:   {} ({})", ver.bold(), actual.dimmed());
         }
         None => {

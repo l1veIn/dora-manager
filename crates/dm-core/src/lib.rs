@@ -1,7 +1,11 @@
+pub mod api;
 pub mod config;
 pub mod dora;
 pub mod env;
+pub mod graph;
 pub mod install;
+pub mod node;
+pub mod registry;
 pub mod types;
 pub mod util;
 
@@ -140,9 +144,7 @@ pub async fn status(home: &PathBuf, verbose: bool) -> Result<StatusReport> {
     // Dataflow list
     let mut dataflows = Vec::new();
     if cfg.active_version.is_some() {
-        if let Ok((code, stdout, _)) =
-            dora::run_dora(home, &["list".to_string()], verbose).await
-        {
+        if let Ok((code, stdout, _)) = dora::run_dora(home, &["list".to_string()], verbose).await {
             if code == 0 {
                 let output = stdout.trim();
                 if !output.is_empty() && !output.contains("No running dataflow") {
@@ -164,8 +166,7 @@ pub async fn status(home: &PathBuf, verbose: bool) -> Result<StatusReport> {
 
 /// Start dora coordinator + daemon
 pub async fn up(home: &PathBuf, verbose: bool) -> Result<RuntimeResult> {
-    let (code, stdout, stderr) =
-        dora::run_dora(home, &["up".to_string()], verbose).await?;
+    let (code, stdout, stderr) = dora::run_dora(home, &["up".to_string()], verbose).await?;
     Ok(RuntimeResult {
         success: code == 0,
         message: if code == 0 {
@@ -178,8 +179,7 @@ pub async fn up(home: &PathBuf, verbose: bool) -> Result<RuntimeResult> {
 
 /// Stop dora coordinator + daemon
 pub async fn down(home: &PathBuf, verbose: bool) -> Result<RuntimeResult> {
-    let (code, stdout, stderr) =
-        dora::run_dora(home, &["destroy".to_string()], verbose).await?;
+    let (code, stdout, stderr) = dora::run_dora(home, &["destroy".to_string()], verbose).await?;
     Ok(RuntimeResult {
         success: code == 0,
         message: if code == 0 {
@@ -226,9 +226,7 @@ pub async fn use_version(home: &PathBuf, version: &str) -> Result<String> {
     cfg.active_version = Some(version.to_string());
     config::save_config(home, &cfg)?;
 
-    let actual_ver = dora::get_dora_version(&dora_bin)
-        .await
-        .unwrap_or_default();
+    let actual_ver = dora::get_dora_version(&dora_bin).await.unwrap_or_default();
 
     Ok(actual_ver)
 }

@@ -14,6 +14,13 @@ dm-core = { path = "../dm-core" }
 anyhow.workspace = true
 tokio.workspace = true
 serde_json.workspace = true
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
 clap = { version = "4", features = ["derive"] }
 colored = "3"
 indicatif = "0.17"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"

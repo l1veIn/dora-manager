@@ -67,7 +67,6 @@ async fn get_command_version_works() {
 
 #[tokio::test]
 async fn get_command_version_nonexistent() {
-    let result =
-        util::get_command_version("nonexistent-command-xyz-999", &["--version"]).await;
+    let result = util::get_command_version("nonexistent-command-xyz-999", &["--version"]).await;
     assert!(result.is_none());
 }

@@ -93,7 +93,11 @@ pub async fn install(
     let client = Client::new();
     let ver_str = version.as_deref();
 
-    send_progress(&progress_tx, InstallPhase::Fetching, "Fetching release info...");
+    send_progress(
+        &progress_tx,
+        InstallPhase::Fetching,
+        "Fetching release info...",
+    );
 
     let release = fetch_release(&client, ver_str).await?;
     let tag = release.tag_name.trim_start_matches('v').to_string();
@@ -188,7 +192,11 @@ async fn install_from_binary(
             bytes_done: 0,
             bytes_total: asset.size,
         },
-        &format!("Downloading {} ({})", asset.name, util::human_size(asset.size)),
+        &format!(
+            "Downloading {} ({})",
+            asset.name,
+            util::human_size(asset.size)
+        ),
     );
 
     let resp = client
@@ -259,11 +267,7 @@ async fn install_from_binary(
 }
 
 /// Install dora by building from source (git clone + cargo build)
-async fn install_from_source(
-    git_tag: &str,
-    target_dir: &PathBuf,
-    verbose: bool,
-) -> Result<()> {
+async fn install_from_source(git_tag: &str, target_dir: &PathBuf, verbose: bool) -> Result<()> {
     if util::check_command("cargo").is_none() {
         anyhow::bail!(
             "No binary release for this platform and Rust is not installed.\n\

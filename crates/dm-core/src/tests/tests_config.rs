@@ -37,19 +37,28 @@ fn resolve_home_flag_overrides_env() {
 #[test]
 fn versions_dir_path() {
     let home = std::path::PathBuf::from("/home/user/.dm");
-    assert_eq!(versions_dir(&home), std::path::PathBuf::from("/home/user/.dm/versions"));
+    assert_eq!(
+        versions_dir(&home),
+        std::path::PathBuf::from("/home/user/.dm/versions")
+    );
 }
 
 #[test]
 fn active_link_path() {
     let home = std::path::PathBuf::from("/home/user/.dm");
-    assert_eq!(active_link(&home), std::path::PathBuf::from("/home/user/.dm/active"));
+    assert_eq!(
+        active_link(&home),
+        std::path::PathBuf::from("/home/user/.dm/active")
+    );
 }
 
 #[test]
 fn config_path_correct() {
     let home = std::path::PathBuf::from("/foo/bar");
-    assert_eq!(config_path(&home), std::path::PathBuf::from("/foo/bar/config.toml"));
+    assert_eq!(
+        config_path(&home),
+        std::path::PathBuf::from("/foo/bar/config.toml")
+    );
 }
 
 #[test]

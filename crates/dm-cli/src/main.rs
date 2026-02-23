@@ -1,6 +1,8 @@
 mod display;
 
-use anyhow::Result;
+use std::sync::Arc;
+
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -64,6 +66,25 @@ enum Commands {
     /// Live overview of runtime & dataflows
     Status,
 
+    /// Start HTTP API server
+    Serve {
+        /// Port to listen on
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
+    },
+
+    /// Manage installed dora nodes
+    Node {
+        #[command(subcommand)]
+        command: NodeCommands,
+    },
+
+    /// Validate or run dataflow graphs
+    Graph {
+        #[command(subcommand)]
+        command: GraphCommands,
+    },
+
     /// Pass-through: run any dora CLI command with the active version
     #[command(
         name = "--",
@@ -74,6 +95,36 @@ enum Commands {
         /// Arguments forwarded to dora
         #[arg(allow_hyphen_values = true)]
         args: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum NodeCommands {
+    /// Install a node from the registry
+    Install {
+        /// Node id (e.g. image-io)
+        id: String,
+    },
+    /// List installed nodes
+    List,
+    /// Uninstall a node
+    Uninstall {
+        /// Node id
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum GraphCommands {
+    /// Parse and validate a dataflow YAML file
+    Validate {
+        /// Path to dataflow YAML file
+        file: String,
+    },
+    /// Run a dataflow graph (placeholder)
+    Run {
+        /// Path to dataflow YAML file
+        file: String,
     },
 }
 
@@ -237,6 +288,99 @@ async fn main() -> Result<()> {
             let report = dm_core::status(&home, cli.verbose).await?;
             display::print_status_report(&report);
         }
+
+        Commands::Serve { port } => {
+            let addr = format!("127.0.0.1:{port}");
+            println!("🚀 dm HTTP API server listening on http://{}", addr);
+
+            let state = dm_core::api::AppState::new(Arc::new(home.clone()));
+            let app = dm_core::api::create_router(state)
+                .layer(tower_http::cors::CorsLayer::permissive());
+
+            let listener = tokio::net::TcpListener::bind(&addr).await?;
+            axum::serve(listener, app).await?;
+        }
+
+        Commands::Node { command } => match command {
+            NodeCommands::Install { id } => {
+                println!("{} Installing node {}...", "→".cyan(), id.bold());
+                let entry = dm_core::node::install_node(&home, &id)
+                    .await
+                    .with_context(|| format!("Failed to install node '{}'", id))?;
+
+                println!(
+                    "{} Installed node {} ({})",
+                    "✅".green(),
+                    entry.id.bold(),
+                    entry.version.green()
+                );
+                println!("  Path: {}", entry.path.display().to_string().dimmed());
+            }
+            NodeCommands::List => {
+                let nodes = dm_core::node::list_nodes(&home).context("Failed to list installed nodes")?;
+
+                if nodes.is_empty() {
+                    println!("{} No nodes installed.", "ℹ".cyan());
+                } else {
+                    println!("{} Installed nodes ({})", "✅".green(), nodes.len());
+                    for node in nodes {
+                        println!(
+                            "  {} {} {}",
+                            "•".cyan(),
+                            node.id.bold(),
+                            format!("v{}", node.version).dimmed()
+                        );
+                    }
+                }
+            }
+            NodeCommands::Uninstall { id } => {
+                dm_core::node::uninstall_node(&home, &id)
+                    .with_context(|| format!("Failed to uninstall node '{}'", id))?;
+                println!("{} Node {} removed.", "✅".green(), id.bold());
+            }
+        },
+
+        Commands::Graph { command } => match command {
+            GraphCommands::Validate { file } => {
+                let graph = dm_core::graph::DataflowGraph::from_yaml_file(&file)
+                    .with_context(|| format!("Failed to parse YAML graph file '{}'", file))?;
+                let registry = dm_core::registry::fetch_registry()
+                    .await
+                    .context("Failed to fetch node registry for validation")?;
+                let result = dm_core::graph::validate_graph(&graph, &registry);
+
+                if result.valid {
+                    println!("{} Validation result: {}", "✅".green(), "valid".green().bold());
+                } else {
+                    println!("{} Validation result: {}", "❌".red(), "invalid".red().bold());
+                }
+
+                if result.errors.is_empty() {
+                    println!("{} Errors: none", "✓".green());
+                } else {
+                    println!("{} Errors ({})", "✗".red(), result.errors.len());
+                    for err in &result.errors {
+                        println!("  {} {}", "-".red(), err);
+                    }
+                }
+
+                if result.warnings.is_empty() {
+                    println!("{} Warnings: none", "✓".green());
+                } else {
+                    println!("{} Warnings ({})", "!".yellow(), result.warnings.len());
+                    for warning in &result.warnings {
+                        println!("  {} {}", "-".yellow(), warning);
+                    }
+                }
+
+                if !result.valid {
+                    anyhow::bail!("Graph validation failed with {} error(s).", result.errors.len());
+                }
+            }
+            GraphCommands::Run { file: _ } => {
+                println!("{} Not implemented yet", "ℹ".yellow());
+            }
+        },
 
         Commands::Passthrough { args } => {
             let code = dm_core::passthrough(&home, &args, cli.verbose).await?;

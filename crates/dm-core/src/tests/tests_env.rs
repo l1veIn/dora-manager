@@ -63,11 +63,7 @@ async fn env_item_found_implies_path() {
     ];
     for item in items {
         if item.found {
-            assert!(
-                item.path.is_some(),
-                "{} found but has no path",
-                item.name
-            );
+            assert!(item.path.is_some(), "{} found but has no path", item.name);
         }
     }
 }

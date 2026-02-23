@@ -2,8 +2,8 @@ mod handlers;
 
 use std::sync::Arc;
 
+use axum::routing::{delete, get, post};
 use axum::Router;
-use axum::routing::{get, post, delete};
 use tower_http::cors::CorsLayer;
 
 #[derive(Clone)]
@@ -38,7 +38,5 @@ async fn main() {
         .await
         .expect("Failed to bind");
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server error");
+    axum::serve(listener, app).await.expect("Server error");
 }
