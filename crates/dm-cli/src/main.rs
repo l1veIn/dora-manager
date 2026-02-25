@@ -79,10 +79,10 @@ enum Commands {
         command: NodeCommands,
     },
 
-    /// Validate or run dataflow graphs
-    Graph {
-        #[command(subcommand)]
-        command: GraphCommands,
+    /// Run a dataflow graph
+    Run {
+        /// Path to dataflow YAML file
+        file: String,
     },
 
     /// Pass-through: run any dora CLI command with the active version
@@ -114,19 +114,7 @@ enum NodeCommands {
     },
 }
 
-#[derive(Subcommand)]
-enum GraphCommands {
-    /// Parse and validate a dataflow YAML file
-    Validate {
-        /// Path to dataflow YAML file
-        file: String,
-    },
-    /// Run a dataflow graph (placeholder)
-    Run {
-        /// Path to dataflow YAML file
-        file: String,
-    },
-}
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -340,47 +328,37 @@ async fn main() -> Result<()> {
             }
         },
 
-        Commands::Graph { command } => match command {
-            GraphCommands::Validate { file } => {
-                let graph = dm_core::graph::DataflowGraph::from_yaml_file(&file)
-                    .with_context(|| format!("Failed to parse YAML graph file '{}'", file))?;
-                let registry = dm_core::registry::fetch_registry()
-                    .await
-                    .context("Failed to fetch node registry for validation")?;
-                let result = dm_core::graph::validate_graph(&graph, &registry);
-
-                if result.valid {
-                    println!("{} Validation result: {}", "✅".green(), "valid".green().bold());
-                } else {
-                    println!("{} Validation result: {}", "❌".red(), "invalid".red().bold());
-                }
-
-                if result.errors.is_empty() {
-                    println!("{} Errors: none", "✓".green());
-                } else {
-                    println!("{} Errors ({})", "✗".red(), result.errors.len());
-                    for err in &result.errors {
-                        println!("  {} {}", "-".red(), err);
-                    }
-                }
-
-                if result.warnings.is_empty() {
-                    println!("{} Warnings: none", "✓".green());
-                } else {
-                    println!("{} Warnings ({})", "!".yellow(), result.warnings.len());
-                    for warning in &result.warnings {
-                        println!("  {} {}", "-".yellow(), warning);
-                    }
-                }
-
-                if !result.valid {
-                    anyhow::bail!("Graph validation failed with {} error(s).", result.errors.len());
-                }
+        Commands::Run { file } => {
+            let file_path = std::path::Path::new(&file);
+            if !file_path.exists() {
+                anyhow::bail!("Graph file '{}' not found.", file);
             }
-            GraphCommands::Run { file: _ } => {
-                println!("{} Not implemented yet", "ℹ".yellow());
+
+            println!("{} Translating graph with dm transpiler...", "→".cyan());
+            let transpiled = dm_core::dataflow::transpile_graph(&home, file_path)
+                .with_context(|| format!("Failed to transpile '{}'", file))?;
+
+            // Write to a temporary run file
+            let run_dir = home.join("run");
+            std::fs::create_dir_all(&run_dir)?;
+            let temp_run_file = run_dir.join(format!(".run_{}", file_path.file_name().unwrap_or_default().to_string_lossy()));
+            
+            let out_content = serde_yaml::to_string(&transpiled)?;
+            std::fs::write(&temp_run_file, out_content)?;
+
+            if cli.verbose {
+                println!("{} Transpiled graph saved to: {}", "ℹ".cyan(), temp_run_file.display());
             }
-        },
+
+            println!("{} Executing dataflow with dora...", "🚀".green());
+            let args = vec![
+                "start".to_string(),
+                temp_run_file.to_string_lossy().to_string(),
+            ];
+
+            let code = dm_core::passthrough(&home, &args, cli.verbose).await?;
+            std::process::exit(code);
+        }
 
         Commands::Passthrough { args } => {
             let code = dm_core::passthrough(&home, &args, cli.verbose).await?;

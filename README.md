@@ -38,6 +38,33 @@ cargo build --release
 ./target/release/dm -- run dataflow.yml --uv
 ```
 
+## Quickstart: OpenCV Camera Pipeline
+
+Try out a real-world computer vision dataflow using your webcam in under 30 seconds:
+
+1. **Create `quickstart.yml`**
+```yaml
+nodes:
+  - id: camera
+    path: opencv-video-capture
+    inputs:
+      tick: dora/timer/millis/30
+    outputs:
+      - image
+
+  - id: plot
+    path: opencv-plot
+    inputs:
+      image: camera/image
+```
+
+2. **Run it**
+```bash
+# This will automatically download and install the required nodes in isolated python virtual environments,
+# transpile the graph, and stream your webcam to a new plot window!
+cargo run -- run quickstart.yml
+```
+
 ## HTTP API
 
 ```bash

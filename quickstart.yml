@@ -1,0 +1,12 @@
+nodes:
+  - id: camera
+    path: opencv-video-capture
+    inputs:
+      tick: dora/timer/millis/30
+    outputs:
+      - image
+
+  - id: plot
+    path: opencv-plot
+    inputs:
+      image: camera/image

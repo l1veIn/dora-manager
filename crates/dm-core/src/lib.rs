@@ -2,7 +2,7 @@ pub mod api;
 pub mod config;
 pub mod dora;
 pub mod env;
-pub mod graph;
+pub mod dataflow;
 pub mod install;
 pub mod node;
 pub mod registry;

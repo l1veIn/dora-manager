@@ -40,7 +40,6 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/nodes", get(handlers::list_nodes))
         .route("/api/v1/nodes/install", post(handlers::install_node))
         .route("/api/v1/nodes/{id}", delete(handlers::uninstall_node))
-        .route("/api/v1/graph/validate", post(handlers::validate_graph))
         .route("/api/v1/graph/run", post(handlers::run_graph))
         .with_state(state)
 }

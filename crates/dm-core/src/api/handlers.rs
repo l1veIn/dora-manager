@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{graph::DataflowGraph, node};
+use crate::node;
 
 use super::{error::ApiError, routes::AppState};
 
@@ -15,7 +15,7 @@ pub struct InstallNodeRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct GraphRequest {
+pub struct DataflowRequest {
     pub yaml: String,
 }
 
@@ -90,28 +90,10 @@ pub async fn uninstall_node(
     }))
 }
 
-pub async fn validate_graph(
-    State(state): State<AppState>,
-    payload: Result<Json<GraphRequest>, JsonRejection>,
-) -> Result<Json<crate::graph::ValidationResult>, ApiError> {
-    let Json(req) = payload.map_err(invalid_json)?;
-
-    let graph = DataflowGraph::from_yaml_str(&req.yaml)
-        .context("Failed to parse YAML graph")
-        .map_err(|e| ApiError::bad_request("Failed to validate graph", e.to_string()))?;
-
-    let registry = state
-        .load_registry()
-        .await
-        .context("Failed to load registry")
-        .map_err(|e| internal_error("Failed to validate graph", e))?;
-
-    let result = crate::graph::validate_graph(&graph, &registry);
-    Ok(Json(result))
-}
+// validate_dataflow removed as dataflow transpilation is now handled per-run.
 
 pub async fn run_graph(
-    payload: Result<Json<GraphRequest>, JsonRejection>,
+    payload: Result<Json<DataflowRequest>, JsonRejection>,
 ) -> Result<Json<MessageResponse>, ApiError> {
     let _ = payload.map_err(invalid_json)?;
 

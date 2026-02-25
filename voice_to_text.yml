@@ -1,0 +1,14 @@
+nodes:
+  - id: microphone
+    path: dora-pyaudio  
+    inputs:
+      tick: dora/timer/millis/100
+    outputs:
+      - audio
+
+  - id: stt
+    path: dora-distil-whisper
+    inputs:
+      audio: microphone/audio
+    outputs:
+      - text

@@ -47,12 +47,12 @@ fn nodes_dir(home: &Path) -> PathBuf {
 }
 
 /// Get a specific node's directory
-fn node_dir(home: &Path, id: &str) -> PathBuf {
+pub fn node_dir(home: &Path, id: &str) -> PathBuf {
     nodes_dir(home).join(id)
 }
 
 /// Get the metadata file path for a node
-fn meta_path(home: &Path, id: &str) -> PathBuf {
+pub fn meta_path(home: &Path, id: &str) -> PathBuf {
     node_dir(home, id).join("meta.json")
 }
 
@@ -130,12 +130,16 @@ pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
 
 /// Internal implementation for node installation
 async fn install_node_impl(meta: &NodeMeta, node_path: &Path) -> Result<String> {
-    match meta.build.as_str() {
-        "python" => install_python_node(meta, node_path).await,
-        "cargo" => install_cargo_node(meta, node_path).await,
-        build_type => {
-            bail!("Unsupported build type: {}. Only 'python' and 'cargo' are supported.", build_type)
-        }
+    let build_cmd = meta.build.trim().to_lowercase();
+    if build_cmd.starts_with("pip ") || build_cmd.starts_with("uv ") {
+        install_python_node(meta, node_path).await
+    } else if build_cmd.starts_with("cargo ") {
+        install_cargo_node(meta, node_path).await
+    } else {
+        bail!(
+            "Unsupported build instruction: '{}'. Only 'pip' and 'cargo' commands are supported.",
+            meta.build
+        )
     }
 }
 
@@ -168,9 +172,14 @@ async fn install_python_node(meta: &NodeMeta, node_path: &Path) -> Result<String
         .ok_or_else(|| anyhow::anyhow!("Failed to create virtual environment"))?;
 
     // Install the node package
-    // For now, we use the node ID as the package name
-    // In the future, this could be extracted from registry data
-    let package_spec = format!("dora-{}", meta.id);
+    // Extract actual package name from `build` command if possible, otherwise fallback
+    let package_spec = if meta.build.starts_with("pip install ") {
+        meta.build.trim_start_matches("pip install ").trim().to_string()
+    } else if meta.id.starts_with("dora-") {
+        meta.id.clone()
+    } else {
+        format!("dora-{}", meta.id)
+    };
     
     let install_result = if use_uv {
         Command::new("uv")
@@ -200,7 +209,7 @@ fn get_python_package_version(venv_path: &Path, package: &str) -> Result<String>
             "-c",
             &format!(
                 "import importlib.metadata; print(importlib.metadata.version('{}'))",
-                package.trim_start_matches("dora-")
+                package
             ),
         ])
         .output();
