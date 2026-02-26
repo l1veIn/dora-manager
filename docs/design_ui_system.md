@@ -1,32 +1,37 @@
 # dm Web — UI Visual Design System
 
+## Design Philosophy: "Mission Control"
+
+dm is a **control center** for Dora-rs dataflows. Target users are robotics/AI developers
+who live in terminals. The UI should feel like a natural visual extension of the CLI.
+
+- **Information density over whitespace** — developers want data, not decoration
+- **Status-driven visual hierarchy** — Dora runtime state is the most prominent element
+- **Terminal DNA** — monospace fonts for code/YAML/logs, dark theme as default
+- **Reference aesthetic** — Grafana · Portainer · Kubernetes Dashboard
+
 ## Tech Stack
-- **Framework**: SvelteKit + Svelte 5 (Runes)
-- **Components**: shadcn-svelte (Bits UI)
-- **Styling**: Tailwind CSS v4
-- **Icons**: Lucide Svelte
-- **Build**: adapter-static (SPA mode), Vite proxy → `dm-server:3210`
 
-## Design Tokens
+| Layer | Choice |
+|---|---|
+| Framework | SvelteKit + Svelte 5 (Runes) |
+| Components | shadcn-svelte (Bits UI) |
+| Styling | Tailwind CSS v4 |
+| Icons | Lucide Svelte |
+| i18n | Paraglide (compile-time, zero runtime overhead) |
+| Theme | mode-watcher (dark/light toggle, localStorage persistence) |
+| Build | adapter-static (SPA), Vite proxy → `dm-server:3210` |
 
-### Theme
+## Theme
+
 - **Base color**: Slate (shadcn default)
-- **Mode**: Dark mode preferred (developer tool aesthetic), with light mode toggle
-- **Border radius**: `0.5rem` (default shadcn)
+- **Default mode**: Dark (developer tool convention)
+- **Toggle**: Sun/Moon icon in sidebar footer, persisted via `mode-watcher`
+- **Border radius**: `0.5rem`
 
 ### Typography
-- **Font**: `Inter` via Google Fonts (or system `-apple-system, BlinkMacSystemFont`)
-- **Heading scale**: Use Tailwind `text-2xl` → `text-sm`
-- **Monospace**: `JetBrains Mono` for YAML editor and log output
-
-### Color Semantics
-| Token | Usage |
-|---|---|
-| `primary` | Action buttons, active states |
-| `destructive` | Delete/uninstall actions |
-| `muted` | Disabled, secondary text |
-| `accent` | Hover highlights, badges |
-| `chart-1..5` | Dora node status indicators |
+- **UI text**: `Inter` (Google Fonts) or system stack
+- **Code/YAML/Logs**: `JetBrains Mono` (monospace)
 
 ### Status Colors
 | State | Color | Badge |
@@ -36,7 +41,7 @@
 | Error | `red-500` | `✕  Error` |
 | Installing | `amber-400` | `↻  Installing` |
 
-## Layout Structure
+## Layout
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -44,35 +49,28 @@
 ├─────────────┬────────────────────────────────────────────┤
 │  Sidebar    │  Main Content Area                         │
 │  (240px)    │                                            │
-│             │  ┌──────────────────────────────────────┐  │
-│  Dashboard  │  │  Page content rendered here          │  │
-│  Nodes      │  │  (matches selected sidebar item)     │  │
-│  Editor     │  │                                      │  │
-│  Events     │  │                                      │  │
-│  Settings   │  │                                      │  │
-│             │  └──────────────────────────────────────┘  │
-│             │                                            │
+│  Dashboard  │  (page content)                            │
+│  Nodes      │                                            │
+│  Editor     │                                            │
+│  Events     │                                            │
+│  Settings   │                                            │
 │  ─────────  │                                            │
-│  Dark/Light │                                            │
+│  🌙/☀ Lang │                                            │
 └─────────────┴────────────────────────────────────────────┘
 ```
 
-### Sidebar Component
-Use `shadcn-svelte` **Sidebar** component:
-- Collapsible (icon-only mode on narrow screens)
-- Items: Dashboard, Nodes, Editor, Events, Settings
-- Each item: Lucide icon + label
-- Footer: theme toggle (Sun/Moon)
+- Sidebar uses shadcn `Sidebar` component, collapsible at `< lg`
+- Footer: theme toggle + language switcher (en/zh-CN)
 
-### Responsive Breakpoints
-| Breakpoint | Behavior |
-|---|---|
-| `≥ lg (1024px)` | Sidebar expanded (240px) |
-| `< lg` | Sidebar collapsed to icons or drawer mode |
+## i18n
 
-## API Client Convention
+- **Engine**: Paraglide (inlang) — compile-time translations
+- **Languages**: `en` (default) + `zh-CN`
+- **File structure**: `web/messages/en.json`, `web/messages/zh-CN.json`
+- **Usage**: `import * as m from '$lib/paraglide/messages'` → `{m.some_key()}`
 
-All API calls go through a shared `$lib/api.ts` module:
+## API Client (`$lib/api.ts`)
+
 ```typescript
 const API_BASE = '/api';
 
@@ -99,7 +97,7 @@ export async function post<T>(path: string, body?: unknown): Promise<T> {
 web/src/routes/
 ├── +layout.svelte        ← Sidebar + Header shell
 ├── +layout.ts            ← ssr=false, prerender=false
-├── +page.svelte          ← Dashboard (default page)
+├── +page.svelte          ← Dashboard (default)
 ├── nodes/+page.svelte    ← Node management
 ├── editor/+page.svelte   ← YAML editor + run
 ├── events/+page.svelte   ← Observability panel
