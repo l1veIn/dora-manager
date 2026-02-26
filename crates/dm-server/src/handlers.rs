@@ -2,9 +2,10 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
+use axum::http::{header, Uri};
 use serde::Deserialize;
 
-use crate::AppState;
+use crate::{AppState, WebAssets};
 
 // ─── Helper ───
 
@@ -339,5 +340,31 @@ pub async fn export_events(
         )
             .into_response(),
         Err(e) => err(e).into_response(),
+    }
+}
+
+// ─── Static Frontend ───
+
+pub async fn serve_web(uri: Uri) -> impl IntoResponse {
+    let mut path = uri.path().trim_start_matches('/').to_string();
+
+    if path.is_empty() {
+        path = "index.html".to_string();
+    }
+
+    match WebAssets::get(&path) {
+        Some(content) => {
+            let mime = mime_guess::from_path(&path).first_or_octet_stream();
+            ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
+        }
+        None => {
+            // SPA fallback: return index.html for not found routes
+            if let Some(index) = WebAssets::get("index.html") {
+                let mime = mime_guess::from_path("index.html").first_or_octet_stream();
+                ([(header::CONTENT_TYPE, mime.as_ref())], index.data).into_response()
+            } else {
+                (StatusCode::NOT_FOUND, "404 Not Found").into_response()
+            }
+        }
     }
 }

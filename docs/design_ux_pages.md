@@ -111,23 +111,65 @@ Browse available nodes from the registry, manage installed nodes. Similar to an 
 
 ---
 
-## 3. Editor (`/editor`)
+## 3. Dataflows (`/dataflows`)
 
 ### Purpose
-Create, edit, and execute Dora dataflow YAML files. This is the core creative workspace.
+Manage, edit, and execute Dora dataflow YAML files. This is the core workspace for building and running data pipelines. Files are persisted to `~/.dm/dataflows/`.
 
-### API Dependencies
+> **Note**: Renamed from "Editor" to "Dataflows". The sidebar item should also be updated accordingly.
+
+### New Backend APIs Required
+
+> These APIs must be added to `dm-server` before this page can function.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/dataflows` | List all `.yml` files in `~/.dm/dataflows/` |
+| `GET` | `/api/dataflows/{name}` | Read a single file's YAML content |
+| `POST` | `/api/dataflows/{name}` | Create or update (save) a file |
+| `POST` | `/api/dataflows/{name}/delete` | Delete a file |
+
+**Response schema for `GET /api/dataflows`:**
+```json
+[
+  { "name": "webcam_demo", "filename": "webcam_demo.yml", "modified_at": "2026-02-26T21:30:00Z", "size": 420 },
+  { "name": "voice_pipeline", "filename": "voice_pipeline.yml", "modified_at": "2026-02-25T10:00:00Z", "size": 680 }
+]
+```
+
+### Existing APIs Used
 | API | Usage |
 |---|---|
-| `POST /api/dataflow/run` | Execute the YAML |
-| `POST /api/dataflow/stop` | Stop running dataflow |
-| `GET /api/nodes` | Autocomplete node names |
+| `POST /api/dataflow/run` | Execute the YAML (already exists) |
+| `POST /api/dataflow/stop` | Stop running dataflow (already exists) |
+| `GET /api/events?source=dataflow` | Output logs for running dataflow |
 
-### Layout
+### Layout — List View (default)
 ```
-┌─ Editor ────────────────────────────────────────┐
+┌─ Dataflows ─────────────────────────────────────┐
 │                                                 │
-│  Toolbar: [▶ Run] [■ Stop] [📋 Template ▼]      │
+│  [+ New Dataflow]           [Search...]          │
+│                                                 │
+│  ┌─────────────────────────────────────────┐    │
+│  │ 📄 webcam_demo.yml                      │    │
+│  │    Modified: 2 hours ago · 420 bytes    │    │
+│  │    [Edit] [▶ Run] [🗑 Delete]            │    │
+│  ├─────────────────────────────────────────┤    │
+│  │ 📄 voice_pipeline.yml                   │    │
+│  │    Modified: 1 day ago · 680 bytes      │    │
+│  │    [Edit] [▶ Run] [🗑 Delete]            │    │
+│  └─────────────────────────────────────────┘    │
+│                                                 │
+│  (Empty state: illustration + "Create your      │
+│   first dataflow" + [+ New Dataflow] CTA)       │
+└─────────────────────────────────────────────────┘
+```
+
+### Layout — Editor View (after clicking Edit or New)
+```
+┌─ Dataflows › webcam_demo.yml ───────────────────┐
+│                                                 │
+│  [← Back]  webcam_demo.yml  [💾 Save] [▶ Run] [■ Stop] │
 │                                                 │
 │  ┌─────────────────────────────────────────┐    │
 │  │ (CodeMirror 6 YAML editor)              │    │
@@ -136,34 +178,40 @@ Create, edit, and execute Dora dataflow YAML files. This is the core creative wo
 │  │   - id: webcam                          │    │
 │  │     operator:                           │    │
 │  │       python: webcam-capture            │    │
-│  │                                         │    │
 │  │   - id: plot                            │    │
-│  │     operator:                           │    │
-│  │       python: opencv-plot               │    │
 │  │     inputs:                             │    │
 │  │       image: webcam/image               │    │
-│  │                                         │    │
 │  └─────────────────────────────────────────┘    │
 │                                                 │
 │  ┌─ Output Panel (collapsible) ───────────┐    │
-│  │ [14:32:01] Started dataflow df_abc123   │    │
-│  │ [14:32:02] Node webcam spawned (pid 42) │    │
-│  │ [14:32:03] Node plot spawned (pid 43)   │    │
+│  │ [14:32:01] Started dataflow             │    │
+│  │ [14:32:02] Node webcam spawned          │    │
 │  └─────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────┘
 ```
 
 ### Interactions
-- **[▶ Run]**: Sends editor content to `POST /api/dataflow/run`, switches to "running" state
-- **[■ Stop]**: Calls `POST /api/dataflow/stop`
-- **[Template ▼]**: Dropdown with example YAML templates (quickstart, multi-node, etc.)
-- **Output Panel**: Shows events from `GET /api/events?source=dataflow&limit=50`, auto-scrolls
-- **Editor**: CodeMirror 6 with YAML syntax highlighting, line numbers, auto-indent
 
-### States
-- **Idle**: Run button enabled, Stop disabled
-- **Running**: Run button disabled (or shows ↻), Stop enabled, output panel auto-opens
-- **Error**: Red toast with error message from API
+**List View:**
+- **[+ New Dataflow]**: Prompt for name → calls `POST /api/dataflows/{name}` with empty template → opens editor
+- **[Edit]**: Navigates to Editor View, loads YAML from `GET /api/dataflows/{name}`
+- **[▶ Run]**: Directly runs the file without opening editor (reads YAML → `POST /api/dataflow/run`)
+- **[🗑 Delete]**: Confirmation dialog → `POST /api/dataflows/{name}/delete`
+- **Search**: Client-side filter by filename
+
+**Editor View:**
+- **[← Back]**: Returns to List View (with unsaved-changes warning if dirty)
+- **[💾 Save]**: `POST /api/dataflows/{name}` with editor content
+- **[▶ Run]**: Saves first → `POST /api/dataflow/run` with YAML content
+- **[■ Stop]**: `POST /api/dataflow/stop`
+- **Output Panel**: Polls `GET /api/events?source=dataflow&limit=50`, auto-scrolls
+
+### Route Structure
+Use client-side state (not nested routes) to toggle list/editor view:
+```
+/dataflows              → List view (default)
+/dataflows?edit=webcam_demo  → Editor view for webcam_demo.yml
+```
 
 ### Recommended Package
 - `svelte-codemirror-editor` + `@codemirror/lang-yaml`

@@ -12,7 +12,7 @@ pub mod util;
 #[cfg(test)]
 mod tests;
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Result;
 
@@ -22,7 +22,7 @@ use types::*;
 // ─── Public API ───
 
 /// Check environment health
-pub async fn doctor(home: &PathBuf) -> Result<DoctorReport> {
+pub async fn doctor(home: &Path) -> Result<DoctorReport> {
     let op = OperationEvent::new(home, EventSource::Core, "doctor");
     op.emit_start();
 
@@ -77,7 +77,7 @@ pub async fn doctor(home: &PathBuf) -> Result<DoctorReport> {
 }
 
 /// List installed and available versions
-pub async fn versions(home: &PathBuf) -> Result<VersionsReport> {
+pub async fn versions(home: &Path) -> Result<VersionsReport> {
     let op = OperationEvent::new(home, EventSource::Core, "versions.list");
     op.emit_start();
 
@@ -128,7 +128,7 @@ pub async fn versions(home: &PathBuf) -> Result<VersionsReport> {
 }
 
 /// Get runtime status overview
-pub async fn status(home: &PathBuf, verbose: bool) -> Result<StatusReport> {
+pub async fn status(home: &Path, verbose: bool) -> Result<StatusReport> {
     let op = OperationEvent::new(home, EventSource::Core, "status.check");
     op.emit_start();
 
@@ -191,7 +191,7 @@ pub async fn status(home: &PathBuf, verbose: bool) -> Result<StatusReport> {
 }
 
 /// Start dora coordinator + daemon
-pub async fn up(home: &PathBuf, verbose: bool) -> Result<RuntimeResult> {
+pub async fn up(home: &Path, verbose: bool) -> Result<RuntimeResult> {
     let op = OperationEvent::new(home, EventSource::Core, "runtime.up");
     op.emit_start();
 
@@ -213,7 +213,7 @@ pub async fn up(home: &PathBuf, verbose: bool) -> Result<RuntimeResult> {
 }
 
 /// Stop dora coordinator + daemon
-pub async fn down(home: &PathBuf, verbose: bool) -> Result<RuntimeResult> {
+pub async fn down(home: &Path, verbose: bool) -> Result<RuntimeResult> {
     let op = OperationEvent::new(home, EventSource::Core, "runtime.down");
     op.emit_start();
 
@@ -235,7 +235,7 @@ pub async fn down(home: &PathBuf, verbose: bool) -> Result<RuntimeResult> {
 }
 
 /// Remove an installed dora version
-pub async fn uninstall(home: &PathBuf, version: &str) -> Result<()> {
+pub async fn uninstall(home: &Path, version: &str) -> Result<()> {
     let op = OperationEvent::new(home, EventSource::Core, "version.uninstall").attr("version", version);
     op.emit_start();
 
@@ -263,7 +263,7 @@ pub async fn uninstall(home: &PathBuf, version: &str) -> Result<()> {
 }
 
 /// Switch active dora version
-pub async fn use_version(home: &PathBuf, version: &str) -> Result<String> {
+pub async fn use_version(home: &Path, version: &str) -> Result<String> {
     let op = OperationEvent::new(home, EventSource::Core, "version.switch").attr("version", version);
     op.emit_start();
 
@@ -295,7 +295,7 @@ pub async fn use_version(home: &PathBuf, version: &str) -> Result<String> {
 
 /// Setup: check and install prerequisites
 pub async fn setup(
-    home: &PathBuf,
+    home: &Path,
     verbose: bool,
     progress_tx: Option<tokio::sync::mpsc::UnboundedSender<InstallProgress>>,
 ) -> Result<SetupReport> {
@@ -324,12 +324,9 @@ pub async fn setup(
         let mut dora_version = cfg.active_version.clone();
 
         if !dora_installed {
-            match install::install(home, None, verbose, progress_tx).await {
-                Ok(result) => {
-                    dora_installed = true;
-                    dora_version = Some(result.version);
-                }
-                Err(_) => {}
+            if let Ok(result) = install::install(home, None, verbose, progress_tx).await {
+                dora_installed = true;
+                dora_version = Some(result.version);
             }
         }
 
@@ -347,7 +344,7 @@ pub async fn setup(
 }
 
 /// Pass-through: execute any dora CLI command interactively
-pub async fn passthrough(home: &PathBuf, args: &[String], verbose: bool) -> Result<i32> {
+pub async fn passthrough(home: &Path, args: &[String], verbose: bool) -> Result<i32> {
     let op = OperationEvent::new(home, EventSource::Core, "passthrough").attr("args", args);
     op.emit_start();
 

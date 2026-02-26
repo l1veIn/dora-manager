@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{Context, Result};
@@ -7,7 +7,7 @@ use tokio::process::Command;
 use crate::config;
 
 /// Resolve the path to the active dora binary managed by dm.
-pub fn active_dora_bin(home: &PathBuf) -> Result<PathBuf> {
+pub fn active_dora_bin(home: &Path) -> Result<PathBuf> {
     let cfg = config::load_config(home)?;
     let version = cfg
         .active_version
@@ -26,7 +26,7 @@ pub fn active_dora_bin(home: &PathBuf) -> Result<PathBuf> {
 /// Run a dora subcommand using the active managed binary.
 /// Returns (exit_code, stdout, stderr).
 pub async fn run_dora(
-    home: &PathBuf,
+    home: &Path,
     args: &[String],
     verbose: bool,
 ) -> Result<(i32, String, String)> {
@@ -49,7 +49,7 @@ pub async fn run_dora(
 }
 
 /// Run dora with inherited stdio (for interactive / streaming commands).
-pub async fn exec_dora(home: &PathBuf, args: &[String], verbose: bool) -> Result<i32> {
+pub async fn exec_dora(home: &Path, args: &[String], verbose: bool) -> Result<i32> {
     let bin = active_dora_bin(home)?;
     if verbose {
         eprintln!("[dm] exec: {} {}", bin.display(), args.join(" "));
@@ -67,7 +67,7 @@ pub async fn exec_dora(home: &PathBuf, args: &[String], verbose: bool) -> Result
 }
 
 /// Get the version string from a dora binary.
-pub async fn get_dora_version(bin_path: &PathBuf) -> Result<String> {
+pub async fn get_dora_version(bin_path: &Path) -> Result<String> {
     let output = Command::new(bin_path)
         .arg("--version")
         .stdout(Stdio::piped())

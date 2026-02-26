@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use reqwest::Client;
@@ -85,7 +85,7 @@ async fn fetch_release(client: &Client, version: Option<&str>) -> Result<GithubR
 /// Install a dora version.
 /// Progress updates are sent through the optional `progress_tx` channel.
 pub async fn install(
-    home: &PathBuf,
+    home: &Path,
     version: Option<String>,
     verbose: bool,
     progress_tx: Option<mpsc::UnboundedSender<InstallProgress>>,
@@ -178,7 +178,7 @@ async fn install_from_binary(
     client: &Client,
     asset: &GithubAsset,
     _tag: &str,
-    target_dir: &PathBuf,
+    target_dir: &Path,
     verbose: bool,
     progress_tx: &Option<mpsc::UnboundedSender<InstallProgress>>,
 ) -> Result<()> {
@@ -267,7 +267,7 @@ async fn install_from_binary(
 }
 
 /// Install dora by building from source (git clone + cargo build)
-async fn install_from_source(git_tag: &str, target_dir: &PathBuf, verbose: bool) -> Result<()> {
+async fn install_from_source(git_tag: &str, target_dir: &Path, verbose: bool) -> Result<()> {
     if util::check_command("cargo").is_none() {
         anyhow::bail!(
             "No binary release for this platform and Rust is not installed.\n\
@@ -338,7 +338,7 @@ async fn install_from_source(git_tag: &str, target_dir: &PathBuf, verbose: bool)
     Ok(())
 }
 
-fn extract_tar(data: &[u8], target_dir: &PathBuf) -> Result<()> {
+fn extract_tar(data: &[u8], target_dir: &Path) -> Result<()> {
     use std::process::{Command, Stdio};
 
     let mut child = Command::new("tar")
@@ -376,7 +376,7 @@ fn extract_tar(data: &[u8], target_dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn extract_zip(data: &[u8], target_dir: &PathBuf) -> Result<()> {
+fn extract_zip(data: &[u8], target_dir: &Path) -> Result<()> {
     use std::io::Cursor;
     let reader = Cursor::new(data);
     let mut archive = zip::ZipArchive::new(reader)?;
@@ -384,7 +384,7 @@ fn extract_zip(data: &[u8], target_dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn find_dora_binary(dir: &PathBuf) -> Option<PathBuf> {
+fn find_dora_binary(dir: &Path) -> Option<PathBuf> {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();

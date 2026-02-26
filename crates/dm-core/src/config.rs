@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -26,20 +26,20 @@ pub fn resolve_home(flag: Option<String>) -> Result<PathBuf> {
 }
 
 /// Standard subdirectories inside DM_HOME
-pub fn versions_dir(home: &PathBuf) -> PathBuf {
+pub fn versions_dir(home: &Path) -> PathBuf {
     home.join("versions")
 }
 
-pub fn active_link(home: &PathBuf) -> PathBuf {
+pub fn active_link(home: &Path) -> PathBuf {
     home.join("active")
 }
 
-pub fn config_path(home: &PathBuf) -> PathBuf {
+pub fn config_path(home: &Path) -> PathBuf {
     home.join("config.toml")
 }
 
 /// Load config, returning default if file doesn't exist
-pub fn load_config(home: &PathBuf) -> Result<DmConfig> {
+pub fn load_config(home: &Path) -> Result<DmConfig> {
     let path = config_path(home);
     if path.exists() {
         let content = std::fs::read_to_string(&path)?;
@@ -51,7 +51,7 @@ pub fn load_config(home: &PathBuf) -> Result<DmConfig> {
 }
 
 /// Save config
-pub fn save_config(home: &PathBuf, cfg: &DmConfig) -> Result<()> {
+pub fn save_config(home: &Path, cfg: &DmConfig) -> Result<()> {
     let path = config_path(home);
     std::fs::create_dir_all(home)?;
     let content = toml::to_string_pretty(cfg)?;

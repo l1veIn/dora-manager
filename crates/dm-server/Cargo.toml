@@ -17,4 +17,9 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 axum = "0.8"
-tower-http = { version = "0.6", features = ["cors"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+rust-embed = { version = "8.11.0", features = ["axum"] }
+mime_guess = "2.0.5"
+
+[dev-dependencies]
+tempfile = "3"

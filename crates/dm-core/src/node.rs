@@ -196,7 +196,7 @@ async fn install_python_node(meta: &NodeMeta, node_path: &Path) -> Result<String
             .args(["pip", "install", "--python", &format!("{}/bin/python", venv_path.display()), &package_spec])
             .status()
     } else {
-        Command::new(&format!("{}/bin/pip", venv_path.display()))
+        Command::new(format!("{}/bin/pip", venv_path.display()))
             .args(["install", &package_spec])
             .status()
     };

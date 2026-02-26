@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result};
 
@@ -36,7 +36,7 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
 
                             // 1. Remove the shorthand `path`
                             let node_map = node.as_mapping_mut().unwrap();
-                            node_map.remove(&serde_yaml::Value::String("path".to_string()));
+                            node_map.remove(serde_yaml::Value::String("path".to_string()));
 
                             // 2. Build the `custom` execution block based on build strategy
                             let custom_map = build_custom_block(&meta, &node_cache_dir)?;
@@ -63,7 +63,7 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
     result
 }
 
-fn build_custom_block(meta: &NodeMetaFile, node_dir: &PathBuf) -> Result<serde_yaml::Mapping> {
+fn build_custom_block(meta: &NodeMetaFile, node_dir: &Path) -> Result<serde_yaml::Mapping> {
     let mut custom = serde_yaml::Mapping::new();
     
     // According to dora-message 0.7.0 `CustomNode` and `NodeSource` schema:
@@ -107,7 +107,7 @@ fn build_custom_block(meta: &NodeMetaFile, node_dir: &PathBuf) -> Result<serde_y
     Ok(custom)
 }
 
-fn build_env_block(meta: &NodeMetaFile, node_dir: &PathBuf) -> serde_yaml::Mapping {
+fn build_env_block(meta: &NodeMetaFile, node_dir: &Path) -> serde_yaml::Mapping {
     let mut env = serde_yaml::Mapping::new();
     let build_type = meta.source.build.trim().to_lowercase();
 

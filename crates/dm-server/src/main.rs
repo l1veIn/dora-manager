@@ -1,12 +1,19 @@
 mod handlers;
+#[cfg(test)]
+mod tests;
 
 use std::sync::Arc;
 
 use axum::routing::{get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
+use rust_embed::Embed;
 
 use dm_core::events::EventStore;
+
+#[derive(Embed)]
+#[folder = "../../web/build"]
+struct WebAssets;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -52,7 +59,9 @@ async fn main() {
         .route("/api/events/export", get(handlers::export_events))
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
-        .with_state(state);
+        .with_state(state)
+        // ─── Static Frontend Assets ───
+        .fallback(axum::routing::get(handlers::serve_web));
 
     let addr = "127.0.0.1:3210";
     println!("🚀 dm-server listening on http://{}", addr);
