@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { ParaglideJS } from "@inlang/paraglide-sveltekit";
-	import { i18n } from "$lib/i18n";
+	import "$lib/i18n";
 	import { ModeWatcher } from "mode-watcher";
 	import "../app.css";
 
@@ -12,19 +11,15 @@
 	let { children } = $props();
 </script>
 
-<ParaglideJS {i18n}>
-	<ModeWatcher />
-	<Toaster />
+<ModeWatcher />
+<Toaster />
 
-	<Sidebar.Provider>
-		<AppSidebar />
-		<main
-			class="w-full h-screen overflow-hidden flex flex-col items-stretch"
-		>
-			<AppHeader />
-			<div class="flex-1 overflow-auto bg-background text-foreground">
-				{@render children()}
-			</div>
-		</main>
-	</Sidebar.Provider>
-</ParaglideJS>
+<Sidebar.Provider>
+	<AppSidebar />
+	<main class="w-full h-screen overflow-hidden flex flex-col items-stretch">
+		<AppHeader />
+		<div class="flex-1 overflow-auto bg-background text-foreground">
+			{@render children()}
+		</div>
+	</main>
+</Sidebar.Provider>

@@ -117,7 +117,7 @@
                     <ul class="space-y-3">
                         <li class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                {#if doctor.python_installed}
+                                {#if doctor.python?.found}
                                     <CheckCircle2
                                         class="text-green-500 size-4"
                                     />
@@ -129,13 +129,13 @@
                             </div>
                             <span
                                 class="text-xs text-muted-foreground font-mono bg-muted/50 px-2 py-1 rounded"
-                                >{doctor.python_path || "Not Found"}</span
+                                >{doctor.python?.path || "Not Found"}</span
                             >
                         </li>
                         <Separator />
                         <li class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                {#if doctor.uv_installed}
+                                {#if doctor.uv?.found}
                                     <CheckCircle2
                                         class="text-green-500 size-4"
                                     />
@@ -148,13 +148,13 @@
                             </div>
                             <span
                                 class="text-xs text-muted-foreground font-mono bg-muted/50 px-2 py-1 rounded"
-                                >{doctor.uv_path || "Not Found"}</span
+                                >{doctor.uv?.path || "Not Found"}</span
                             >
                         </li>
                         <Separator />
                         <li class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                {#if doctor.dm_home_exists}
+                                {#if doctor}
                                     <CheckCircle2
                                         class="text-green-500 size-4"
                                     />
@@ -213,20 +213,20 @@
 
                     <div class="space-y-4">
                         <h3 class="text-sm font-medium">Installed Versions</h3>
-                        {#if versions?.installed_versions?.length > 0}
+                        {#if versions?.installed?.length > 0}
                             <div class="rounded-md border">
-                                {#each versions.installed_versions as v, i}
+                                {#each versions.installed as v, i}
                                     <div
                                         class="flex items-center justify-between p-4 {i !==
-                                        versions.installed_versions.length - 1
+                                        versions.installed.length - 1
                                             ? 'border-b'
                                             : ''}"
                                     >
                                         <div class="flex items-center gap-3">
                                             <span class="font-mono font-medium"
-                                                >{v}</span
+                                                >{v.version}</span
                                             >
-                                            {#if v === versions.active_version}
+                                            {#if v.active}
                                                 <Badge
                                                     variant="default"
                                                     class="bg-green-500 hover:bg-green-600"
@@ -235,16 +235,17 @@
                                             {/if}
                                         </div>
                                         <div class="flex items-center gap-2">
-                                            {#if v !== versions.active_version}
+                                            {#if !v.active}
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    disabled={operations[v] ===
-                                                        "using"}
+                                                    disabled={operations[
+                                                        v.version
+                                                    ] === "using"}
                                                     onclick={() =>
-                                                        useVersion(v)}
+                                                        useVersion(v.version)}
                                                 >
-                                                    {#if operations[v] === "using"}
+                                                    {#if operations[v.version] === "using"}
                                                         <RefreshCw
                                                             class="size-4 animate-spin mr-2"
                                                         /> Switching
@@ -259,18 +260,17 @@
                                                 variant="ghost"
                                                 size="sm"
                                                 class="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                                disabled={operations[v] ===
-                                                    "uninstalling" ||
-                                                    v ===
-                                                        versions.active_version}
+                                                disabled={operations[
+                                                    v.version
+                                                ] === "uninstalling" ||
+                                                    v.active}
                                                 onclick={() =>
-                                                    uninstallVersion(v)}
-                                                title={v ===
-                                                versions.active_version
+                                                    uninstallVersion(v.version)}
+                                                title={v.active
                                                     ? "Cannot uninstall active version"
                                                     : ""}
                                             >
-                                                {#if operations[v] === "uninstalling"}
+                                                {#if operations[v.version] === "uninstalling"}
                                                     <RefreshCw
                                                         class="size-4 animate-spin mr-2"
                                                     />

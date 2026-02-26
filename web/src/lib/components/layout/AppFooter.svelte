@@ -3,13 +3,7 @@
     import { Sun, Moon, Languages } from "lucide-svelte";
     import { toggleMode, mode } from "mode-watcher";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
-    import {
-        setLanguageTag,
-        languageTag,
-        availableLanguageTags,
-    } from "$lib/paraglide/runtime";
-    import { i18n } from "$lib/i18n";
-    import { page } from "$app/state";
+    import { t, locale } from "svelte-i18n";
 </script>
 
 <Sidebar.Menu>
@@ -28,21 +22,21 @@
         <DropdownMenu.Root>
             <DropdownMenu.Trigger>
                 {#snippet child({ props })}
-                    <Sidebar.MenuButton {...props} title="Language">
+                    <Sidebar.MenuButton {...props} title={$t("language")}>
                         <Languages class="size-4" />
-                        <span>Language ({languageTag()})</span>
+                        <span>{$t("language")} ({$locale?.toUpperCase()})</span>
                     </Sidebar.MenuButton>
                 {/snippet}
             </DropdownMenu.Trigger>
             <DropdownMenu.Content side="top" align="start">
-                {#each availableLanguageTags as tag}
+                {#each ["en", "zh-CN"] as tag}
                     <DropdownMenu.Item>
-                        <a
-                            href={i18n.resolveRoute(page.url.pathname, tag)}
-                            class="w-full h-full flex items-center"
+                        <button
+                            onclick={() => ($locale = tag)}
+                            class="w-full h-full text-left flex items-center"
                         >
-                            {tag === "en" ? "English" : "中文"}
-                        </a>
+                            {tag === "en" ? $t("english") : $t("chinese")}
+                        </button>
                     </DropdownMenu.Item>
                 {/each}
             </DropdownMenu.Content>

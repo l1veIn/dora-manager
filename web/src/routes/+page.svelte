@@ -134,7 +134,9 @@
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium">Active:</span>
                                 <Badge variant="default" class="font-mono"
-                                    >{versions.active_version || "None"}</Badge
+                                    >{versions.installed?.find(
+                                        (v: any) => v.active,
+                                    )?.version || "None"}</Badge
                                 >
                             </div>
                             <div class="flex items-center justify-between">
@@ -142,23 +144,24 @@
                                     >Installed:</span
                                 >
                                 <span class="text-sm text-muted-foreground"
-                                    >{versions.installed_versions?.length ||
-                                        0}</span
+                                    >{versions.installed?.length || 0}</span
                                 >
                             </div>
-                            {#if versions.installed_versions && versions.installed_versions.length > 0}
+                            {#if versions.installed && versions.installed.length > 0}
                                 <div class="pt-2 border-t">
                                     <div
                                         class="text-xs text-muted-foreground mb-2"
                                     >
-                                        Available:
+                                        Installed Versions:
                                     </div>
                                     <div class="flex flex-wrap gap-1">
-                                        {#each versions.installed_versions as v}
+                                        {#each versions.installed as v}
                                             <Badge
-                                                variant="secondary"
+                                                variant={v.active
+                                                    ? "default"
+                                                    : "secondary"}
                                                 class="font-mono text-[10px]"
-                                                >{v}</Badge
+                                                >{v.version}</Badge
                                             >
                                         {/each}
                                     </div>
@@ -208,7 +211,7 @@
                             class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm"
                         >
                             <li class="flex items-center gap-2">
-                                {#if doctor.python_installed}
+                                {#if doctor.python?.found}
                                     <CheckCircle2
                                         class="text-green-500 size-4"
                                     />
@@ -217,11 +220,11 @@
                                 {/if}
                                 <span class="font-medium">Python 3:</span>
                                 <span class="text-muted-foreground ml-auto"
-                                    >{doctor.python_path || "Missing"}</span
+                                    >{doctor.python?.path || "Missing"}</span
                                 >
                             </li>
                             <li class="flex items-center gap-2">
-                                {#if doctor.uv_installed}
+                                {#if doctor.uv?.found}
                                     <CheckCircle2
                                         class="text-green-500 size-4"
                                     />
@@ -230,11 +233,11 @@
                                 {/if}
                                 <span class="font-medium">uv:</span>
                                 <span class="text-muted-foreground ml-auto"
-                                    >{doctor.uv_path || "Missing"}</span
+                                    >{doctor.uv?.path || "Missing"}</span
                                 >
                             </li>
                             <li class="flex items-center gap-2">
-                                {#if doctor.active_dora_binary_exists}
+                                {#if doctor.active_binary_ok}
                                     <CheckCircle2
                                         class="text-green-500 size-4"
                                     />
@@ -246,39 +249,24 @@
                                 >
                                 <span
                                     class="text-muted-foreground ml-auto font-mono text-xs"
-                                    >{doctor.active_dora_binary_path ||
-                                        "None"}</span
+                                    >{doctor.active_version || "None"}</span
                                 >
                             </li>
                             <li class="flex items-center gap-2">
-                                {#if doctor.dm_home_exists}
+                                {#if status?.dm_home}
                                     <CheckCircle2
                                         class="text-green-500 size-4"
                                     />
                                 {:else}
                                     <XCircle class="text-red-500 size-4" />
                                 {/if}
-                                <span class="font-medium"
-                                    >DM Home (`~/.dm`):</span
-                                >
-                                <span class="text-muted-foreground ml-auto"
-                                    >Exists</span
+                                <span class="font-medium">DM Home:</span>
+                                <span
+                                    class="text-muted-foreground ml-auto font-mono text-xs"
+                                    >{status?.dm_home || "Missing"}</span
                                 >
                             </li>
                         </ul>
-
-                        {#if doctor.errors && doctor.errors.length > 0}
-                            <div
-                                class="mt-4 p-3 bg-red-500/10 text-red-600 rounded-md border border-red-500/20 text-xs"
-                            >
-                                <strong>Errors detected:</strong>
-                                <ul class="list-disc pl-4 mt-1">
-                                    {#each doctor.errors as err}
-                                        <li>{err}</li>
-                                    {/each}
-                                </ul>
-                            </div>
-                        {/if}
                     {:else}
                         <p class="text-sm text-muted-foreground">
                             Unable to fetch health status.
