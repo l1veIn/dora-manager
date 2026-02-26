@@ -302,3 +302,42 @@ pub async fn stop_dataflow(State(state): State<AppState>) -> impl IntoResponse {
         Err(e) => err(e).into_response(),
     }
 }
+
+// ─── Events / Observability ───
+
+/// GET /api/events?source=core&case_id=...&limit=100
+pub async fn query_events(
+    State(state): State<AppState>,
+    axum::extract::Query(filter): axum::extract::Query<dm_core::events::EventFilter>,
+) -> impl IntoResponse {
+    match state.events.query(&filter) {
+        Ok(events) => Json(events).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}
+
+/// POST /api/events — frontend analytics / generic event ingest
+pub async fn ingest_event(
+    State(state): State<AppState>,
+    Json(event): Json<dm_core::events::Event>,
+) -> impl IntoResponse {
+    match state.events.emit(&event) {
+        Ok(id) => Json(serde_json::json!({ "id": id })).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}
+
+/// GET /api/events/export?source=dataflow&format=xes
+pub async fn export_events(
+    State(state): State<AppState>,
+    axum::extract::Query(filter): axum::extract::Query<dm_core::events::EventFilter>,
+) -> impl IntoResponse {
+    match state.events.export_xes(&filter) {
+        Ok(xes) => (
+            [(axum::http::header::CONTENT_TYPE, "application/xml")],
+            xes,
+        )
+            .into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}

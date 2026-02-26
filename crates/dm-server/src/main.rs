@@ -6,17 +6,23 @@ use axum::routing::{get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 
+use dm_core::events::EventStore;
+
 #[derive(Clone)]
 pub struct AppState {
     pub home: Arc<std::path::PathBuf>,
+    pub events: Arc<EventStore>,
 }
 
 #[tokio::main]
 async fn main() {
     let home = dm_core::config::resolve_home(None).expect("Failed to resolve dm home");
 
+    let events = EventStore::open(&home).expect("Failed to open event store");
+
     let state = AppState {
         home: Arc::new(home),
+        events: Arc::new(events),
     };
 
     let app = Router::new()
@@ -40,6 +46,10 @@ async fn main() {
         // ─── Dataflow Execution ───
         .route("/api/dataflow/run", post(handlers::run_dataflow))
         .route("/api/dataflow/stop", post(handlers::stop_dataflow))
+        // ─── Events / Observability ───
+        .route("/api/events", get(handlers::query_events))
+        .route("/api/events", post(handlers::ingest_event))
+        .route("/api/events/export", get(handlers::export_events))
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
         .with_state(state);
