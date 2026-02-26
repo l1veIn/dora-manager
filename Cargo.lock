@@ -598,7 +598,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
- "axum",
  "clap",
  "colored",
  "dm-core",
@@ -609,7 +608,6 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "tokio",
- "tower-http",
 ]
 
 [[package]]
@@ -617,7 +615,6 @@ name = "dm-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum",
  "dirs 6.0.0",
  "futures-util",
  "reqwest",
@@ -628,7 +625,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
- "tower-http",
  "which 7.0.3",
  "zip",
 ]
@@ -642,6 +638,7 @@ dependencies = [
  "dm-core",
  "serde",
  "serde_json",
+ "serde_yaml",
  "tokio",
  "tower-http",
 ]

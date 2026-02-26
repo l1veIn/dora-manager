@@ -2,7 +2,7 @@ mod handlers;
 
 use std::sync::Arc;
 
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 
@@ -20,14 +20,27 @@ async fn main() {
     };
 
     let app = Router::new()
+        // ─── Environment Management ───
         .route("/api/doctor", get(handlers::doctor))
         .route("/api/versions", get(handlers::versions))
         .route("/api/status", get(handlers::status))
+        .route("/api/config", get(handlers::get_config))
+        .route("/api/config", put(handlers::update_config))
         .route("/api/install", post(handlers::install))
         .route("/api/uninstall/{version}", delete(handlers::uninstall))
         .route("/api/use", post(handlers::use_version))
         .route("/api/up", post(handlers::up))
         .route("/api/down", post(handlers::down))
+        // ─── Node Management ───
+        .route("/api/registry", get(handlers::get_registry))
+        .route("/api/nodes", get(handlers::list_nodes))
+        .route("/api/nodes/install", post(handlers::install_node))
+        .route("/api/nodes/{id}", get(handlers::node_status))
+        .route("/api/nodes/{id}", delete(handlers::uninstall_node))
+        // ─── Dataflow Execution ───
+        .route("/api/dataflow/run", post(handlers::run_dataflow))
+        .route("/api/dataflow/stop", post(handlers::stop_dataflow))
+        // ─── Middleware ───
         .layer(CorsLayer::permissive())
         .with_state(state);
 

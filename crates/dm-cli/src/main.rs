@@ -1,6 +1,6 @@
 mod display;
 
-use std::sync::Arc;
+
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -66,12 +66,7 @@ enum Commands {
     /// Live overview of runtime & dataflows
     Status,
 
-    /// Start HTTP API server
-    Serve {
-        /// Port to listen on
-        #[arg(short, long, default_value = "3000")]
-        port: u16,
-    },
+
 
     /// Manage installed dora nodes
     Node {
@@ -277,17 +272,7 @@ async fn main() -> Result<()> {
             display::print_status_report(&report);
         }
 
-        Commands::Serve { port } => {
-            let addr = format!("127.0.0.1:{port}");
-            println!("🚀 dm HTTP API server listening on http://{}", addr);
 
-            let state = dm_core::api::AppState::new(Arc::new(home.clone()));
-            let app = dm_core::api::create_router(state)
-                .layer(tower_http::cors::CorsLayer::permissive());
-
-            let listener = tokio::net::TcpListener::bind(&addr).await?;
-            axum::serve(listener, app).await?;
-        }
 
         Commands::Node { command } => match command {
             NodeCommands::Install { id } => {
