@@ -1,6 +1,7 @@
 use tempfile::TempDir;
 
 use crate::config;
+use crate::events::{EventFilter, EventStore};
 
 /// Helper: create a fake dm home with a version installed
 fn setup_fake_home(versions: &[&str], active: Option<&str>) -> TempDir {
@@ -31,6 +32,11 @@ fn setup_fake_home(versions: &[&str], active: Option<&str>) -> TempDir {
     }
 
     tmp
+}
+
+fn read_all_events(home: &std::path::Path) -> Vec<crate::events::Event> {
+    let store = EventStore::open(home).unwrap();
+    store.query(&EventFilter::default()).unwrap()
 }
 
 // ─── doctor ───
@@ -156,6 +162,54 @@ async fn uninstall_inactive_version_succeeds() {
     // Active version should still be there
     let ver_dir_active = config::versions_dir(&home).join("0.4.1");
     assert!(ver_dir_active.exists());
+}
+
+#[tokio::test]
+async fn uninstall_emits_start_and_success_events() {
+    let tmp = setup_fake_home(&["0.3.9", "0.4.1"], Some("0.4.1"));
+    let home = tmp.path().to_path_buf();
+
+    crate::uninstall(&home, "0.3.9").await.unwrap();
+
+    let events = read_all_events(&home);
+    assert_eq!(events.len(), 2);
+    assert!(events.iter().all(|e| e.activity == "version.uninstall"));
+    assert!(events.iter().all(|e| e.source == "core"));
+    assert_eq!(events[0].case_id, events[1].case_id);
+
+    let start = events.iter().find(|e| e.message.as_deref() == Some("START")).unwrap();
+    let end = events.iter().find(|e| e.message.as_deref() == Some("OK")).unwrap();
+    assert_eq!(end.level, "info");
+
+    let attrs_start: serde_json::Value =
+        serde_json::from_str(start.attributes.as_deref().unwrap()).unwrap();
+    let attrs_end: serde_json::Value =
+        serde_json::from_str(end.attributes.as_deref().unwrap()).unwrap();
+    assert_eq!(attrs_start["version"], "0.3.9");
+    assert_eq!(attrs_end["version"], "0.3.9");
+}
+
+#[tokio::test]
+async fn uninstall_emits_start_and_error_events_on_failure() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().to_path_buf();
+
+    let result = crate::uninstall(&home, "9.9.9").await;
+    assert!(result.is_err());
+
+    let events = read_all_events(&home);
+    assert_eq!(events.len(), 2);
+    assert!(events.iter().all(|e| e.activity == "version.uninstall"));
+    assert_eq!(events[0].case_id, events[1].case_id);
+
+    let start = events.iter().find(|e| e.message.as_deref() == Some("START")).unwrap();
+    let end = events.iter().find(|e| e.level == "error").unwrap();
+    assert_eq!(start.message.as_deref(), Some("START"));
+    assert!(end
+        .message
+        .as_deref()
+        .unwrap_or_default()
+        .contains("not installed"));
 }
 
 // ─── use_version ───

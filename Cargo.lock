@@ -627,6 +627,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "uuid",
  "which 7.0.3",
  "zip",
 ]

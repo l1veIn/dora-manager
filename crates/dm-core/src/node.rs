@@ -8,6 +8,7 @@ use std::process::Command;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::events::{EventSource, OperationEvent};
 use crate::registry::{self, NodeMeta};
 
 /// Installed node entry with local metadata
@@ -78,54 +79,63 @@ fn current_timestamp() -> String {
 /// 3. Installs the node (via pip, cargo, etc. based on build type)
 /// 4. Saves metadata
 pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
-    // Fetch registry and find the node
-    let registry = registry::fetch_registry()
-        .await
-        .context("Failed to fetch registry")?;
+    let op = OperationEvent::new(home, EventSource::Core, "node.install").attr("node_id", id);
+    op.emit_start();
 
-    let meta = registry::find_node(&registry, id)
-        .ok_or_else(|| anyhow::anyhow!("Node '{}' not found in registry", id))?;
+    let result = async {
+        // Fetch registry and find the node
+        let registry = registry::fetch_registry()
+            .await
+            .context("Failed to fetch registry")?;
 
-    let node_path = node_dir(home, id);
-    if node_path.exists() {
-        bail!("Node '{}' is already installed at {}", id, node_path.display());
+        let meta = registry::find_node(&registry, id)
+            .ok_or_else(|| anyhow::anyhow!("Node '{}' not found in registry", id))?;
+
+        let node_path = node_dir(home, id);
+        if node_path.exists() {
+            bail!("Node '{}' is already installed at {}", id, node_path.display());
+        }
+
+        // Create node directory
+        std::fs::create_dir_all(&node_path)
+            .with_context(|| format!("Failed to create directory: {}", node_path.display()))?;
+
+        // Install based on build type
+        let version = install_node_impl(meta, &node_path)
+            .await
+            .inspect_err(|_| {
+                // Clean up on failure
+                let _ = std::fs::remove_dir_all(&node_path);
+            })?;
+
+        // Save metadata
+        let meta_file = NodeMetaFile {
+            id: id.to_string(),
+            version: version.clone(),
+            installed_at: current_timestamp(),
+            source: NodeSource {
+                build: meta.build.clone(),
+                github: None, // Could be extracted from registry in future
+            },
+        };
+
+        let meta_path = meta_path(home, id);
+        let meta_json = serde_json::to_string_pretty(&meta_file)
+            .context("Failed to serialize metadata")?;
+        std::fs::write(&meta_path, meta_json)
+            .with_context(|| format!("Failed to write metadata to {}", meta_path.display()))?;
+
+        Ok(NodeEntry {
+            id: id.to_string(),
+            version,
+            path: node_path,
+            installed_at: meta_file.installed_at,
+        })
     }
+    .await;
 
-    // Create node directory
-    std::fs::create_dir_all(&node_path)
-        .with_context(|| format!("Failed to create directory: {}", node_path.display()))?;
-
-    // Install based on build type
-    let version = install_node_impl(meta, &node_path)
-        .await
-        .inspect_err(|_| {
-            // Clean up on failure
-            let _ = std::fs::remove_dir_all(&node_path);
-        })?;
-
-    // Save metadata
-    let meta_file = NodeMetaFile {
-        id: id.to_string(),
-        version: version.clone(),
-        installed_at: current_timestamp(),
-        source: NodeSource {
-            build: meta.build.clone(),
-            github: None, // Could be extracted from registry in future
-        },
-    };
-
-    let meta_path = meta_path(home, id);
-    let meta_json = serde_json::to_string_pretty(&meta_file)
-        .context("Failed to serialize metadata")?;
-    std::fs::write(&meta_path, meta_json)
-        .with_context(|| format!("Failed to write metadata to {}", meta_path.display()))?;
-
-    Ok(NodeEntry {
-        id: id.to_string(),
-        version,
-        path: node_path,
-        installed_at: meta_file.installed_at,
-    })
+    op.emit_result(&result);
+    result
 }
 
 /// Internal implementation for node installation
@@ -263,101 +273,125 @@ fn get_crate_version(_node_path: &Path, _package: &str) -> Result<String> {
 
 /// List all installed nodes
 pub fn list_nodes(home: &Path) -> Result<Vec<NodeEntry>> {
-    let nodes_path = nodes_dir(home);
-    if !nodes_path.exists() {
-        return Ok(Vec::new());
-    }
+    let op = OperationEvent::new(home, EventSource::Core, "node.list");
+    op.emit_start();
 
-    let mut nodes = Vec::new();
-    
-    for entry in std::fs::read_dir(&nodes_path)
-        .with_context(|| format!("Failed to read directory: {}", nodes_path.display()))?
-    {
-        let entry = entry?;
-        let path = entry.path();
-        
-        if !path.is_dir() {
-            continue;
+    let result = (|| {
+        let nodes_path = nodes_dir(home);
+        if !nodes_path.exists() {
+            return Ok(Vec::new());
         }
 
-        let id = match entry.file_name().to_str() {
-            Some(name) => name.to_string(),
-            None => continue,
-        };
+        let mut nodes = Vec::new();
 
-        // Try to read metadata
-        let meta_file = meta_path(home, &id);
-        if let Ok(content) = std::fs::read_to_string(&meta_file) {
-            if let Ok(meta) = serde_json::from_str::<NodeMetaFile>(&content) {
-                nodes.push(NodeEntry {
-                    id: meta.id,
-                    version: meta.version,
-                    path,
-                    installed_at: meta.installed_at,
-                });
+        for entry in std::fs::read_dir(&nodes_path)
+            .with_context(|| format!("Failed to read directory: {}", nodes_path.display()))?
+        {
+            let entry = entry?;
+            let path = entry.path();
+
+            if !path.is_dir() {
                 continue;
             }
+
+            let id = match entry.file_name().to_str() {
+                Some(name) => name.to_string(),
+                None => continue,
+            };
+
+            // Try to read metadata
+            let meta_file = meta_path(home, &id);
+            if let Ok(content) = std::fs::read_to_string(&meta_file) {
+                if let Ok(meta) = serde_json::from_str::<NodeMetaFile>(&content) {
+                    nodes.push(NodeEntry {
+                        id: meta.id,
+                        version: meta.version,
+                        path,
+                        installed_at: meta.installed_at,
+                    });
+                    continue;
+                }
+            }
+
+            // Fallback: create entry from directory info
+            nodes.push(NodeEntry {
+                id,
+                version: "unknown".to_string(),
+                path,
+                installed_at: "unknown".to_string(),
+            });
         }
 
-        // Fallback: create entry from directory info
-        nodes.push(NodeEntry {
-            id,
-            version: "unknown".to_string(),
-            path,
-            installed_at: "unknown".to_string(),
-        });
-    }
+        // Sort by id
+        nodes.sort_by(|a, b| a.id.cmp(&b.id));
 
-    // Sort by id
-    nodes.sort_by(|a, b| a.id.cmp(&b.id));
-    
-    Ok(nodes)
+        Ok(nodes)
+    })();
+
+    op.emit_result(&result);
+    result
 }
 
 /// Uninstall a node
 pub fn uninstall_node(home: &Path, id: &str) -> Result<()> {
-    let node_path = node_dir(home, id);
-    
-    if !node_path.exists() {
-        bail!("Node '{}' is not installed", id);
-    }
+    let op = OperationEvent::new(home, EventSource::Core, "node.uninstall").attr("node_id", id);
+    op.emit_start();
 
-    std::fs::remove_dir_all(&node_path)
-        .with_context(|| format!("Failed to remove node directory: {}", node_path.display()))?;
+    let result = (|| {
+        let node_path = node_dir(home, id);
 
-    Ok(())
+        if !node_path.exists() {
+            bail!("Node '{}' is not installed", id);
+        }
+
+        std::fs::remove_dir_all(&node_path)
+            .with_context(|| format!("Failed to remove node directory: {}", node_path.display()))?;
+
+        Ok(())
+    })();
+
+    op.emit_result(&result);
+    result
 }
 
 /// Get the status of a specific node
 pub fn node_status(home: &Path, id: &str) -> Result<Option<NodeEntry>> {
-    let node_path = node_dir(home, id);
-    
-    if !node_path.exists() {
-        return Ok(None);
-    }
+    let op = OperationEvent::new(home, EventSource::Core, "node.status").attr("node_id", id);
+    op.emit_start();
 
-    let meta_file = meta_path(home, id);
-    match std::fs::read_to_string(&meta_file) {
-        Ok(content) => {
-            let meta: NodeMetaFile = serde_json::from_str(&content)
-                .context("Failed to parse node metadata")?;
-            Ok(Some(NodeEntry {
-                id: meta.id,
-                version: meta.version,
-                path: node_path,
-                installed_at: meta.installed_at,
-            }))
+    let result = (|| {
+        let node_path = node_dir(home, id);
+
+        if !node_path.exists() {
+            return Ok(None);
         }
-        Err(_) => {
-            // Metadata file missing, return basic info
-            Ok(Some(NodeEntry {
-                id: id.to_string(),
-                version: "unknown".to_string(),
-                path: node_path,
-                installed_at: "unknown".to_string(),
-            }))
+
+        let meta_file = meta_path(home, id);
+        match std::fs::read_to_string(&meta_file) {
+            Ok(content) => {
+                let meta: NodeMetaFile = serde_json::from_str(&content)
+                    .context("Failed to parse node metadata")?;
+                Ok(Some(NodeEntry {
+                    id: meta.id,
+                    version: meta.version,
+                    path: node_path,
+                    installed_at: meta.installed_at,
+                }))
+            }
+            Err(_) => {
+                // Metadata file missing, return basic info
+                Ok(Some(NodeEntry {
+                    id: id.to_string(),
+                    version: "unknown".to_string(),
+                    path: node_path,
+                    installed_at: "unknown".to_string(),
+                }))
+            }
         }
-    }
+    })();
+
+    op.emit_result(&result);
+    result
 }
 
 #[cfg(test)]
