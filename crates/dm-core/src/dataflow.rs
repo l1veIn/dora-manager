@@ -2,9 +2,119 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::events::{EventSource, OperationEvent};
 use crate::node::{NodeMetaFile, node_dir, meta_path};
+
+// ─── Dataflow Management ───
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DataflowMeta {
+    pub name: String,
+    pub filename: String,
+    pub modified_at: String,
+    pub size: u64,
+}
+
+/// List all saved dataflows in `~/.dm/dataflows/`
+pub fn list(home: &Path) -> Result<Vec<DataflowMeta>> {
+    let op = OperationEvent::new(home, EventSource::Core, "dataflow.list");
+    op.emit_start();
+    
+    let result = (|| -> Result<Vec<DataflowMeta>> {
+        let dir = home.join("dataflows");
+        if !dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut dataflows = Vec::new();
+        for entry in fs::read_dir(&dir).context("Failed to read dataflows directory")? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    if ext == "yml" || ext == "yaml" {
+                        let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        let name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                        let meta = entry.metadata()?;
+                        let size = meta.len();
+                        let modified_at = match meta.modified() {
+                            Ok(t) => {
+                                let dt: chrono::DateTime<chrono::Utc> = t.into();
+                                dt.to_rfc3339()
+                            }
+                            Err(_) => "".to_string(),
+                        };
+                        dataflows.push(DataflowMeta {
+                            name,
+                            filename,
+                            modified_at,
+                            size,
+                        });
+                    }
+                }
+            }
+        }
+        dataflows.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
+        Ok(dataflows)
+    })();
+    
+    op.emit_result(&result);
+    result
+}
+
+/// Get a single dataflow's YAML content
+pub fn get(home: &Path, name: &str) -> Result<String> {
+    let op = OperationEvent::new(home, EventSource::Core, "dataflow.get")
+        .attr("name", name);
+    op.emit_start();
+    
+    let result = (|| {
+        let path = home.join("dataflows").join(format!("{}.yml", name));
+        fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read dataflow '{}'", name))
+    })();
+    
+    op.emit_result(&result);
+    result
+}
+
+/// Save (create or update) a dataflow's YAML content
+pub fn save(home: &Path, name: &str, yaml: &str) -> Result<()> {
+    let op = OperationEvent::new(home, EventSource::Core, "dataflow.save")
+        .attr("name", name);
+    op.emit_start();
+    
+    let result = (|| {
+        let dir = home.join("dataflows");
+        fs::create_dir_all(&dir)?;
+        let path = dir.join(format!("{}.yml", name));
+        fs::write(&path, yaml)
+            .with_context(|| format!("Failed to save dataflow '{}'", name))
+    })();
+    
+    op.emit_result(&result);
+    result
+}
+
+/// Delete a dataflow file
+pub fn delete(home: &Path, name: &str) -> Result<()> {
+    let op = OperationEvent::new(home, EventSource::Core, "dataflow.delete")
+        .attr("name", name);
+    op.emit_start();
+    
+    let result = (|| {
+        let path = home.join("dataflows").join(format!("{}.yml", name));
+        fs::remove_file(&path)
+            .with_context(|| format!("Failed to delete dataflow '{}'", name))
+    })();
+    
+    op.emit_result(&result);
+    result
+}
+
+// ─── Dataflow Execution ───
 
 /// Transpile a dataflow yaml file, replacing local references to installed packages
 /// with their actual sandbox execution paths.

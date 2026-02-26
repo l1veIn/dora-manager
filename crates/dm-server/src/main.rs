@@ -50,6 +50,11 @@ async fn main() {
         .route("/api/nodes/install", post(handlers::install_node))
         .route("/api/nodes/{id}", get(handlers::node_status))
         .route("/api/nodes/uninstall", post(handlers::uninstall_node))
+        // ─── Dataflow Management ───
+        .route("/api/dataflows", get(handlers::list_dataflows))
+        .route("/api/dataflows/{name}", get(handlers::get_dataflow))
+        .route("/api/dataflows/{name}", post(handlers::save_dataflow))
+        .route("/api/dataflows/{name}/delete", post(handlers::delete_dataflow))
         // ─── Dataflow Execution ───
         .route("/api/dataflow/run", post(handlers::run_dataflow))
         .route("/api/dataflow/stop", post(handlers::stop_dataflow))

@@ -127,6 +127,7 @@ fn transpile_graph_errors_on_invalid_yaml() {
     assert!(err.contains("Failed to parse yaml"));
 }
 
+
 #[test]
 fn transpile_graph_errors_on_missing_file() {
     let tmp = tempdir().unwrap();
@@ -135,4 +136,39 @@ fn transpile_graph_errors_on_missing_file() {
 
     let err = transpile_graph(home, &yaml_path).unwrap_err().to_string();
     assert!(err.contains("Failed to read graph yaml"));
+}
+
+#[test]
+fn test_dataflow_crud() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+
+    // 1. Initial list should be empty
+    let list1 = crate::dataflow::list(home).unwrap();
+    assert!(list1.is_empty());
+
+    // 2. Save a new dataflow
+    let yaml_content = "nodes:\n  - id: test\n";
+    crate::dataflow::save(home, "my_flow", yaml_content).unwrap();
+
+    // 3. List should now contain 1 item
+    let list2 = crate::dataflow::list(home).unwrap();
+    assert_eq!(list2.len(), 1);
+    assert_eq!(list2[0].name, "my_flow");
+    assert_eq!(list2[0].filename, "my_flow.yml");
+
+    // 4. Get the content
+    let stored_yaml = crate::dataflow::get(home, "my_flow").unwrap();
+    assert_eq!(stored_yaml, yaml_content);
+
+    // 5. Delete it
+    crate::dataflow::delete(home, "my_flow").unwrap();
+
+    // 6. List should be empty again
+    let list3 = crate::dataflow::list(home).unwrap();
+    assert!(list3.is_empty());
+
+    // 7. Get should fail
+    let err = crate::dataflow::get(home, "my_flow").unwrap_err().to_string();
+    assert!(err.contains("Failed to read dataflow"));
 }

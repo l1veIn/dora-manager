@@ -207,6 +207,63 @@ pub async fn uninstall_node(
     }
 }
 
+// ─── Dataflow Management ───
+
+/// GET /api/dataflows
+pub async fn list_dataflows(State(state): State<AppState>) -> impl IntoResponse {
+    match dm_core::dataflow::list(&state.home) {
+        Ok(result) => Json(result).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}
+
+/// GET /api/dataflows/:name
+pub async fn get_dataflow(State(state): State<AppState>, Path(name): Path<String>) -> impl IntoResponse {
+    match dm_core::dataflow::get(&state.home, &name) {
+        Ok(content) => Json(serde_json::json!({ "yaml": content })).into_response(),
+        Err(e) => {
+            if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
+                if io_err.kind() == std::io::ErrorKind::NotFound {
+                    return (StatusCode::NOT_FOUND, format!("Dataflow '{}' not found", name)).into_response();
+                }
+            }
+            err(e).into_response()
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SaveDataflowRequest {
+    pub yaml: String,
+}
+
+/// POST /api/dataflows/:name
+pub async fn save_dataflow(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(req): Json<SaveDataflowRequest>,
+) -> impl IntoResponse {
+    match dm_core::dataflow::save(&state.home, &name, &req.yaml) {
+        Ok(()) => Json(serde_json::json!({ "message": "Saved successfully" })).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}
+
+/// POST /api/dataflows/:name/delete
+pub async fn delete_dataflow(State(state): State<AppState>, Path(name): Path<String>) -> impl IntoResponse {
+    match dm_core::dataflow::delete(&state.home, &name) {
+        Ok(()) => Json(serde_json::json!({ "message": "Deleted successfully" })).into_response(),
+        Err(e) => {
+            if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
+                if io_err.kind() == std::io::ErrorKind::NotFound {
+                    return (StatusCode::NOT_FOUND, format!("Dataflow '{}' not found", name)).into_response();
+                }
+            }
+            err(e).into_response()
+        }
+    }
+}
+
 // ─── Dataflow Execution ───
 
 #[derive(Deserialize)]

@@ -3,7 +3,7 @@
     import {
         LayoutDashboard,
         PackageSearch,
-        Code2,
+        Waypoints,
         ActivitySquare,
         Settings,
     } from "lucide-svelte";
@@ -13,7 +13,7 @@
     const navItems = [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Nodes", url: "/nodes", icon: PackageSearch },
-        { title: "Editor", url: "/editor", icon: Code2 },
+        { title: "Dataflows", url: "/dataflows", icon: Waypoints },
         { title: "Events", url: "/events", icon: ActivitySquare },
         { title: "Settings", url: "/settings", icon: Settings },
     ];
