@@ -88,13 +88,18 @@ pub async fn install(
     }
 }
 
-/// DELETE /api/uninstall/:version
+#[derive(Deserialize)]
+pub struct UninstallRequest {
+    pub version: String,
+}
+
+/// POST /api/uninstall
 pub async fn uninstall(
     State(state): State<AppState>,
-    Path(version): Path<String>,
+    Json(req): Json<UninstallRequest>,
 ) -> impl IntoResponse {
-    match dm_core::uninstall(&state.home, &version).await {
-        Ok(()) => Json(serde_json::json!({ "message": format!("Uninstalled {}", version) }))
+    match dm_core::uninstall(&state.home, &req.version).await {
+        Ok(()) => Json(serde_json::json!({ "message": format!("Uninstalled {}", req.version) }))
             .into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
@@ -182,14 +187,19 @@ pub async fn install_node(
     }
 }
 
-/// DELETE /api/nodes/:id
+#[derive(Deserialize)]
+pub struct UninstallNodeRequest {
+    pub id: String,
+}
+
+/// POST /api/nodes/uninstall
 pub async fn uninstall_node(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Json(req): Json<UninstallNodeRequest>,
 ) -> impl IntoResponse {
-    match dm_core::node::uninstall_node(&state.home, &id) {
+    match dm_core::node::uninstall_node(&state.home, &req.id) {
         Ok(()) => {
-            Json(serde_json::json!({ "message": format!("Uninstalled node '{}'", id) }))
+            Json(serde_json::json!({ "message": format!("Uninstalled node '{}'", req.id) }))
                 .into_response()
         }
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
