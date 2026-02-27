@@ -14,8 +14,7 @@ pub fn print_env_item(item: &EnvItem) {
         let ver = item.version.as_deref().unwrap_or("");
         let path = item.path.as_deref().unwrap_or("");
         println!(
-            "  {}  {:<14} {} ({})",
-            "✅",
+            "  ✅  {:<14} {} ({})",
             item.name.bold(),
             ver,
             path.dimmed()
@@ -23,8 +22,7 @@ pub fn print_env_item(item: &EnvItem) {
     } else {
         let suggestion = item.suggestion.as_deref().unwrap_or("");
         println!(
-            "  {}  {:<14} {}",
-            "❌",
+            "  ❌  {:<14} {}",
             item.name.bold(),
             suggestion.yellow()
         );
@@ -43,15 +41,14 @@ pub fn print_doctor_report(report: &DoctorReport) {
 
     if report.installed_versions.is_empty() {
         println!(
-            "  {}  {:<14} {}",
-            "❌",
+            "  ❌  {:<14} {}",
             "dora".bold(),
             "No versions installed. Run `dm install`.".yellow()
         );
     } else {
         for v in &report.installed_versions {
             let marker = if v.active { " ← active" } else { "" };
-            println!("  {}  {}{}", "✅", v.version, marker.green());
+            println!("  ✅  {}{}", v.version, marker.green());
         }
     }
 
