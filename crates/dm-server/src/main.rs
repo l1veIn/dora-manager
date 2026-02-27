@@ -56,12 +56,13 @@ async fn main() {
         .route("/api/dataflows/{name}", post(handlers::save_dataflow))
         .route("/api/dataflows/{name}/delete", post(handlers::delete_dataflow))
         // ─── Dataflow Execution ───
-        .route("/api/dataflow/run", post(handlers::run_dataflow))
+        .route("/api/dataflow/start", post(handlers::start_dataflow))
         .route("/api/dataflow/stop", post(handlers::stop_dataflow))
         // ─── Events / Observability ───
+        .route("/api/events/count", get(handlers::count_events))
+        .route("/api/events/export", get(handlers::export_events))
         .route("/api/events", get(handlers::query_events))
         .route("/api/events", post(handlers::ingest_event))
-        .route("/api/events/export", get(handlers::export_events))
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
         .with_state(state)

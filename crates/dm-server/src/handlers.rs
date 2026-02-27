@@ -271,11 +271,22 @@ pub struct RunDataflowRequest {
     pub yaml: String,
 }
 
-/// POST /api/dataflow/run
-pub async fn run_dataflow(
+/// POST /api/dataflow/start
+pub async fn start_dataflow(
     State(state): State<AppState>,
     Json(req): Json<RunDataflowRequest>,
 ) -> impl IntoResponse {
+    // 0. Check if runtime is running
+    if !dm_core::is_runtime_running(&state.home, false).await {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "Dora runtime is not running. Call POST /api/up first."
+            })),
+        )
+            .into_response();
+    }
+
     // 1. Write YAML to a temporary file
     let run_dir = dm_core::config::resolve_home(None)
         .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
@@ -370,6 +381,17 @@ pub async fn query_events(
 ) -> impl IntoResponse {
     match state.events.query(&filter) {
         Ok(events) => Json(events).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}
+
+/// GET /api/events/count?source=core&case_id=...
+pub async fn count_events(
+    State(state): State<AppState>,
+    axum::extract::Query(filter): axum::extract::Query<dm_core::events::EventFilter>,
+) -> impl IntoResponse {
+    match state.events.count(&filter) {
+        Ok(c) => Json(serde_json::json!({ "count": c })).into_response(),
         Err(e) => err(e).into_response(),
     }
 }

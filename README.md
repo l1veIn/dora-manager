@@ -34,8 +34,11 @@ cargo build --release
 ./target/release/dm up
 ./target/release/dm down
 
+# Start a dataflow (runtime must be up)
+./target/release/dm start dataflow.yml
+
 # Pass-through to dora CLI
-./target/release/dm -- run dataflow.yml --uv
+./target/release/dm -- stop --name my-dataflow
 ```
 
 ## Quickstart: OpenCV Camera Pipeline

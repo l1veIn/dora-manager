@@ -290,6 +290,52 @@
                             </div>
                         {/if}
                     </div>
+
+                    <Separator />
+
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-medium">Available Versions</h3>
+                        {#if versions?.available?.length > 0}
+                            <div class="rounded-md border">
+                                {#each versions.available as v, i}
+                                    <div
+                                        class="flex items-center justify-between p-3 {i !==
+                                        versions.available.length - 1
+                                            ? 'border-b'
+                                            : ''}"
+                                    >
+                                        <span class="font-mono text-sm"
+                                            >{v.tag}</span
+                                        >
+                                        {#if v.installed}
+                                            <Badge variant="secondary"
+                                                >Installed</Badge
+                                            >
+                                        {:else}
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={isInstalling}
+                                                onclick={() => {
+                                                    installVersionInput = v.tag;
+                                                    installVersion();
+                                                }}
+                                            >
+                                                <Download class="size-4 mr-1" />
+                                                Install
+                                            </Button>
+                                        {/if}
+                                    </div>
+                                {/each}
+                            </div>
+                        {:else}
+                            <div
+                                class="text-sm text-muted-foreground p-4 bg-muted/30 rounded-md border border-dashed text-center"
+                            >
+                                Unable to fetch available versions.
+                            </div>
+                        {/if}
+                    </div>
                 </div>
             </Card.Content>
         </Card.Root>

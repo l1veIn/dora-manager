@@ -191,6 +191,8 @@ pub struct EventFilter {
     pub since: Option<String>,
     pub until: Option<String>,
     pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub search: Option<String>,
 }
 
 // ─── EventStore ───
@@ -289,12 +291,24 @@ impl EventStore {
             sql.push_str(" AND timestamp <= ?");
             param_values.push(Box::new(until.clone()));
         }
+        if let Some(ref search) = filter.search {
+            sql.push_str(" AND (activity LIKE ? OR message LIKE ? OR source LIKE ?)");
+            let st = format!("%{}%", search);
+            param_values.push(Box::new(st.clone()));
+            param_values.push(Box::new(st.clone()));
+            param_values.push(Box::new(st));
+        }
 
         sql.push_str(" ORDER BY id DESC");
 
         let limit = filter.limit.unwrap_or(500);
         sql.push_str(" LIMIT ?");
         param_values.push(Box::new(limit));
+
+        if let Some(offset) = filter.offset {
+            sql.push_str(" OFFSET ?");
+            param_values.push(Box::new(offset));
+        }
 
         let params_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
 
@@ -334,6 +348,33 @@ impl EventStore {
         if let Some(ref case_id) = filter.case_id {
             sql.push_str(" AND case_id = ?");
             param_values.push(Box::new(case_id.clone()));
+        }
+        if let Some(ref activity) = filter.activity {
+            sql.push_str(" AND activity LIKE ?");
+            param_values.push(Box::new(format!("%{}%", activity)));
+        }
+        if let Some(ref level) = filter.level {
+            sql.push_str(" AND level = ?");
+            param_values.push(Box::new(level.clone()));
+        }
+        if let Some(ref node_id) = filter.node_id {
+            sql.push_str(" AND node_id = ?");
+            param_values.push(Box::new(node_id.clone()));
+        }
+        if let Some(ref since) = filter.since {
+            sql.push_str(" AND timestamp >= ?");
+            param_values.push(Box::new(since.clone()));
+        }
+        if let Some(ref until) = filter.until {
+            sql.push_str(" AND timestamp <= ?");
+            param_values.push(Box::new(until.clone()));
+        }
+        if let Some(ref search) = filter.search {
+            sql.push_str(" AND (activity LIKE ? OR message LIKE ? OR source LIKE ?)");
+            let st = format!("%{}%", search);
+            param_values.push(Box::new(st.clone()));
+            param_values.push(Box::new(st.clone()));
+            param_values.push(Box::new(st));
         }
 
         let params_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();

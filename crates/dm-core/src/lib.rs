@@ -14,7 +14,7 @@ mod tests;
 
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use crate::events::{EventSource, OperationEvent};
 use types::*;
@@ -78,7 +78,7 @@ pub async fn doctor(home: &Path) -> Result<DoctorReport> {
 
 /// List installed and available versions
 pub async fn versions(home: &Path) -> Result<VersionsReport> {
-    let op = OperationEvent::new(home, EventSource::Core, "versions.list");
+    let op = OperationEvent::new(home, EventSource::Core, "versions");
     op.emit_start();
 
     let result = async {
@@ -105,7 +105,7 @@ pub async fn versions(home: &Path) -> Result<VersionsReport> {
 
         let installed_names: Vec<&str> = installed.iter().map(|i| i.version.as_str()).collect();
 
-        let available = match fetch_recent_releases().await {
+        let available = match fetch_cached_releases().await {
             Ok(tags) => tags
                 .into_iter()
                 .map(|tag| {
@@ -129,65 +129,62 @@ pub async fn versions(home: &Path) -> Result<VersionsReport> {
 
 /// Get runtime status overview
 pub async fn status(home: &Path, verbose: bool) -> Result<StatusReport> {
-    let op = OperationEvent::new(home, EventSource::Core, "status.check");
-    op.emit_start();
+    let cfg = config::load_config(home)?;
+    let dm_home = home.display().to_string();
 
-    let result = async {
-        let cfg = config::load_config(home)?;
-        let dm_home = home.display().to_string();
-
-        let (active_version, actual_version) = match &cfg.active_version {
-            Some(ver) => {
-                let bin = config::versions_dir(home).join(ver).join("dora");
-                let actual = dora::get_dora_version(&bin).await.ok();
-                (Some(ver.clone()), actual)
-            }
-            None => (None, None),
-        };
-
-        // Runtime check via `dora check`
-        let mut runtime_running = false;
-        let mut runtime_output = String::new();
-        if cfg.active_version.is_some() {
-            if let Ok((code, stdout, stderr)) =
-                dora::run_dora(home, &["check".to_string()], verbose).await
-            {
-                runtime_running = code == 0;
-                runtime_output = if code == 0 {
-                    stdout.trim().to_string()
-                } else {
-                    stderr.trim().to_string()
-                };
-            }
-        }
-
-        // Dataflow list
-        let mut dataflows = Vec::new();
-        if cfg.active_version.is_some() {
-            if let Ok((code, stdout, _)) = dora::run_dora(home, &["list".to_string()], verbose).await
-            {
-                if code == 0 {
-                    let output = stdout.trim();
-                    if !output.is_empty() && !output.contains("No running dataflow") {
-                        dataflows = output.lines().map(|l| l.to_string()).collect();
-                    }
-                }
-            }
-        }
-
-        Ok(StatusReport {
-            active_version,
-            actual_version,
+    if cfg.active_version.is_none() {
+        return Ok(StatusReport {
+            active_version: None,
+            actual_version: None,
             dm_home,
-            runtime_running,
-            runtime_output,
-            dataflows,
-        })
+            runtime_running: false,
+            runtime_output: String::new(),
+            dataflows: Vec::new(),
+        });
     }
-    .await;
 
-    op.emit_result(&result);
-    result
+    let ver = cfg.active_version.as_ref().unwrap().clone();
+    let bin = config::versions_dir(home).join(&ver).join("dora");
+
+    // Run all 3 subprocess calls in parallel
+    let check_args = vec!["check".to_string()];
+    let list_args = vec!["list".to_string()];
+    let (version_result, check_result, list_result) = tokio::join!(
+        dora::get_dora_version(&bin),
+        dora::run_dora(home, &check_args, verbose),
+        dora::run_dora(home, &list_args, verbose),
+    );
+
+    let actual_version = version_result.ok();
+
+    let (runtime_running, runtime_output) = match check_result {
+        Ok((code, stdout, stderr)) => (
+            code == 0,
+            if code == 0 { stdout.trim().to_string() } else { stderr.trim().to_string() },
+        ),
+        _ => (false, String::new()),
+    };
+
+    let dataflows = match list_result {
+        Ok((code, stdout, _)) if code == 0 => {
+            let output = stdout.trim();
+            if !output.is_empty() && !output.contains("No running dataflow") {
+                output.lines().map(|l| l.to_string()).collect()
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    };
+
+    Ok(StatusReport {
+        active_version: Some(ver),
+        actual_version,
+        dm_home,
+        runtime_running,
+        runtime_output,
+        dataflows,
+    })
 }
 
 /// Start dora coordinator + daemon
@@ -196,14 +193,55 @@ pub async fn up(home: &Path, verbose: bool) -> Result<RuntimeResult> {
     op.emit_start();
 
     let result = async {
-        let (code, stdout, stderr) = dora::run_dora(home, &["up".to_string()], verbose).await?;
+        let bin = dora::active_dora_bin(home)?;
+        if verbose {
+            eprintln!("[dm] exec: {} up", bin.display());
+        }
+
+        // Spawn `dora up` without waiting for exit — it stays alive as the coordinator
+        let mut child = tokio::process::Command::new(&bin)
+            .arg("up")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .with_context(|| format!("Failed to spawn dora at {}", bin.display()))?;
+
+        // Poll until the runtime is responsive (up to 5 seconds)
+        for i in 0..10 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+            // If the process already exited, check if it was an error
+            if let Some(exit) = child.try_wait()? {
+                if !exit.success() {
+                    let stderr = if let Some(mut se) = child.stderr.take() {
+                        use tokio::io::AsyncReadExt;
+                        let mut buf = String::new();
+                        se.read_to_string(&mut buf).await.ok();
+                        buf
+                    } else {
+                        String::new()
+                    };
+                    return Ok(RuntimeResult {
+                        success: false,
+                        message: stderr.trim().to_string(),
+                    });
+                }
+            }
+
+            if is_runtime_running(home, verbose).await {
+                return Ok(RuntimeResult {
+                    success: true,
+                    message: "Dora runtime started successfully.".to_string(),
+                });
+            }
+            if verbose {
+                eprintln!("[dm] Waiting for runtime to initialize... (attempt {}/10)", i + 1);
+            }
+        }
+
         Ok(RuntimeResult {
-            success: code == 0,
-            message: if code == 0 {
-                stdout.trim().to_string()
-            } else {
-                stderr.trim().to_string()
-            },
+            success: false,
+            message: "Timed out waiting for dora runtime to start.".to_string(),
         })
     }
     .await;
@@ -219,19 +257,45 @@ pub async fn down(home: &Path, verbose: bool) -> Result<RuntimeResult> {
 
     let result = async {
         let (code, stdout, stderr) = dora::run_dora(home, &["destroy".to_string()], verbose).await?;
+        if code != 0 {
+            return Ok(RuntimeResult {
+                success: false,
+                message: stderr.trim().to_string(),
+            });
+        }
+
+        // Verify the runtime has actually stopped (retry up to 3 times)
+        for i in 0..3 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            if !is_runtime_running(home, verbose).await {
+                return Ok(RuntimeResult {
+                    success: true,
+                    message: stdout.trim().to_string(),
+                });
+            }
+            if verbose {
+                eprintln!("[dm] Waiting for runtime to shut down... (attempt {}/3)", i + 1);
+            }
+        }
+
         Ok(RuntimeResult {
-            success: code == 0,
-            message: if code == 0 {
-                stdout.trim().to_string()
-            } else {
-                stderr.trim().to_string()
-            },
+            success: false,
+            message: "dora destroy returned success but runtime is still running.".to_string(),
         })
     }
     .await;
 
     op.emit_result(&result);
     result
+}
+
+/// Check if dora runtime (coordinator + daemon) is currently running.
+pub async fn is_runtime_running(home: &Path, verbose: bool) -> bool {
+    if let Ok((code, _, _)) = dora::run_dora(home, &["check".to_string()], verbose).await {
+        code == 0
+    } else {
+        false
+    }
 }
 
 /// Remove an installed dora version
@@ -358,6 +422,52 @@ pub async fn passthrough(home: &Path, args: &[String], verbose: bool) -> Result<
 #[derive(serde::Deserialize)]
 struct GithubReleaseTag {
     tag_name: String,
+}
+
+/// Cached GitHub releases with TTL
+struct CachedReleases {
+    tags: Vec<String>,
+    fetched_at: std::time::Instant,
+}
+
+const CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(600); // 10 minutes
+
+/// Get cached releases, fetching from GitHub if expired or empty.
+async fn fetch_cached_releases() -> Result<Vec<String>> {
+    use std::sync::{Mutex, OnceLock};
+    static CACHE: OnceLock<Mutex<Option<CachedReleases>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+
+    // Check cache
+    {
+        let guard = cache.lock().unwrap();
+        if let Some(ref cached) = *guard {
+            if cached.fetched_at.elapsed() < CACHE_TTL {
+                return Ok(cached.tags.clone());
+            }
+        }
+    }
+
+    // Cache miss or expired — fetch from GitHub
+    match fetch_recent_releases().await {
+        Ok(tags) => {
+            let mut guard = cache.lock().unwrap();
+            *guard = Some(CachedReleases {
+                tags: tags.clone(),
+                fetched_at: std::time::Instant::now(),
+            });
+            Ok(tags)
+        }
+        Err(e) => {
+            // Fallback to stale cache if available
+            let guard = cache.lock().unwrap();
+            if let Some(ref cached) = *guard {
+                Ok(cached.tags.clone())
+            } else {
+                Err(e)
+            }
+        }
+    }
 }
 
 async fn fetch_recent_releases() -> Result<Vec<String>> {

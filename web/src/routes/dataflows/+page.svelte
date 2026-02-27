@@ -123,7 +123,7 @@
     async function runDataflowFromList(name: string) {
         try {
             const res: any = await get(`/dataflows/${name}`);
-            await post("/dataflow/run", { yaml: res.yaml });
+            await post("/dataflow/start", { yaml: res.yaml });
             toast.success(`Started ${name}`);
         } catch (e: any) {
             toast.error(`Run failed: ${e.message}`);
@@ -138,7 +138,7 @@
             `[${new Date().toLocaleTimeString()}] Starting dataflow...`,
         ];
         try {
-            const res: any = await post("/dataflow/run", { yaml: code });
+            const res: any = await post("/dataflow/start", { yaml: code });
             outputLogs = [
                 ...outputLogs,
                 `[${new Date().toLocaleTimeString()}] ${res.message}`,

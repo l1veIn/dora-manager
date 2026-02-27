@@ -340,10 +340,10 @@ async fn query_events_returns_empty_list_when_no_match() {
 }
 
 #[tokio::test]
-async fn run_dataflow_returns_error_for_invalid_yaml() {
+async fn start_dataflow_returns_conflict_without_runtime() {
     let (_tmp, state) = test_state();
 
-    let resp = handlers::run_dataflow(
+    let resp = handlers::start_dataflow(
         State(state),
         Json(handlers::RunDataflowRequest {
             yaml: "nodes: [".to_string(),
@@ -352,7 +352,8 @@ async fn run_dataflow_returns_error_for_invalid_yaml() {
     .await
     .into_response();
 
-    assert_eq!(resp.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    // No dora binary configured, so runtime check fails → 409 Conflict
+    assert_eq!(resp.status(), axum::http::StatusCode::CONFLICT);
     let body = body_text(resp).await;
-    assert!(body.contains("Failed to parse yaml"));
+    assert!(body.contains("not running"));
 }

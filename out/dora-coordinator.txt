@@ -1,0 +1,78 @@
+{"timestamp":"2026-02-27T10:56:56.452041Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T10:56:56.453093Z","level":"INFO","fields":{"message":"successfully destroyed daemon `dc32aeb0-5dc4-4815-80ab-a75d3151dd06`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T10:56:56.453352Z","level":"INFO","fields":{"message":"Daemon `dc32aeb0-5dc4-4815-80ab-a75d3151dd06` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T10:56:56.456445Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T10:59:34.147036Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T10:59:34.147223Z","level":"INFO","fields":{"message":"successfully destroyed daemon `0e2e87cc-f460-463f-b1e3-091312f73c63`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T10:59:34.147290Z","level":"INFO","fields":{"message":"Daemon `0e2e87cc-f460-463f-b1e3-091312f73c63` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T10:59:34.147462Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:00:44.226937Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:00:44.227100Z","level":"INFO","fields":{"message":"successfully destroyed daemon `2f8c45e9-e266-4966-9256-4e3c8596cec3`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:00:44.227125Z","level":"INFO","fields":{"message":"Daemon `2f8c45e9-e266-4966-9256-4e3c8596cec3` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:00:44.227339Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:01:53.292000Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:01:53.292421Z","level":"INFO","fields":{"message":"successfully destroyed daemon `9fd44954-38f7-4f29-8d12-387b1dfd4d35`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:01:53.292442Z","level":"INFO","fields":{"message":"Daemon `9fd44954-38f7-4f29-8d12-387b1dfd4d35` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:01:53.292740Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:00.572944Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:00.573105Z","level":"INFO","fields":{"message":"successfully destroyed daemon `cf4d1662-1c49-4f8b-a8a7-aa39af5cee4e`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:00.573130Z","level":"INFO","fields":{"message":"Daemon `cf4d1662-1c49-4f8b-a8a7-aa39af5cee4e` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:00.573350Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:10.519594Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:10.519740Z","level":"INFO","fields":{"message":"successfully destroyed daemon `8239cb08-4804-4daa-93f8-2238be091928`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:10.519764Z","level":"INFO","fields":{"message":"Daemon `8239cb08-4804-4daa-93f8-2238be091928` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:10.519978Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:19.589671Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:19.589874Z","level":"INFO","fields":{"message":"successfully destroyed daemon `1384bdde-4778-4d7d-86f3-4403d5ae818c`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:19.589897Z","level":"INFO","fields":{"message":"Daemon `1384bdde-4778-4d7d-86f3-4403d5ae818c` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:02:19.590150Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:03:25.953267Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:03:25.953461Z","level":"INFO","fields":{"message":"successfully destroyed daemon `247c3eef-37c3-48fe-a742-b65387ecf3d6`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:03:25.953485Z","level":"INFO","fields":{"message":"Daemon `247c3eef-37c3-48fe-a742-b65387ecf3d6` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:03:25.953673Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:05:04.018481Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:05:04.018666Z","level":"INFO","fields":{"message":"successfully destroyed daemon `fe9e87d9-32ba-4461-9bfd-8fd34a0dd1e0`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:05:04.018687Z","level":"INFO","fields":{"message":"Daemon `fe9e87d9-32ba-4461-9bfd-8fd34a0dd1e0` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:05:04.018930Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:05:18.213250Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:05:18.213443Z","level":"INFO","fields":{"message":"successfully destroyed daemon `d26d280e-31ea-4091-a565-ffe8236293d1`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:05:18.213469Z","level":"INFO","fields":{"message":"Daemon `d26d280e-31ea-4091-a565-ffe8236293d1` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:05:18.213735Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:09:48.223765Z","level":"INFO","fields":{"message":"received ctrlc signal"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:09:48.224006Z","level":"INFO","fields":{"message":"Destroying coordinator after receiving Ctrl-C signal"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:10:13.092152Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:10:13.092332Z","level":"INFO","fields":{"message":"successfully destroyed daemon `5473429c-38c8-4a4b-a2c9-b6f5e5900b00`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:10:13.092382Z","level":"INFO","fields":{"message":"Daemon `5473429c-38c8-4a4b-a2c9-b6f5e5900b00` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:10:13.092609Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:12:56.654191Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:12:56.654358Z","level":"INFO","fields":{"message":"successfully destroyed daemon `d8bcd8c9-d881-405a-ace5-4a7a345d5978`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:12:56.654379Z","level":"INFO","fields":{"message":"Daemon `d8bcd8c9-d881-405a-ace5-4a7a345d5978` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:12:56.654605Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:13:12.748965Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:13:12.749162Z","level":"INFO","fields":{"message":"successfully destroyed daemon `eaf90965-302a-4b80-95ea-90ad6f241842`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:13:12.749187Z","level":"INFO","fields":{"message":"Daemon `eaf90965-302a-4b80-95ea-90ad6f241842` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:13:12.749396Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:14.832922Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:14.833109Z","level":"INFO","fields":{"message":"successfully destroyed daemon `2bdf0e60-8c57-48a1-9e0b-23304f81b7db`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:14.833137Z","level":"INFO","fields":{"message":"Daemon `2bdf0e60-8c57-48a1-9e0b-23304f81b7db` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:14.833412Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:30.442757Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:30.442918Z","level":"INFO","fields":{"message":"successfully destroyed daemon `8f6572e6-fd4f-49f5-946a-90643b366596`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:30.442943Z","level":"INFO","fields":{"message":"Daemon `8f6572e6-fd4f-49f5-946a-90643b366596` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:30.443187Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:57.296887Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:57.297044Z","level":"INFO","fields":{"message":"successfully destroyed daemon `06103319-9223-4cf8-be27-d2d5008b6ca7`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:57.297077Z","level":"INFO","fields":{"message":"Daemon `06103319-9223-4cf8-be27-d2d5008b6ca7` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:15:57.297298Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:18:10.780873Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:18:10.781058Z","level":"INFO","fields":{"message":"successfully destroyed daemon `333068c1-6549-43f6-b123-0796ed4e91d2`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:18:10.781084Z","level":"INFO","fields":{"message":"Daemon `333068c1-6549-43f6-b123-0796ed4e91d2` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:18:10.781310Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:25:58.405460Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:25:58.406407Z","level":"INFO","fields":{"message":"successfully destroyed daemon `4cbe5c3b-eb7e-4d5f-a43d-8fc5423ccafe`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:25:58.406431Z","level":"INFO","fields":{"message":"Daemon `4cbe5c3b-eb7e-4d5f-a43d-8fc5423ccafe` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:25:58.406641Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:26:42.798650Z","level":"INFO","fields":{"message":"Received destroy command"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:26:42.798883Z","level":"INFO","fields":{"message":"successfully destroyed daemon `4b38f6cd-0c16-4a87-9fe4-44b64d01b1bd`"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:26:42.798936Z","level":"INFO","fields":{"message":"Daemon `4b38f6cd-0c16-4a87-9fe4-44b64d01b1bd` exited"},"target":"dora_coordinator"}
+{"timestamp":"2026-02-27T11:26:42.799111Z","level":"INFO","fields":{"message":"stopped"},"target":"dora_coordinator"}

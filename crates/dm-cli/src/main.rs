@@ -74,8 +74,8 @@ enum Commands {
         command: NodeCommands,
     },
 
-    /// Run a dataflow graph
-    Run {
+    /// Start a dataflow on the running dora runtime
+    Start {
         /// Path to dataflow YAML file
         file: String,
     },
@@ -313,7 +313,14 @@ async fn main() -> Result<()> {
             }
         },
 
-        Commands::Run { file } => {
+        Commands::Start { file } => {
+            // Check if runtime is running first
+            if !dm_core::is_runtime_running(&home, cli.verbose).await {
+                eprintln!("{} Dora runtime is not running.", "✗".red());
+                eprintln!("  Run {} first to start the coordinator and daemon.", "dm up".bold());
+                std::process::exit(1);
+            }
+
             let file_path = std::path::Path::new(&file);
             if !file_path.exists() {
                 anyhow::bail!("Graph file '{}' not found.", file);
@@ -335,7 +342,7 @@ async fn main() -> Result<()> {
                 println!("{} Transpiled graph saved to: {}", "ℹ".cyan(), temp_run_file.display());
             }
 
-            println!("{} Executing dataflow with dora...", "🚀".green());
+            println!("{} Starting dataflow...", "🚀".green());
             let args = vec![
                 "start".to_string(),
                 temp_run_file.to_string_lossy().to_string(),
