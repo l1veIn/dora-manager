@@ -22,7 +22,7 @@
 <Sidebar.Root variant="inset">
     <Sidebar.Header>
         <div class="px-4 py-2 font-bold text-lg text-primary tracking-tight">
-            dm-web
+            Dora Manager
         </div>
     </Sidebar.Header>
 

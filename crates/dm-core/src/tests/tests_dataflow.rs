@@ -5,19 +5,32 @@ use tempfile::tempdir;
 use crate::dataflow::transpile_graph;
 use crate::node::{NodeMetaFile, NodeSource, node_dir};
 
-fn setup_managed_python_node(home: &std::path::Path, id: &str) {
+fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
     let dir = node_dir(home, id);
-    fs::create_dir_all(dir.join(".venv/bin")).unwrap();
-    fs::create_dir_all(dir.join(".venv/lib/python3.12/site-packages")).unwrap();
+    fs::create_dir_all(&dir).unwrap();
+
+    // Create the executable file so the path resolves
+    let exec_path = dir.join(executable);
+    fs::create_dir_all(exec_path.parent().unwrap()).unwrap();
+    fs::write(&exec_path, "#!/bin/bash\n# stub").unwrap();
 
     let meta = NodeMetaFile {
         id: id.to_string(),
+        name: String::new(),
         version: "1.0.0".to_string(),
         installed_at: "1234567890".to_string(),
         source: NodeSource {
             build: "pip install dora-test-node".to_string(),
             github: None,
         },
+        description: String::new(),
+        executable: executable.to_string(),
+        author: None,
+        category: String::new(),
+        inputs: Vec::new(),
+        outputs: Vec::new(),
+        avatar: None,
+        config_schema: None,
     };
 
     fs::write(
@@ -28,10 +41,10 @@ fn setup_managed_python_node(home: &std::path::Path, id: &str) {
 }
 
 #[test]
-fn transpile_graph_rewrites_managed_node_path_to_custom_and_env() {
+fn transpile_graph_resolves_executable_path() {
     let tmp = tempdir().unwrap();
     let home = tmp.path();
-    setup_managed_python_node(home, "test-node");
+    setup_managed_node(home, "test-node", ".venv/bin/test-node");
 
     let yaml_path = home.join("graph.yml");
     fs::write(
@@ -48,51 +61,18 @@ nodes:
     let nodes = out["nodes"].as_sequence().unwrap();
     let node = nodes[0].as_mapping().unwrap();
 
-    assert!(node.get(serde_yaml::Value::String("path".into())).is_none());
-
-    let custom = node
-        .get(serde_yaml::Value::String("custom".into()))
+    // path should be resolved to absolute executable path
+    let path_val = node
+        .get(serde_yaml::Value::String("path".into()))
         .unwrap()
-        .as_mapping()
+        .as_str()
         .unwrap();
-    assert_eq!(
-        custom
-            .get(serde_yaml::Value::String("source".into()))
-            .unwrap()
-            .as_str(),
-        Some("Local")
-    );
-    assert!(
-        custom
-            .get(serde_yaml::Value::String("path".into()))
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .contains(".venv/bin/python")
-    );
-    assert_eq!(
-        custom
-            .get(serde_yaml::Value::String("args".into()))
-            .unwrap()
-            .as_str(),
-        Some("-m test_node.main")
-    );
+    assert!(path_val.contains(".venv/bin/test-node"));
+    assert!(path_val.starts_with("/"), "Path should be absolute");
 
-    let env = node
-        .get(serde_yaml::Value::String("env".into()))
-        .unwrap()
-        .as_mapping()
-        .unwrap();
-    assert!(
-        env.get(serde_yaml::Value::String("PATH".into()))
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .contains(".venv/bin")
-    );
-    assert!(env
-        .get(serde_yaml::Value::String("PYTHONPATH".into()))
-        .is_some());
+    // No custom block, no env block — executable handles everything
+    assert!(node.get(serde_yaml::Value::String("custom".into())).is_none());
+    assert!(node.get(serde_yaml::Value::String("env".into())).is_none());
 }
 
 #[test]

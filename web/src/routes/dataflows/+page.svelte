@@ -7,6 +7,8 @@
     import { Input } from "$lib/components/ui/input/index.js";
     import * as Resizable from "$lib/components/ui/resizable/index.js";
     import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+    import * as Dialog from "$lib/components/ui/dialog/index.js";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import {
         Play,
         Square,
@@ -27,6 +29,12 @@
     let dataflows = $state<any[]>([]);
     let loading = $state(true);
     let searchQuery = $state("");
+
+    // Dialog state
+    let isCreateDialogOpen = $state(false);
+    let newDataflowName = $state("");
+    let isDeleteDialogOpen = $state(false);
+    let dataflowToDelete = $state("");
 
     // Editor state
     let editingName = $derived(page.url.searchParams.get("edit"));
@@ -88,11 +96,13 @@
         }
     }
 
-    async function createNewDataflow() {
-        const name = prompt("Enter a name for the new dataflow:");
-        if (!name) return;
+    function openCreateDialog() {
+        newDataflowName = "";
+        isCreateDialogOpen = true;
+    }
 
-        const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "");
+    async function confirmCreateDataflow() {
+        const safeName = newDataflowName.replace(/[^a-zA-Z0-9_-]/g, "");
         if (!safeName) {
             toast.error(
                 "Invalid name. Use alphanumeric characters, dashes, and underscores.",
@@ -100,6 +110,7 @@
             return;
         }
 
+        isCreateDialogOpen = false;
         try {
             const initialYaml = `nodes:\n  - id: custom_node\n    operator:\n      python: |\n        def process(event, state):\n            return event\n`;
             await post(`/dataflows/${safeName}`, { yaml: initialYaml });
@@ -109,8 +120,15 @@
         }
     }
 
-    async function deleteDataflow(name: string) {
-        if (!confirm(`Are you sure you want to delete ${name}.yml?`)) return;
+    function openDeleteDialog(name: string) {
+        dataflowToDelete = name;
+        isDeleteDialogOpen = true;
+    }
+
+    async function confirmDeleteDataflow() {
+        if (!dataflowToDelete) return;
+        const name = dataflowToDelete;
+        isDeleteDialogOpen = false;
         try {
             await post(`/dataflows/${name}/delete`, {});
             toast.success(`${name} deleted`);
@@ -218,7 +236,7 @@
     <div class="h-full flex flex-col p-6 max-w-6xl mx-auto space-y-6 w-full">
         <div class="flex items-center justify-between">
             <h1 class="text-3xl font-bold tracking-tight">Dataflows</h1>
-            <Button onclick={createNewDataflow}>
+            <Button onclick={openCreateDialog}>
                 <Plus class="size-4 mr-2" />
                 New Dataflow
             </Button>
@@ -260,7 +278,7 @@
                 <Button
                     variant="outline"
                     class="mt-4"
-                    onclick={createNewDataflow}
+                    onclick={openCreateDialog}
                 >
                     <Plus class="size-4 mr-2" />
                     New Dataflow
@@ -311,7 +329,7 @@
                                 variant="ghost"
                                 size="sm"
                                 class="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                onclick={() => deleteDataflow(df.name)}
+                                onclick={() => openDeleteDialog(df.name)}
                             >
                                 <Trash2 class="size-4" />
                             </Button>
@@ -320,6 +338,64 @@
                 {/each}
             </div>
         {/if}
+
+        <!-- Dialogs -->
+        <Dialog.Root bind:open={isCreateDialogOpen}>
+            <Dialog.Content class="sm:max-w-[425px]">
+                <Dialog.Header>
+                    <Dialog.Title>Create Dataflow</Dialog.Title>
+                    <Dialog.Description>
+                        Enter a name for the new dataflow. Use only alphanumeric
+                        characters, dashes, and underscores.
+                    </Dialog.Description>
+                </Dialog.Header>
+                <div class="grid gap-4 py-4">
+                    <Input
+                        bind:value={newDataflowName}
+                        placeholder="my-dataflow"
+                        autofocus
+                        onkeydown={(e) =>
+                            e.key === "Enter" && confirmCreateDataflow()}
+                    />
+                </div>
+                <Dialog.Footer>
+                    <Button
+                        variant="outline"
+                        onclick={() => (isCreateDialogOpen = false)}
+                        >Cancel</Button
+                    >
+                    <Button type="submit" onclick={confirmCreateDataflow}
+                        >Create</Button
+                    >
+                </Dialog.Footer>
+            </Dialog.Content>
+        </Dialog.Root>
+
+        <AlertDialog.Root bind:open={isDeleteDialogOpen}>
+            <AlertDialog.Content>
+                <AlertDialog.Header>
+                    <AlertDialog.Title>Are you sure?</AlertDialog.Title>
+                    <AlertDialog.Description>
+                        This action cannot be undone. This will permanently
+                        delete the dataflow
+                        <span class="font-mono text-foreground font-medium"
+                            >{dataflowToDelete}.yml</span
+                        >.
+                    </AlertDialog.Description>
+                </AlertDialog.Header>
+                <AlertDialog.Footer>
+                    <AlertDialog.Cancel
+                        onclick={() => (isDeleteDialogOpen = false)}
+                        >Cancel</AlertDialog.Cancel
+                    >
+                    <AlertDialog.Action
+                        onclick={confirmDeleteDataflow}
+                        class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >Delete</AlertDialog.Action
+                    >
+                </AlertDialog.Footer>
+            </AlertDialog.Content>
+        </AlertDialog.Root>
     </div>
 {:else}
     <!-- EDITOR VIEW -->

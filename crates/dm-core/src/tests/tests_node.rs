@@ -45,9 +45,16 @@ fn test_node_entry_struct() {
     // Test that NodeEntry can be created and serialized
     let entry = NodeEntry {
         id: "test-node".to_string(),
+        name: String::new(),
         version: "1.0.0".to_string(),
         path: std::path::PathBuf::from("/test/path"),
         installed_at: "1234567890".to_string(),
+        description: String::new(),
+        author: None,
+        category: String::new(),
+        inputs: Vec::new(),
+        outputs: Vec::new(),
+        avatar: None,
     };
 
     assert_eq!(entry.id, "test-node");

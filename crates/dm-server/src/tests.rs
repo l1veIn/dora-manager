@@ -84,12 +84,21 @@ fn setup_installed_node(home: &std::path::Path, id: &str) {
     std::fs::create_dir_all(&node_dir).unwrap();
     let meta = dm_core::node::NodeMetaFile {
         id: id.to_string(),
+        name: String::new(),
         version: "1.0.0".to_string(),
         installed_at: "1234567890".to_string(),
         source: dm_core::node::NodeSource {
             build: "python".to_string(),
             github: None,
         },
+        description: String::new(),
+        executable: String::new(),
+        author: None,
+        category: String::new(),
+        inputs: Vec::new(),
+        outputs: Vec::new(),
+        avatar: None,
+        config_schema: None,
     };
     std::fs::write(
         dm_core::node::meta_path(home, id),
