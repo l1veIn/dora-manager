@@ -70,11 +70,11 @@ pub fn get(home: &Path, name: &str) -> Result<String> {
         .attr("name", name);
     op.emit_start();
     
-    let result = (|| {
+    let result = {
         let path = home.join("dataflows").join(format!("{}.yml", name));
         fs::read_to_string(&path)
             .with_context(|| format!("Failed to read dataflow '{}'", name))
-    })();
+    };
     
     op.emit_result(&result);
     result
@@ -104,11 +104,11 @@ pub fn delete(home: &Path, name: &str) -> Result<()> {
         .attr("name", name);
     op.emit_start();
     
-    let result = (|| {
+    let result = {
         let path = home.join("dataflows").join(format!("{}.yml", name));
         fs::remove_file(&path)
             .with_context(|| format!("Failed to delete dataflow '{}'", name))
-    })();
+    };
     
     op.emit_result(&result);
     result
