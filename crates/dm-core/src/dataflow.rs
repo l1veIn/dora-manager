@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::events::{EventSource, OperationEvent};
-use crate::node::{NodeMetaFile, node_dir, meta_path};
+use crate::node::{NodeMetaFile, node_dir, dm_json_path};
 
 // ─── Dataflow Management ───
 
@@ -119,8 +119,10 @@ pub fn delete(home: &Path, name: &str) -> Result<()> {
 /// Transpile a dataflow yaml file, replacing DM node IDs in `path:` fields
 /// with absolute paths to the installed node executables.
 ///
-/// Each managed node has a `meta.json` containing an `executable` field
+/// Each managed node has a `dm.json` containing an `executable` field
 /// (e.g., `.venv/bin/dora-vad`). Transpile resolves this to an absolute path.
+///
+/// Config merging: config.json defaults ← dataflow `config:` overrides → env injection.
 pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Value> {
     let op = OperationEvent::new(home, EventSource::Dataflow, "dataflow.transpile")
         .attr("path", yaml_path.display().to_string());
@@ -136,20 +138,74 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
         if let Some(nodes) = graph.get_mut("nodes").and_then(|n| n.as_sequence_mut()) {
             for node in nodes {
                 if let Some(path_val) = node.get("path").and_then(|p| p.as_str()) {
-                    let node_cache_dir = node_dir(home, path_val);
-                    let meta_file_path = meta_path(home, path_val);
+                    let node_id = path_val.to_string();
+                    let node_cache_dir = node_dir(home, &node_id);
+                    let meta_file_path = dm_json_path(home, &node_id);
 
                     if node_cache_dir.exists() && meta_file_path.exists() {
                         let meta_content = fs::read_to_string(&meta_file_path).unwrap_or_default();
                         if let Ok(meta) = serde_json::from_str::<NodeMetaFile>(&meta_content) {
+                            let node_map = node.as_mapping_mut().unwrap();
+
+                            // 1. Replace path with absolute executable path
                             if !meta.executable.is_empty() {
                                 let abs_exec = node_cache_dir.join(&meta.executable);
-                                let node_map = node.as_mapping_mut().unwrap();
                                 node_map.remove(serde_yaml::Value::String("path".to_string()));
                                 node_map.insert(
                                     serde_yaml::Value::String("path".to_string()),
                                     serde_yaml::Value::String(abs_exec.display().to_string()),
                                 );
+                            }
+
+                            // 2. Merge config → env injection
+                            if let Some(schema) = &meta.config_schema {
+                                if let Some(schema_obj) = schema.as_object() {
+                                    // Read config.json defaults
+                                    let config_defaults = crate::node::get_node_config(home, &node_id)
+                                        .unwrap_or(serde_json::json!({}));
+
+                                    // Read dataflow-level config overrides
+                                    let dataflow_config = node_map
+                                        .get(serde_yaml::Value::String("config".to_string()))
+                                        .and_then(|v| serde_json::to_value(v).ok())
+                                        .unwrap_or(serde_json::json!({}));
+
+                                    // Merge: defaults ← overrides
+                                    let mut env_map = node_map
+                                        .get(serde_yaml::Value::String("env".to_string()))
+                                        .and_then(|v| v.as_mapping().cloned())
+                                        .unwrap_or_default();
+
+                                    for (key, field_schema) in schema_obj {
+                                        if let Some(env_name) = field_schema.get("env").and_then(|e| e.as_str()) {
+                                            // Priority: dataflow config > config.json > schema default
+                                            let value = dataflow_config.get(key)
+                                                .or_else(|| config_defaults.get(key))
+                                                .or_else(|| field_schema.get("default"));
+
+                                            if let Some(val) = value {
+                                                let val_str = match val {
+                                                    serde_json::Value::String(s) => s.clone(),
+                                                    other => other.to_string(),
+                                                };
+                                                env_map.insert(
+                                                    serde_yaml::Value::String(env_name.to_string()),
+                                                    serde_yaml::Value::String(val_str),
+                                                );
+                                            }
+                                        }
+                                    }
+
+                                    if !env_map.is_empty() {
+                                        node_map.insert(
+                                            serde_yaml::Value::String("env".to_string()),
+                                            serde_yaml::Value::Mapping(env_map),
+                                        );
+                                    }
+
+                                    // Remove `config:` from output (Dora doesn't understand it)
+                                    node_map.remove(serde_yaml::Value::String("config".to_string()));
+                                }
                             }
                         }
                     }
@@ -162,4 +218,5 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
     op.emit_result(&result);
     result
 }
+
 

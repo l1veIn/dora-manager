@@ -101,7 +101,7 @@ fn setup_installed_node(home: &std::path::Path, id: &str) {
         config_schema: None,
     };
     std::fs::write(
-        dm_core::node::meta_path(home, id),
+        dm_core::node::dm_json_path(home, id),
         serde_json::to_string_pretty(&meta).unwrap(),
     )
     .unwrap();

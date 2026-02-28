@@ -69,3 +69,55 @@ pub async fn uninstall_node(
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }
+
+#[derive(Deserialize)]
+pub struct CreateNodeRequest {
+    pub id: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+/// POST /api/nodes/create
+pub async fn create_node(
+    State(state): State<AppState>,
+    Json(req): Json<CreateNodeRequest>,
+) -> impl IntoResponse {
+    match dm_core::node::create_node(&state.home, &req.id, &req.description) {
+        Ok(entry) => Json(entry).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+/// GET /api/nodes/:id/readme
+pub async fn node_readme(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match dm_core::node::get_node_readme(&state.home, &id) {
+        Ok(content) => content.into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    }
+}
+
+/// GET /api/nodes/:id/config
+pub async fn get_node_config(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match dm_core::node::get_node_config(&state.home, &id) {
+        Ok(config) => Json(config).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}
+
+/// PUT /api/nodes/:id/config
+pub async fn save_node_config(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(config): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    match dm_core::node::save_node_config(&state.home, &id, &config) {
+        Ok(()) => Json(serde_json::json!({ "message": "Config saved" })).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}

@@ -34,7 +34,7 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
     };
 
     fs::write(
-        dir.join("meta.json"),
+        dir.join("dm.json"),
         serde_json::to_string_pretty(&meta).unwrap(),
     )
     .unwrap();

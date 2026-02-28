@@ -1,6 +1,6 @@
 //! Node Manager - Install, list, and manage local dora nodes
 //!
-//! Nodes are installed in `~/.dora/nodes/<id>/` with metadata stored in `meta.json`.
+//! Nodes are installed in `~/.dm/nodes/<id>/` with metadata stored in `dm.json`.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -103,9 +103,9 @@ pub fn node_dir(home: &Path, id: &str) -> PathBuf {
     nodes_dir(home).join(id)
 }
 
-/// Get the metadata file path for a node
-pub fn meta_path(home: &Path, id: &str) -> PathBuf {
-    node_dir(home, id).join("meta.json")
+/// Get the dm.json path for a node
+pub fn dm_json_path(home: &Path, id: &str) -> PathBuf {
+    node_dir(home, id).join("dm.json")
 }
 
 /// Get current ISO 8601 timestamp
@@ -204,11 +204,11 @@ pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
             config_schema: None,
         };
 
-        let meta_path = meta_path(home, id);
+        let dm_path = dm_json_path(home, id);
         let meta_json = serde_json::to_string_pretty(&meta_file)
             .context("Failed to serialize metadata")?;
-        std::fs::write(&meta_path, meta_json)
-            .with_context(|| format!("Failed to write metadata to {}", meta_path.display()))?;
+        std::fs::write(&dm_path, meta_json)
+            .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
 
         Ok(NodeEntry {
             id: id.to_string(),
@@ -225,6 +225,129 @@ pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
         })
     }
     .await;
+
+    op.emit_result(&result);
+    result
+}
+
+/// Create a new local Python node scaffold
+///
+/// Generates:
+/// - `pyproject.toml` with console_scripts entry
+/// - `<module>/main.py` with Dora Node template
+/// - `<module>/__init__.py`  
+/// - `README.md`
+/// - `dm.json` (executable empty = not yet installed)
+pub fn create_node(home: &Path, id: &str, description: &str) -> Result<NodeEntry> {
+    let op = OperationEvent::new(home, EventSource::Core, "node.create").attr("node_id", id);
+    op.emit_start();
+
+    let result = (|| {
+        let node_path = node_dir(home, id);
+        if node_path.exists() {
+            bail!("Node '{}' already exists at {}", id, node_path.display());
+        }
+
+        let module_name = id.replace("-", "_");
+
+        // Create directories
+        let module_dir = node_path.join(&module_name);
+        std::fs::create_dir_all(&module_dir)
+            .with_context(|| format!("Failed to create module directory: {}", module_dir.display()))?;
+
+        // Generate pyproject.toml
+        let pyproject = format!(
+            r#"[project]
+name = "{id}"
+version = "0.1.0"
+description = "{description}"
+requires-python = ">=3.10"
+dependencies = ["dora-rs >= 0.3.9", "pyarrow"]
+
+[project.scripts]
+{id} = "{module_name}.main:main"
+"#,
+            id = id,
+            description = description,
+            module_name = module_name,
+        );
+        std::fs::write(node_path.join("pyproject.toml"), &pyproject)
+            .context("Failed to write pyproject.toml")?;
+
+        // Generate main.py template
+        let main_py = r#"import pyarrow as pa
+from dora import Node
+
+
+def main():
+    node = Node()
+    for event in node:
+        if event["type"] == "INPUT":
+            input_id = event["id"]
+            value = event["value"]
+            # TODO: Process input and send output
+            node.send_output("output", pa.array(["processed"]))
+
+
+if __name__ == "__main__":
+    main()
+"#;
+        std::fs::write(module_dir.join("main.py"), main_py)
+            .context("Failed to write main.py")?;
+
+        // Generate __init__.py
+        std::fs::write(module_dir.join("__init__.py"), "")
+            .context("Failed to write __init__.py")?;
+
+        // Generate README.md
+        let readme = format!(
+            "# {id}\n\n{description}\n\n## Usage\n\n```yaml\n- id: {id}\n  path: {id}\n  inputs:\n    input: source/output\n  outputs:\n    - output\n```\n",
+            id = id,
+            description = description,
+        );
+        std::fs::write(node_path.join("README.md"), &readme)
+            .context("Failed to write README.md")?;
+
+        // Write dm.json (executable empty = not yet installed)
+        let dm_meta = NodeMetaFile {
+            id: id.to_string(),
+            name: id.to_string(),
+            version: "0.1.0".to_string(),
+            installed_at: current_timestamp(),
+            source: NodeSource {
+                build: format!("pip install -e ."),
+                github: None,
+            },
+            description: description.to_string(),
+            executable: String::new(), // empty = not installed
+            author: None,
+            category: String::new(),
+            inputs: Vec::new(),
+            outputs: vec!["output".to_string()],
+            avatar: None,
+            config_schema: None,
+        };
+
+        let dm_path = dm_json_path(home, id);
+        let dm_json = serde_json::to_string_pretty(&dm_meta)
+            .context("Failed to serialize dm.json")?;
+        std::fs::write(&dm_path, dm_json)
+            .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
+
+        Ok(NodeEntry {
+            id: id.to_string(),
+            name: dm_meta.name,
+            version: dm_meta.version,
+            path: node_path,
+            installed_at: dm_meta.installed_at,
+            description: dm_meta.description,
+            author: dm_meta.author,
+            category: dm_meta.category,
+            inputs: dm_meta.inputs,
+            outputs: dm_meta.outputs,
+            avatar: dm_meta.avatar,
+        })
+    })();
 
     op.emit_result(&result);
     result
@@ -392,7 +515,7 @@ pub fn list_nodes(home: &Path) -> Result<Vec<NodeEntry>> {
             };
 
             // Try to read metadata
-            let meta_file = meta_path(home, &id);
+            let meta_file = dm_json_path(home, &id);
             if let Ok(content) = std::fs::read_to_string(&meta_file) {
                 if let Ok(meta) = serde_json::from_str::<NodeMetaFile>(&content) {
                     nodes.push(NodeEntry {
@@ -460,6 +583,37 @@ pub fn uninstall_node(home: &Path, id: &str) -> Result<()> {
     result
 }
 
+/// Get the README content of a node
+pub fn get_node_readme(home: &Path, id: &str) -> Result<String> {
+    let readme_path = node_dir(home, id).join("README.md");
+    std::fs::read_to_string(&readme_path)
+        .with_context(|| format!("Failed to read README for node '{}'", id))
+}
+
+/// Get the config values for a node (from config.json)
+pub fn get_node_config(home: &Path, id: &str) -> Result<serde_json::Value> {
+    let config_path = node_dir(home, id).join("config.json");
+    if !config_path.exists() {
+        return Ok(serde_json::json!({}));
+    }
+    let content = std::fs::read_to_string(&config_path)
+        .with_context(|| format!("Failed to read config for node '{}'", id))?;
+    serde_json::from_str(&content)
+        .with_context(|| format!("Failed to parse config.json for node '{}'", id))
+}
+
+/// Save config values for a node (to config.json)
+pub fn save_node_config(home: &Path, id: &str, config: &serde_json::Value) -> Result<()> {
+    let node_path = node_dir(home, id);
+    if !node_path.exists() {
+        bail!("Node '{}' does not exist", id);
+    }
+    let config_json = serde_json::to_string_pretty(config)
+        .context("Failed to serialize config")?;
+    std::fs::write(node_path.join("config.json"), config_json)
+        .with_context(|| format!("Failed to write config.json for node '{}'", id))
+}
+
 /// Get the status of a specific node
 pub fn node_status(home: &Path, id: &str) -> Result<Option<NodeEntry>> {
     let op = OperationEvent::new(home, EventSource::Core, "node.status").attr("node_id", id);
@@ -472,7 +626,7 @@ pub fn node_status(home: &Path, id: &str) -> Result<Option<NodeEntry>> {
             return Ok(None);
         }
 
-        let meta_file = meta_path(home, id);
+        let meta_file = dm_json_path(home, id);
         match std::fs::read_to_string(&meta_file) {
             Ok(content) => {
                 let meta: NodeMetaFile = serde_json::from_str(&content)
@@ -576,7 +730,7 @@ mod tests {
         };
         
         let meta_json = serde_json::to_string_pretty(&meta).unwrap();
-        std::fs::write(meta_path(home, id), meta_json).unwrap();
+        std::fs::write(dm_json_path(home, id), meta_json).unwrap();
         
         // Test list
         let nodes = list_nodes(home).unwrap();
@@ -610,8 +764,8 @@ mod tests {
     }
 
     #[test]
-    fn test_meta_path() {
+    fn test_dm_json_path() {
         let home = Path::new("/home/user/.dm");
-        assert_eq!(meta_path(home, "test"), PathBuf::from("/home/user/.dm/nodes/test/meta.json"));
+        assert_eq!(dm_json_path(home, "test"), PathBuf::from("/home/user/.dm/nodes/test/dm.json"));
     }
 }
