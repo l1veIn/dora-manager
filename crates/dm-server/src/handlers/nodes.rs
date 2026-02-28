@@ -121,7 +121,7 @@ pub async fn get_node_config(
     }
 }
 
-/// PUT /api/nodes/:id/config
+/// POST /api/nodes/:id/config
 pub async fn save_node_config(
     State(state): State<AppState>,
     Path(id): Path<String>,

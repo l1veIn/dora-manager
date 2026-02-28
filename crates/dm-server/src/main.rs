@@ -4,7 +4,7 @@ mod tests;
 
 use std::sync::Arc;
 
-use axum::routing::{get, post, put};
+use axum::routing::{get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use rust_embed::Embed;
@@ -53,7 +53,7 @@ async fn main() {
         .route("/api/nodes/{id}", get(handlers::node_status))
         .route("/api/nodes/{id}/readme", get(handlers::node_readme))
         .route("/api/nodes/{id}/config", get(handlers::get_node_config))
-        .route("/api/nodes/{id}/config", put(handlers::save_node_config))
+        .route("/api/nodes/{id}/config", post(handlers::save_node_config))
         .route("/api/nodes/uninstall", post(handlers::uninstall_node))
         // ─── Dataflow Management ───
         .route("/api/dataflows", get(handlers::list_dataflows))
