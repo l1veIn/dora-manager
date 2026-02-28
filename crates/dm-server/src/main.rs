@@ -48,6 +48,7 @@ async fn main() {
         .route("/api/registry", get(handlers::get_registry))
         .route("/api/nodes", get(handlers::list_nodes))
         .route("/api/nodes/install", post(handlers::install_node))
+        .route("/api/nodes/download", post(handlers::download_node))
         .route("/api/nodes/create", post(handlers::create_node))
         .route("/api/nodes/{id}", get(handlers::node_status))
         .route("/api/nodes/{id}/readme", get(handlers::node_readme))

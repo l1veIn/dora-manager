@@ -51,6 +51,17 @@ pub async fn install_node(
     }
 }
 
+/// POST /api/nodes/download
+pub async fn download_node(
+    State(state): State<AppState>,
+    Json(req): Json<InstallNodeRequest>,
+) -> impl IntoResponse {
+    match dm_core::node::download_node(&state.home, &req.id).await {
+        Ok(entry) => Json(entry).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct UninstallNodeRequest {
     pub id: String,
