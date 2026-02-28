@@ -26,6 +26,8 @@
     let isCreateDialogOpen = $state(false);
     let isDetailsSheetOpen = $state(false);
     let selectedNode = $state<any | null>(null);
+    let selectedNodeIsRegistry = $state(false);
+    let selectedNodeIsInstalled = $state(false);
 
     async function fetchInstalled() {
         try {
@@ -87,8 +89,10 @@
         }
     }
 
-    function viewDetails(node: any) {
+    function viewDetails(node: any, isRegistry: boolean, isInstalled: boolean) {
         selectedNode = node;
+        selectedNodeIsRegistry = isRegistry;
+        selectedNodeIsInstalled = isInstalled;
         isDetailsSheetOpen = true;
     }
 
@@ -185,8 +189,7 @@
                             isRegistry={false}
                             isInstalled={true}
                             operation={operations[node.id]}
-                            onAction={handleAction}
-                            onViewDetails={viewDetails}
+                            onViewDetails={() => viewDetails(node, false, true)}
                         />
                     {/each}
                 </div>
@@ -221,8 +224,12 @@
                             isRegistry={true}
                             isInstalled={!!installedData}
                             operation={operations[node.id]}
-                            onAction={handleAction}
-                            onViewDetails={viewDetails}
+                            onViewDetails={() =>
+                                viewDetails(
+                                    installedData || node,
+                                    true,
+                                    !!installedData,
+                                )}
                         />
                     {/each}
                 </div>
@@ -237,4 +244,14 @@
     onCreated={() => fetchInstalled()}
 />
 
-<NodeDetails bind:open={isDetailsSheetOpen} node={selectedNode} />
+<NodeDetails
+    bind:open={isDetailsSheetOpen}
+    node={selectedNode}
+    isRegistry={selectedNodeIsRegistry}
+    isInstalled={selectedNodeIsInstalled}
+    operation={selectedNode ? operations[selectedNode.id] : null}
+    onAction={(action, id) => {
+        isDetailsSheetOpen = false;
+        handleAction(action, id);
+    }}
+/>
