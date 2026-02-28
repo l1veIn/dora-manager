@@ -99,15 +99,39 @@ pub async fn create_node(
     }
 }
 
-/// GET /api/nodes/:id/readme
 pub async fn node_readme(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match dm_core::node::get_node_readme(&state.home, &id) {
-        Ok(content) => content.into_response(),
-        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    // Try to get local readme first
+    if let Ok(content) = dm_core::node::get_node_readme(&state.home, &id) {
+        return content.into_response();
     }
+
+    // Fallback: try to fetch from registry and online
+    if let Ok(registry) = dm_core::registry::fetch_registry().await {
+        if let Some(node) = dm_core::registry::find_node(&registry, &id) {
+            if let Some(github_url) = &node.github {
+                if github_url.starts_with("https://github.com/") {
+                    let raw_url = github_url
+                        .replace("https://github.com/", "https://raw.githubusercontent.com/")
+                        .replace("/tree/", "/")
+                        .replace("/blob/", "/");
+                    let readme_url = format!("{}/README.md", raw_url.trim_end_matches('/'));
+                    
+                    if let Ok(resp) = reqwest::get(&readme_url).await {
+                        if resp.status().is_success() {
+                            if let Ok(text) = resp.text().await {
+                                return text.into_response();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (StatusCode::NOT_FOUND, format!("No README found locally or online for '{}'", id)).into_response()
 }
 
 /// GET /api/nodes/:id/config

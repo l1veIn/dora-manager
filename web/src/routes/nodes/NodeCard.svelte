@@ -1,7 +1,8 @@
 <script lang="ts">
     import { Badge } from "$lib/components/ui/badge/index.js";
+    import { Button } from "$lib/components/ui/button/index.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
-    import { RefreshCw, Star } from "lucide-svelte";
+    import { RefreshCw, Star, Download } from "lucide-svelte";
 
     // 接收完整的节点数据
     let {
@@ -9,12 +10,14 @@
         isRegistry = false,
         isInstalled = false,
         operation = null,
+        onAction,
         onViewDetails,
     } = $props<{
         node: any;
         isRegistry?: boolean;
         isInstalled?: boolean;
         operation?: string | null;
+        onAction?: (action: string, id: string) => void;
         onViewDetails?: (node: any) => void;
     }>();
 
@@ -24,15 +27,18 @@
     );
 </script>
 
-<button
+<div
+    role="button"
+    tabindex="0"
     class="w-full text-left border rounded-lg p-5 flex flex-col bg-card hover:border-slate-400 dark:hover:border-slate-500 transition-colors duration-200 {isRegistry &&
     isInstalled &&
     !needsInstall
         ? 'opacity-70'
         : ''} {operation
         ? 'opacity-50 pointer-events-none'
-        : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
     onclick={() => onViewDetails && onViewDetails(node)}
+    onkeydown={(e) => e.key === "Enter" && onViewDetails && onViewDetails(node)}
 >
     <!-- Header -->
     <div class="flex items-start justify-between w-full">
@@ -94,7 +100,19 @@
                 <span class="text-xs text-muted-foreground flex items-center"
                     ><RefreshCw class="size-3 animate-spin mr-1" /> Uninstalling...</span
                 >
+            {:else if isRegistry && !isInstalled}
+                <Button
+                    variant="default"
+                    size="sm"
+                    class="h-7 px-3 text-xs cursor-pointer z-10"
+                    onclick={(e: Event) => {
+                        e.stopPropagation();
+                        if (onAction) onAction("download", node.id);
+                    }}
+                >
+                    <Download class="size-3 mr-1" /> Download
+                </Button>
             {/if}
         </div>
     </div>
-</button>
+</div>

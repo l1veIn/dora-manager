@@ -1,0 +1,28 @@
+🚀 Starting dm-server (port 3210)...
+   Compiling dm-core v0.1.0 (/Users/yangchen/Desktop/dora-manager/crates/dm-core)
+   Compiling dm-server v0.1.0 (/Users/yangchen/Desktop/dora-manager/crates/dm-server)
+🌐 Starting web dev server...
+
+✅ Both servers running. Press Ctrl+C to stop.
+
+> web@0.0.1 dev
+> vite dev
+
+
+  VITE v7.3.1  ready in 669 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+
+Google Chrome is requesting /.well-known/appspecific/com.chrome.devtools.json to automatically configure devtools project settings. To learn why, and how to prevent this message, see https://svelte.dev/docs/cli/devtools-json
+
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.88s
+     Running `target/debug/dm-server`
+6:47:54 PM [vite] http proxy error: /api/nodes
+Error: connect ECONNREFUSED 127.0.0.1:3210
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1713:16)
+6:47:54 PM [vite] http proxy error: /api/registry
+Error: connect ECONNREFUSED 127.0.0.1:3210
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1713:16)
+🚀 dm-server listening on http://127.0.0.1:3210
+./dev.sh: line 29: 44491 Killed: 9               cargo run -p dm-server

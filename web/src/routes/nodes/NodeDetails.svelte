@@ -68,7 +68,9 @@
     $effect(() => {
         if (open && node) {
             loadReadme();
-            loadConfig();
+            if (!isRegistry || isInstalled) {
+                loadConfig();
+            }
         }
     });
 
@@ -205,7 +207,7 @@
 
 <Dialog.Root bind:open>
     <Dialog.Content
-        class="w-[95vw] sm:max-w-3xl max-h-[90vh] flex flex-col pt-10"
+        class="w-[95vw] sm:max-w-3xl max-h-[70vh] flex flex-col pt-10"
     >
         {#if node}
             <div
@@ -224,23 +226,24 @@
                 </Dialog.Title>
             </div>
 
-            <!-- Scrollable content area -->
-            <div
-                class="flex-1 overflow-y-auto pr-2 mt-2"
-                style="min-height: 50vh;"
-            >
-                <Tabs.Root value="readme" class="w-full">
-                    <Tabs.List
-                        class="grid w-full grid-cols-2 mb-4 sticky top-0 bg-background/95 backdrop-blur z-10 border-b pb-2 pt-2"
-                    >
-                        <Tabs.Trigger value="readme">README</Tabs.Trigger>
-                        <Tabs.Trigger value="config">Configuration</Tabs.Trigger
-                        >
-                    </Tabs.List>
+            <!-- Flex wrapper without scroll -->
+            <div class="flex-1 flex flex-col min-h-0 mt-2 pb-4">
+                <Tabs.Root
+                    value="readme"
+                    class="w-full flex-1 flex flex-col min-h-0 mt-4"
+                >
+                    {#if !isRegistry || isInstalled}
+                        <Tabs.List class="mb-4 flex-shrink-0">
+                            <Tabs.Trigger value="readme">README</Tabs.Trigger>
+                            <Tabs.Trigger value="config"
+                                >Configuration</Tabs.Trigger
+                            >
+                        </Tabs.List>
+                    {/if}
 
                     <Tabs.Content
                         value="readme"
-                        class="border rounded-md p-4 bg-muted/5 min-h-[40vh]"
+                        class="border rounded-md p-4 bg-muted/5 flex-1 overflow-y-auto min-h-[40vh]"
                     >
                         {#if loadingReadme}
                             <div
@@ -258,71 +261,73 @@
                         {/if}
                     </Tabs.Content>
 
-                    <Tabs.Content
-                        value="config"
-                        class="min-h-[40vh] flex flex-col"
-                    >
-                        {#if loadingConfig}
-                            <div
-                                class="flex items-center justify-center h-48 opacity-50"
-                            >
-                                <RefreshCw class="size-6 animate-spin" />
-                            </div>
-                        {:else if !configSchema}
-                            <div
-                                class="flex items-center justify-center h-48 border rounded-md border-dashed bg-muted/10"
-                            >
-                                <p class="text-muted-foreground">
-                                    This node does not expose any configuration
-                                    parameters.
-                                </p>
-                            </div>
-                        {:else}
-                            <div class="space-y-6 flex-1">
-                                {#each Object.entries(configSchema) as [key, schema]}
-                                    {@render buildConfigField(key, schema)}
-                                {/each}
-                            </div>
-                            <div
-                                class="mt-8 pt-4 border-t flex justify-end gap-3"
-                            >
-                                <Button
-                                    variant="outline"
-                                    onclick={() =>
-                                        (formData = { ...originalConfig })}
-                                    disabled={!hasChanges || savingConfig}
+                    {#if !isRegistry || isInstalled}
+                        <Tabs.Content
+                            value="config"
+                            class="flex-1 overflow-y-auto border rounded-md p-6 bg-muted/5 flex flex-col min-h-[40vh]"
+                        >
+                            {#if loadingConfig}
+                                <div
+                                    class="flex items-center justify-center h-48 opacity-50"
                                 >
-                                    Revert
-                                </Button>
-                                <Button
-                                    onclick={saveConfig}
-                                    disabled={!hasChanges || savingConfig}
+                                    <RefreshCw class="size-6 animate-spin" />
+                                </div>
+                            {:else if !configSchema}
+                                <div
+                                    class="flex items-center justify-center h-48 border rounded-md border-dashed bg-muted/10"
                                 >
-                                    {#if savingConfig}
-                                        <RefreshCw
-                                            class="size-4 animate-spin mr-2"
-                                        />
-                                    {:else}
-                                        <Save class="size-4 mr-2" />
-                                    {/if}
-                                    Save Changes
-                                </Button>
-                            </div>
-                        {/if}
-                    </Tabs.Content>
+                                    <p class="text-muted-foreground">
+                                        This node does not expose any
+                                        configuration parameters.
+                                    </p>
+                                </div>
+                            {:else}
+                                <div class="space-y-6 flex-1">
+                                    {#each Object.entries(configSchema) as [key, schema]}
+                                        {@render buildConfigField(key, schema)}
+                                    {/each}
+                                </div>
+                                <div
+                                    class="mt-8 pt-4 border-t flex justify-end gap-3"
+                                >
+                                    <Button
+                                        variant="outline"
+                                        onclick={() =>
+                                            (formData = { ...originalConfig })}
+                                        disabled={!hasChanges || savingConfig}
+                                    >
+                                        Revert
+                                    </Button>
+                                    <Button
+                                        onclick={saveConfig}
+                                        disabled={!hasChanges || savingConfig}
+                                    >
+                                        {#if savingConfig}
+                                            <RefreshCw
+                                                class="size-4 animate-spin mr-2"
+                                            />
+                                        {:else}
+                                            <Save class="size-4 mr-2" />
+                                        {/if}
+                                        Save Changes
+                                    </Button>
+                                </div>
+                            {/if}
+                        </Tabs.Content>
+                    {/if}
                 </Tabs.Root>
             </div>
 
             <!-- Footer for Node Actions -->
             {#if onAction}
-                <Dialog.Footer class="mt-4 pt-4 border-t sm:justify-start">
+                <Dialog.Footer class="mt-4 pt-4 border-t sm:justify-end">
                     {#if isRegistry}
                         {#if isInstalled && !needsInstall}
                             <Button variant="outline" disabled
                                 >Installed ✓</Button
                             >
                         {:else if needsInstall}
-                            <Button
+                            <!-- <Button
                                 disabled={operation === "installing"}
                                 onclick={() => onAction("install", node.id)}
                             >
@@ -334,7 +339,7 @@
                                     <Play class="size-4 mr-2" />
                                 {/if}
                                 Complete Install
-                            </Button>
+                            </Button> -->
                         {:else}
                             <Button
                                 disabled={operation === "downloading"}
@@ -351,6 +356,19 @@
                             </Button>
                         {/if}
                     {:else}
+                        <Button
+                            variant="destructive"
+                            class="gap-2"
+                            disabled={operation === "uninstalling"}
+                            onclick={() => onAction("uninstall", node.id)}
+                        >
+                            {#if operation === "uninstalling"}
+                                <RefreshCw class="size-4 animate-spin" />
+                            {:else}
+                                <Trash2 class="size-4" />
+                            {/if}
+                            Delete
+                        </Button>
                         <!-- Local Node -->
                         {#if needsInstall}
                             <Button
@@ -383,23 +401,6 @@
                                 Re-install
                             </Button>
                         {/if}
-
-                        <div class="flex-1"></div>
-                        <!-- Spacer to push uninstall to the right -->
-
-                        <Button
-                            variant="destructive"
-                            class="gap-2"
-                            disabled={operation === "uninstalling"}
-                            onclick={() => onAction("uninstall", node.id)}
-                        >
-                            {#if operation === "uninstalling"}
-                                <RefreshCw class="size-4 animate-spin" />
-                            {:else}
-                                <Trash2 class="size-4" />
-                            {/if}
-                            Uninstall
-                        </Button>
                     {/if}
                 </Dialog.Footer>
             {/if}

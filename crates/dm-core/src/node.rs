@@ -7,6 +7,7 @@ use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use fs_extra::dir::{copy as dir_copy, CopyOptions};
 
 use crate::events::{EventSource, OperationEvent};
 use crate::registry::{self, NodeMeta};
@@ -156,7 +157,7 @@ pub async fn download_node(home: &Path, id: &str) -> Result<NodeEntry> {
             installed_at: current_timestamp(),
             source: NodeSource {
                 build: meta.build.clone(),
-                github: None,
+                github: meta.github.clone(),
             },
             description: meta.description.clone(),
             executable: String::new(), // empty = not installed
@@ -173,6 +174,16 @@ pub async fn download_node(home: &Path, id: &str) -> Result<NodeEntry> {
             .context("Failed to serialize dm.json")?;
         std::fs::write(&dm_path, dm_json)
             .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
+
+        // 4. Download source code from GitHub if available in `source` or `github` field
+        let repo_url = meta.source.as_ref().or(meta.github.as_ref());
+        if let Some(github_url) = repo_url {
+            if let Err(e) = download_github_source(github_url, &node_path).await {
+                // Return an error if GitHub source fails to clone.
+                let _ = std::fs::remove_dir_all(&node_path);
+                bail!("Failed to fetch source from GitHub: {}", e);
+            }
+        }
 
         Ok(NodeEntry {
             id: id.to_string(),
@@ -233,6 +244,8 @@ pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
                 outputs: dm_meta.outputs.clone(),
                 system_deps: None,
                 tags: Vec::new(),
+                github: None,
+                source: None,
             };
 
             let version = if has_local_pyproject {
@@ -262,6 +275,8 @@ pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
                 outputs: dm_meta.outputs.clone(),
                 system_deps: None,
                 tags: Vec::new(),
+                github: None,
+                source: None,
             };
 
             let version = install_cargo_node(&registry_meta, &node_path).await?;
@@ -594,9 +609,95 @@ async fn install_cargo_node(meta: &NodeMeta, node_path: &Path) -> Result<String>
 /// Get the installed version of a cargo crate
 fn get_crate_version(_node_path: &Path, _package: &str) -> Result<String> {
     // Check cargo metadata or the binary version
-    // For simplicity, we just return "latest" for now
-    // In the future, this could parse Cargo.toml or query the binary
-    Ok("latest".to_string())
+    // For now, return unknown
+    Ok("unknown".to_string())
+}
+
+/// Download a specific subtree from a GitHub repository using sparse checkout
+async fn download_github_source(github_url: &str, dest_dir: &Path) -> Result<()> {
+    if !github_url.starts_with("https://github.com/") {
+        bail!("Invalid GitHub URL format: {}", github_url);
+    }
+    
+    // example: "https://github.com/dora-rs/node-hub/tree/main/node-hub/dora-pyaudio"
+    // or: "https://github.com/dora-rs/node-hub/blob/main/node-hub/dora-keyboard"
+    let parts: Vec<&str> = github_url.split('/').collect();
+    if parts.len() < 5 {
+        bail!("Invalid GitHub URL structure");
+    }
+    
+    let repo_url = format!("https://github.com/{}/{}.git", parts[3], parts[4]);
+    let mut folder_path = String::new();
+    if parts.len() > 7 && (parts[5] == "tree" || parts[5] == "blob") {
+        folder_path = parts[7..].join("/");
+    }
+    
+    // Create a temporary directory using system time
+    let tmp_name = format!("dm_clone_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
+    let temp_dir = std::env::temp_dir().join(tmp_name);
+    
+    let status = Command::new("git")
+        .args(["clone", "--depth", "1", "--filter=blob:none", "--sparse", &repo_url, &temp_dir.to_string_lossy()])
+        .status()?;
+        
+    if !status.success() {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        bail!("Failed to clone repository");
+    }
+    
+    if !folder_path.is_empty() {
+        let status = Command::new("git")
+            .current_dir(&temp_dir)
+            .args(["sparse-checkout", "set", &folder_path])
+            .status()?;
+            
+        if !status.success() {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            bail!("Failed to set sparse-checkout");
+        }
+        
+        let status = Command::new("git")
+            .current_dir(&temp_dir)
+            .args(["checkout"])
+            .status()?;
+            
+        if !status.success() {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            bail!("Failed to checkout sparse files");
+        }
+        
+        // Copy contents correctly handling directories
+        let src_path = temp_dir.join(&folder_path);
+        
+        if src_path.exists() {
+            let mut options = CopyOptions::new();
+            options.content_only = true; // Copy the contents, not the folder itself
+            if let Err(e) = dir_copy(&src_path, dest_dir, &options) {
+                let _ = std::fs::remove_dir_all(&temp_dir);
+                bail!("Failed to copy node files via fs_extra: {}", e);
+            }
+        } else {
+            bail!("The specified node directory '{}' was not found in the repository.", folder_path);
+        }
+    } else {
+        let mut options = CopyOptions::new();
+        options.content_only = true;
+        
+        let git_dir = temp_dir.join(".git");
+        if git_dir.exists() {
+            let _ = std::fs::remove_dir_all(&git_dir);
+        }
+        
+        if let Err(e) = dir_copy(&temp_dir, dest_dir, &options) {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            bail!("Failed to copy node files via fs_extra: {}", e);
+        }
+    }
+    
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    // Remove the imported .git folder inside dest_dir to disjoint it from upstream if needed
+    let _ = std::fs::remove_dir_all(dest_dir.join(".git"));
+    Ok(())
 }
 
 /// List all installed nodes

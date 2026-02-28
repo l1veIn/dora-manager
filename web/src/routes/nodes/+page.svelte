@@ -2,6 +2,7 @@
     import { onMount } from "svelte";
     import { get, post } from "$lib/api";
     import * as Tabs from "$lib/components/ui/tabs/index.js";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import { Input } from "$lib/components/ui/input/index.js";
     import { Button } from "$lib/components/ui/button/index.js";
     import { Search, Package, Plus } from "lucide-svelte";
@@ -25,6 +26,9 @@
     // Dialog & Sheet state
     let isCreateDialogOpen = $state(false);
     let isDetailsSheetOpen = $state(false);
+    let isDeleteDialogOpen = $state(false);
+    let nodeToDelete = $state<string | null>(null);
+
     let selectedNode = $state<any | null>(null);
     let selectedNodeIsRegistry = $state(false);
     let selectedNodeIsInstalled = $state(false);
@@ -75,17 +79,33 @@
                 delete operations[id];
             }
         } else if (action === "uninstall") {
-            if (!confirm(`Are you sure you want to uninstall ${id}?`)) return;
-            operations[id] = "uninstalling";
-            try {
-                await post("/nodes/uninstall", { id });
-                toast.success(`${id} uninstalled`);
-                await fetchInstalled();
-            } catch (e: any) {
-                toast.error(`Failed to uninstall ${id}: ${e.message}`);
-            } finally {
-                delete operations[id];
+            nodeToDelete = id;
+            isDeleteDialogOpen = true;
+        }
+    }
+
+    async function confirmUninstall() {
+        if (!nodeToDelete) return;
+        const id = nodeToDelete;
+        operations[id] = "uninstalling";
+        isDeleteDialogOpen = false;
+        try {
+            await post("/nodes/uninstall", { id });
+            toast.success(`${id} uninstalled`);
+            await fetchInstalled();
+
+            // If the deleted node is currently open in details, close it if it was completely removed
+            if (selectedNode && selectedNode.id === id && isDetailsSheetOpen) {
+                // Determine if we should close the dialog or just refresh its state
+                // Since it's uninstalled, it might still exist in registry, but if we are on 'installed' tab we might want to close it.
+                // For safety, let's just close the details dialog upon deletion.
+                isDetailsSheetOpen = false;
             }
+        } catch (e: any) {
+            toast.error(`Failed to uninstall ${id}: ${e.message}`);
+        } finally {
+            delete operations[id];
+            nodeToDelete = null;
         }
     }
 
@@ -189,6 +209,7 @@
                             isRegistry={false}
                             isInstalled={true}
                             operation={operations[node.id]}
+                            onAction={handleAction}
                             onViewDetails={() => viewDetails(node, false, true)}
                         />
                     {/each}
@@ -224,6 +245,7 @@
                             isRegistry={true}
                             isInstalled={!!installedData}
                             operation={operations[node.id]}
+                            onAction={handleAction}
                             onViewDetails={() =>
                                 viewDetails(
                                     installedData || node,

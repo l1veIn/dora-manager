@@ -19,6 +19,8 @@ pub struct NodeMeta {
     pub outputs: Vec<String>,
     pub tags: Vec<String>,
     pub category: String,
+    pub github: Option<String>,
+    pub source: Option<String>,
 }
 
 /// 从 `nodes.json` 解析的原始数据结构
@@ -94,6 +96,8 @@ fn parse_registry_node(node: RegistryNode) -> Result<NodeMeta> {
         outputs: config.outputs,
         tags: node.tags,
         category: node.category,
+        github: node.github,
+        source: node.source,
     })
 }
 
