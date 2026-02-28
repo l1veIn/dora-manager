@@ -111,7 +111,8 @@ pub async fn node_readme(
     // Fallback: try to fetch from registry and online
     if let Ok(registry) = dm_core::registry::fetch_registry().await {
         if let Some(node) = dm_core::registry::find_node(&registry, &id) {
-            if let Some(github_url) = &node.github {
+            let repo_url = node.source.as_ref().or(node.github.as_ref());
+            if let Some(github_url) = repo_url {
                 if github_url.starts_with("https://github.com/") {
                     let raw_url = github_url
                         .replace("https://github.com/", "https://raw.githubusercontent.com/")

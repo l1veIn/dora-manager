@@ -26,3 +26,14 @@ Error: connect ECONNREFUSED 127.0.0.1:3210
     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1713:16)
 🚀 dm-server listening on http://127.0.0.1:3210
 ./dev.sh: line 29: 44491 Killed: 9               cargo run -p dm-server
+
+[1;31m[404] GET /docs/peng-dora.jpg[0m
+
+[1;31m[404] GET /docs/peng-dora.jpg[0m
+
+[1;31m[404] GET /docs/peng-dora.jpg[0m
+6:57:49 PM [vite] http proxy error: /api/nodes/dora-kokoro-tts/readme
+Error: connect ECONNREFUSED 127.0.0.1:3210
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1713:16)
+
+[1;31m[404] GET /docs/peng-dora.jpg[0m
