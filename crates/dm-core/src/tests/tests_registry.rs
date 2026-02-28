@@ -11,6 +11,8 @@ fn mock_node(id: &str, name: &str, description: &str, tags: &[&str]) -> NodeMeta
         outputs: vec!["text".to_string()],
         tags: tags.iter().map(|t| t.to_string()).collect(),
         category: "Test".to_string(),
+        github: None,
+        source: None,
     }
 }
 

@@ -80,6 +80,10 @@ esac
 }
 
 fn setup_installed_node(home: &std::path::Path, id: &str) {
+    setup_node_with_build(home, id, "python");
+}
+
+fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
     let node_dir = dm_core::node::node_dir(home, id);
     std::fs::create_dir_all(&node_dir).unwrap();
     let meta = dm_core::node::NodeMetaFile {
@@ -88,7 +92,7 @@ fn setup_installed_node(home: &std::path::Path, id: &str) {
         version: "1.0.0".to_string(),
         installed_at: "1234567890".to_string(),
         source: dm_core::node::NodeSource {
-            build: "python".to_string(),
+            build: build.to_string(),
             github: None,
         },
         description: String::new(),
@@ -145,10 +149,12 @@ async fn update_config_persists_active_version() {
 
     let resp = handlers::update_config(
         State(state.clone()),
-        Json(serde_json::from_value(serde_json::json!({
-            "active_version": "0.4.1"
-        }))
-        .unwrap()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "active_version": "0.4.1"
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
@@ -236,16 +242,20 @@ async fn dataflow_crud_handlers_roundtrip() {
     let save_resp = handlers::save_dataflow(
         State(state.clone()),
         Path("demo-flow".to_string()),
-        Json(serde_json::from_value(serde_json::json!({
-            "yaml": "nodes: []"
-        }))
-        .unwrap()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []"
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
     assert_eq!(save_resp.status(), axum::http::StatusCode::OK);
 
-    let list_resp = handlers::list_dataflows(State(state.clone())).await.into_response();
+    let list_resp = handlers::list_dataflows(State(state.clone()))
+        .await
+        .into_response();
     assert_eq!(list_resp.status(), axum::http::StatusCode::OK);
     let list_body = body_text(list_resp).await;
     let dataflows: Vec<serde_json::Value> = serde_json::from_str(&list_body).unwrap();
@@ -260,9 +270,10 @@ async fn dataflow_crud_handlers_roundtrip() {
     let get_json: serde_json::Value = serde_json::from_str(&get_body).unwrap();
     assert_eq!(get_json["yaml"], "nodes: []");
 
-    let delete_resp = handlers::delete_dataflow(State(state.clone()), Path("demo-flow".to_string()))
-        .await
-        .into_response();
+    let delete_resp =
+        handlers::delete_dataflow(State(state.clone()), Path("demo-flow".to_string()))
+            .await
+            .into_response();
     assert_eq!(delete_resp.status(), axum::http::StatusCode::OK);
 
     let missing_resp = handlers::get_dataflow(State(state), Path("demo-flow".to_string()))
@@ -277,10 +288,12 @@ async fn uninstall_returns_bad_request_for_missing_version() {
 
     let resp = handlers::uninstall(
         State(state),
-        Json(serde_json::from_value(serde_json::json!({
-            "version": "9.9.9"
-        }))
-        .unwrap()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "version": "9.9.9"
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
@@ -296,10 +309,12 @@ async fn use_version_returns_bad_request_for_missing_version() {
 
     let resp = handlers::use_version(
         State(state),
-        Json(serde_json::from_value(serde_json::json!({
-            "version": "0.4.1"
-        }))
-        .unwrap()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "version": "0.4.1"
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
@@ -315,10 +330,12 @@ async fn uninstall_node_returns_bad_request_for_missing_node() {
 
     let resp = handlers::uninstall_node(
         State(state),
-        Json(serde_json::from_value(serde_json::json!({
-            "id": "missing-node"
-        }))
-        .unwrap()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "missing-node"
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
@@ -335,16 +352,153 @@ async fn uninstall_node_returns_success_for_existing_node() {
 
     let resp = handlers::uninstall_node(
         State(state.clone()),
-        Json(serde_json::from_value(serde_json::json!({
-            "id": "demo-node"
-        }))
-        .unwrap()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "demo-node"
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
 
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
     assert!(!dm_core::node::node_dir(&state.home, "demo-node").exists());
+}
+
+#[tokio::test]
+async fn create_node_returns_success_and_duplicate_returns_bad_request() {
+    let (_tmp, state) = test_state();
+
+    let create_resp = handlers::create_node(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "new-node",
+                "description": "test node"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(create_resp.status(), axum::http::StatusCode::OK);
+
+    let duplicate_resp = handlers::create_node(
+        State(state),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "new-node",
+                "description": "test node"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(duplicate_resp.status(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn node_config_handlers_roundtrip() {
+    let (_tmp, state) = test_state();
+    let home = state.home.clone();
+    dm_core::node::create_node(&home, "cfg-node", "configurable").unwrap();
+
+    let save_resp = handlers::save_node_config(
+        State(state.clone()),
+        Path("cfg-node".to_string()),
+        Json(serde_json::json!({ "threshold": 0.9 })),
+    )
+    .await
+    .into_response();
+    assert_eq!(save_resp.status(), axum::http::StatusCode::OK);
+
+    let get_resp = handlers::get_node_config(State(state), Path("cfg-node".to_string()))
+        .await
+        .into_response();
+    assert_eq!(get_resp.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(get_resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["threshold"], 0.9);
+}
+
+#[tokio::test]
+async fn save_node_config_returns_bad_request_for_missing_node() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::save_node_config(
+        State(state),
+        Path("missing-node".to_string()),
+        Json(serde_json::json!({ "threshold": 0.5 })),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn install_node_returns_bad_request_for_missing_node() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::install_node(
+        State(state),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "missing-node"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn install_node_returns_bad_request_for_unsupported_build() {
+    let (_tmp, state) = test_state();
+    setup_node_with_build(&state.home, "bad-node", "npm install bad-node");
+
+    let resp = handlers::install_node(
+        State(state),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "bad-node"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    assert!(body.contains("Unsupported build type"));
+}
+
+#[tokio::test]
+async fn download_node_returns_bad_request_for_existing_directory() {
+    let (_tmp, state) = test_state();
+    std::fs::create_dir_all(dm_core::node::node_dir(&state.home, "demo-node")).unwrap();
+
+    let resp = handlers::download_node(
+        State(state),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "demo-node"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    assert!(body.contains("already exists"));
 }
 
 #[tokio::test]
@@ -368,7 +522,10 @@ async fn up_and_down_handlers_use_fake_dora_binary() {
     let up_body = body_text(up_resp).await;
     let up_json: serde_json::Value = serde_json::from_str(&up_body).unwrap();
     assert_eq!(up_json["success"], true);
-    assert!(up_json["message"].as_str().unwrap_or_default().contains("started"));
+    assert!(up_json["message"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("started"));
 
     let down_resp = handlers::down(State(state)).await.into_response();
     assert_eq!(down_resp.status(), axum::http::StatusCode::OK);
@@ -385,11 +542,12 @@ async fn up_and_down_handlers_use_fake_dora_binary() {
 async fn ingest_and_query_events_roundtrip() {
     let (_tmp, state) = test_state();
 
-    let event = dm_core::events::EventBuilder::new(dm_core::events::EventSource::Frontend, "ui.click")
-        .case_id("session_test")
-        .message("clicked")
-        .attr("button", "run")
-        .build();
+    let event =
+        dm_core::events::EventBuilder::new(dm_core::events::EventSource::Frontend, "ui.click")
+            .case_id("session_test")
+            .message("clicked")
+            .attr("button", "run")
+            .build();
 
     let ingest_resp = handlers::ingest_event(State(state.clone()), Json(event))
         .await
@@ -462,7 +620,10 @@ async fn export_events_returns_xml() {
     .into_response();
 
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
-    let content_type = resp.headers().get(axum::http::header::CONTENT_TYPE).unwrap();
+    let content_type = resp
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .unwrap();
     assert_eq!(content_type, "application/xml");
 
     let body = body_text(resp).await;
@@ -497,10 +658,12 @@ async fn start_dataflow_returns_conflict_without_runtime() {
 
     let resp = handlers::start_dataflow(
         State(state),
-        Json(serde_json::from_value(serde_json::json!({
-            "yaml": "nodes: ["
-        }))
-        .unwrap()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: ["
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
@@ -518,10 +681,12 @@ async fn start_dataflow_returns_error_for_invalid_yaml_when_runtime_is_up() {
 
     let resp = handlers::start_dataflow(
         State(state),
-        Json(serde_json::from_value(serde_json::json!({
-            "yaml": "nodes: ["
-        }))
-        .unwrap()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: ["
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
@@ -533,11 +698,19 @@ async fn start_dataflow_returns_error_for_invalid_yaml_when_runtime_is_up() {
 
 #[tokio::test]
 async fn serve_web_root_returns_index_html() {
-    let resp = handlers::serve_web(Uri::from_static("/")).await.into_response();
+    let resp = handlers::serve_web(Uri::from_static("/"))
+        .await
+        .into_response();
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
-    let content_type = resp.headers().get(axum::http::header::CONTENT_TYPE).unwrap();
-    assert!(content_type.to_str().unwrap_or_default().contains("text/html"));
+    let content_type = resp
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .unwrap();
+    assert!(content_type
+        .to_str()
+        .unwrap_or_default()
+        .contains("text/html"));
 
     let body = body_text(resp).await;
     assert!(body.contains("<!doctype html>") || body.contains("<html"));
@@ -545,9 +718,17 @@ async fn serve_web_root_returns_index_html() {
 
 #[tokio::test]
 async fn serve_web_unknown_path_falls_back_to_index() {
-    let resp = handlers::serve_web(Uri::from_static("/missing-route")).await.into_response();
+    let resp = handlers::serve_web(Uri::from_static("/missing-route"))
+        .await
+        .into_response();
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
-    let content_type = resp.headers().get(axum::http::header::CONTENT_TYPE).unwrap();
-    assert!(content_type.to_str().unwrap_or_default().contains("text/html"));
+    let content_type = resp
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .unwrap();
+    assert!(content_type
+        .to_str()
+        .unwrap_or_default()
+        .contains("text/html"));
 }
