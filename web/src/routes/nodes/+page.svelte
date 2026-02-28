@@ -4,16 +4,12 @@
     import * as Tabs from "$lib/components/ui/tabs/index.js";
     import { Input } from "$lib/components/ui/input/index.js";
     import { Button } from "$lib/components/ui/button/index.js";
-    import { Badge } from "$lib/components/ui/badge/index.js";
-    import { Separator } from "$lib/components/ui/separator/index.js";
-    import {
-        Search,
-        Download,
-        Trash2,
-        Package,
-        RefreshCw,
-    } from "lucide-svelte";
+    import { Search, Package, Plus } from "lucide-svelte";
     import { toast } from "svelte-sonner";
+
+    import NodeCard from "./NodeCard.svelte";
+    import NodeDetails from "./NodeDetails.svelte";
+    import CreateNodeDialog from "./CreateNodeDialog.svelte";
 
     let installedNodes = $state<any[]>([]);
     let registryNodes = $state<any[]>([]);
@@ -21,8 +17,15 @@
     let loadingRegistry = $state(true);
     let searchQuery = $state("");
 
-    // Track ongoing operations
-    let operations = $state<Record<string, "installing" | "uninstalling">>({});
+    // Use a record for operations to handle concurrent actions
+    let operations = $state<
+        Record<string, "downloading" | "installing" | "uninstalling">
+    >({});
+
+    // Dialog & Sheet state
+    let isCreateDialogOpen = $state(false);
+    let isDetailsSheetOpen = $state(false);
+    let selectedNode = $state<any | null>(null);
 
     async function fetchInstalled() {
         try {
@@ -46,33 +49,47 @@
         }
     }
 
-    async function installNode(id: string) {
-        operations[id] = "installing";
-        toast.info(`Installing ${id}...`);
-        try {
-            await post("/nodes/install", { id });
-            toast.success(`${id} installed successfully`);
-            await fetchInstalled();
-        } catch (e: any) {
-            toast.error(`Failed to install ${id}: ${e.message}`);
-        } finally {
-            delete operations[id];
+    async function handleAction(action: string, id: string) {
+        if (action === "download") {
+            operations[id] = "downloading";
+            try {
+                await post("/nodes/download", { id });
+                toast.success(`${id} downloaded successfully`);
+                await fetchInstalled();
+            } catch (e: any) {
+                toast.error(`Failed to download ${id}: ${e.message}`);
+            } finally {
+                delete operations[id];
+            }
+        } else if (action === "install") {
+            operations[id] = "installing";
+            try {
+                await post("/nodes/install", { id });
+                toast.success(`${id} installed successfully`);
+                await fetchInstalled();
+            } catch (e: any) {
+                toast.error(`Failed to install ${id}: ${e.message}`);
+            } finally {
+                delete operations[id];
+            }
+        } else if (action === "uninstall") {
+            if (!confirm(`Are you sure you want to uninstall ${id}?`)) return;
+            operations[id] = "uninstalling";
+            try {
+                await post("/nodes/uninstall", { id });
+                toast.success(`${id} uninstalled`);
+                await fetchInstalled();
+            } catch (e: any) {
+                toast.error(`Failed to uninstall ${id}: ${e.message}`);
+            } finally {
+                delete operations[id];
+            }
         }
     }
 
-    async function uninstallNode(id: string) {
-        if (!confirm(`Are you sure you want to uninstall ${id}?`)) return;
-
-        operations[id] = "uninstalling";
-        try {
-            await post("/nodes/uninstall", { id });
-            toast.success(`${id} uninstalled`);
-            await fetchInstalled();
-        } catch (e: any) {
-            toast.error(`Failed to uninstall ${id}: ${e.message}`);
-        } finally {
-            delete operations[id];
-        }
+    function viewDetails(node: any) {
+        selectedNode = node;
+        isDetailsSheetOpen = true;
     }
 
     onMount(() => {
@@ -110,6 +127,10 @@
 <div class="p-6 max-w-6xl mx-auto space-y-6 h-full flex flex-col">
     <div class="flex items-center justify-between">
         <h1 class="text-3xl font-bold tracking-tight">Nodes</h1>
+        <Button onclick={() => (isCreateDialogOpen = true)}>
+            <Plus class="size-4 mr-2" />
+            New Node
+        </Button>
     </div>
 
     <Tabs.Root value="installed" class="flex-1 flex flex-col">
@@ -136,10 +157,10 @@
 
         <Tabs.Content value="installed" class="flex-1 mt-0">
             {#if loadingInstalled}
-                <div class="space-y-4">
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {#each Array(3) as _}
                         <div
-                            class="animate-pulse h-24 bg-muted/50 rounded-lg"
+                            class="animate-pulse h-36 bg-muted/50 rounded-lg"
                         ></div>
                     {/each}
                 </div>
@@ -159,59 +180,14 @@
             {:else}
                 <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {#each filteredInstalled as node}
-                        <div
-                            class="border rounded-lg p-5 flex flex-col bg-card hover:border-slate-300 dark:hover:border-slate-700 transition-colors duration-200"
-                        >
-                            <div class="flex items-start justify-between">
-                                <div
-                                    class="font-bold font-mono text-base truncate pr-2"
-                                >
-                                    {node.name || node.id}
-                                </div>
-                                <Badge
-                                    variant="outline"
-                                    class="font-mono text-[10px] whitespace-nowrap"
-                                    >{node.version || "v0.0.0"}</Badge
-                                >
-                            </div>
-                            <div
-                                class="text-sm text-muted-foreground mt-2 line-clamp-2 h-10"
-                            >
-                                {node.description || "No description provided."}
-                            </div>
-
-                            <Separator class="my-4" />
-
-                            <div
-                                class="mt-auto flex items-center justify-between"
-                            >
-                                <div class="flex items-center gap-2">
-                                    <Badge
-                                        variant="secondary"
-                                        class="text-[10px]"
-                                        >{node.language || "Rust"}</Badge
-                                    >
-                                </div>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    class="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-2"
-                                    disabled={operations[node.id] ===
-                                        "uninstalling"}
-                                    onclick={() => uninstallNode(node.id)}
-                                >
-                                    {#if operations[node.id] === "uninstalling"}
-                                        <RefreshCw
-                                            class="size-4 animate-spin mr-1"
-                                        />
-                                        Removing
-                                    {:else}
-                                        <Trash2 class="size-4 mr-1" />
-                                        Uninstall
-                                    {/if}
-                                </Button>
-                            </div>
-                        </div>
+                        <NodeCard
+                            {node}
+                            isRegistry={false}
+                            isInstalled={true}
+                            operation={operations[node.id]}
+                            onAction={handleAction}
+                            onViewDetails={viewDetails}
+                        />
                     {/each}
                 </div>
             {/if}
@@ -219,10 +195,10 @@
 
         <Tabs.Content value="registry" class="flex-1 mt-0">
             {#if loadingRegistry}
-                <div class="space-y-4">
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {#each Array(3) as _}
                         <div
-                            class="animate-pulse h-24 bg-muted/50 rounded-lg"
+                            class="animate-pulse h-36 bg-muted/50 rounded-lg"
                         ></div>
                     {/each}
                 </div>
@@ -237,66 +213,28 @@
             {:else}
                 <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {#each filteredRegistry as node}
-                        {@const isInstalled = installedIds.has(node.id)}
-                        <div
-                            class="border rounded-lg p-5 flex flex-col bg-card {isInstalled
-                                ? 'opacity-70'
-                                : ''}"
-                        >
-                            <div class="flex items-start justify-between">
-                                <div
-                                    class="font-bold font-mono text-base truncate pr-2"
-                                >
-                                    {node.name || node.id}
-                                </div>
-                                <div
-                                    class="text-xs font-mono text-muted-foreground"
-                                >
-                                    ★ {node.stars || 0}
-                                </div>
-                            </div>
-                            <div
-                                class="text-sm text-muted-foreground mt-2 line-clamp-2 h-10"
-                            >
-                                {node.description || "No description provided."}
-                            </div>
-
-                            <Separator class="my-4" />
-
-                            <div
-                                class="mt-auto flex items-center justify-between"
-                            >
-                                <Badge variant="secondary" class="text-[10px]"
-                                    >{node.language || "Unknown"}</Badge
-                                >
-
-                                <Button
-                                    variant={isInstalled
-                                        ? "outline"
-                                        : "default"}
-                                    size="sm"
-                                    class="h-8 px-3"
-                                    disabled={isInstalled ||
-                                        operations[node.id] === "installing"}
-                                    onclick={() => installNode(node.id)}
-                                >
-                                    {#if isInstalled}
-                                        Installed ✓
-                                    {:else if operations[node.id] === "installing"}
-                                        <RefreshCw
-                                            class="size-3 animate-spin mr-2"
-                                        />
-                                        Installing...
-                                    {:else}
-                                        <Download class="size-3 mr-2" />
-                                        Install
-                                    {/if}
-                                </Button>
-                            </div>
-                        </div>
+                        {@const installedData = installedNodes.find(
+                            (n) => n.id === node.id,
+                        )}
+                        <NodeCard
+                            node={installedData || node}
+                            isRegistry={true}
+                            isInstalled={!!installedData}
+                            operation={operations[node.id]}
+                            onAction={handleAction}
+                            onViewDetails={viewDetails}
+                        />
                     {/each}
                 </div>
             {/if}
         </Tabs.Content>
     </Tabs.Root>
 </div>
+
+<!-- Modals & Sheets -->
+<CreateNodeDialog
+    bind:open={isCreateDialogOpen}
+    onCreated={() => fetchInstalled()}
+/>
+
+<NodeDetails bind:open={isDetailsSheetOpen} node={selectedNode} />
