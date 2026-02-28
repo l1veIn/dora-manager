@@ -37,3 +37,6 @@ Error: connect ECONNREFUSED 127.0.0.1:3210
     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1713:16)
 
 [1;31m[404] GET /docs/peng-dora.jpg[0m
+6:59:59 PM [vite] (client) hmr update /src/app.css
+
+[1;31m[404] GET /docs/peng-dora.jpg[0m
