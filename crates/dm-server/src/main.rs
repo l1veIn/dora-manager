@@ -45,11 +45,10 @@ async fn main() {
         .route("/api/up", post(handlers::up))
         .route("/api/down", post(handlers::down))
         // ─── Node Management ───
-        .route("/api/registry", get(handlers::get_registry))
         .route("/api/nodes", get(handlers::list_nodes))
         .route("/api/nodes/install", post(handlers::install_node))
-        .route("/api/nodes/download", post(handlers::download_node))
         .route("/api/nodes/create", post(handlers::create_node))
+        .route("/api/nodes/import", post(handlers::import_node))
         .route("/api/nodes/{id}", get(handlers::node_status))
         .route("/api/nodes/{id}/readme", get(handlers::node_readme))
         .route("/api/nodes/{id}/config", get(handlers::get_node_config))

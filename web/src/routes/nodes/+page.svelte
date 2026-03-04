@@ -5,17 +5,16 @@
     import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import { Input } from "$lib/components/ui/input/index.js";
     import { Button } from "$lib/components/ui/button/index.js";
-    import { Search, Package, Plus } from "lucide-svelte";
+    import { Search, Package, Plus, Download } from "lucide-svelte";
     import { toast } from "svelte-sonner";
 
     import NodeCard from "./NodeCard.svelte";
     import NodeDetails from "./NodeDetails.svelte";
     import CreateNodeDialog from "./CreateNodeDialog.svelte";
+    import ImportNodeDialog from "./ImportNodeDialog.svelte";
 
     let installedNodes = $state<any[]>([]);
-    let registryNodes = $state<any[]>([]);
     let loadingInstalled = $state(true);
-    let loadingRegistry = $state(true);
     let searchQuery = $state("");
 
     // Use a record for operations to handle concurrent actions
@@ -25,13 +24,12 @@
 
     // Dialog & Sheet state
     let isCreateDialogOpen = $state(false);
+    let isImportDialogOpen = $state(false);
     let isDetailsSheetOpen = $state(false);
     let isDeleteDialogOpen = $state(false);
     let nodeToDelete = $state<string | null>(null);
 
     let selectedNode = $state<any | null>(null);
-    let selectedNodeIsRegistry = $state(false);
-    let selectedNodeIsInstalled = $state(false);
 
     async function fetchInstalled() {
         try {
@@ -41,17 +39,6 @@
             installedNodes = [];
         } finally {
             loadingInstalled = false;
-        }
-    }
-
-    async function fetchRegistry() {
-        try {
-            registryNodes = (await get("/registry")) || [];
-        } catch (e) {
-            toast.error("Failed to load node registry");
-            registryNodes = [];
-        } finally {
-            loadingRegistry = false;
         }
     }
 
@@ -109,32 +96,17 @@
         }
     }
 
-    function viewDetails(node: any, isRegistry: boolean, isInstalled: boolean) {
+    function viewDetails(node: any) {
         selectedNode = node;
-        selectedNodeIsRegistry = isRegistry;
-        selectedNodeIsInstalled = isInstalled;
         isDetailsSheetOpen = true;
     }
 
     onMount(() => {
         fetchInstalled();
-        fetchRegistry();
     });
 
     let filteredInstalled = $derived(
         installedNodes.filter(
-            (n) =>
-                (n.name || n.id || "")
-                    .toLowerCase()
-                    .includes(searchQuery.toLowerCase()) ||
-                (n.description || "")
-                    .toLowerCase()
-                    .includes(searchQuery.toLowerCase()),
-        ),
-    );
-
-    let filteredRegistry = $derived(
-        registryNodes.filter(
             (n) =>
                 (n.name || n.id || "")
                     .toLowerCase()
@@ -151,20 +123,26 @@
 <div class="p-6 max-w-6xl mx-auto space-y-6 h-full flex flex-col">
     <div class="flex items-center justify-between">
         <h1 class="text-3xl font-bold tracking-tight">Nodes</h1>
-        <Button onclick={() => (isCreateDialogOpen = true)}>
-            <Plus class="size-4 mr-2" />
-            New Node
-        </Button>
+        <div class="flex items-center gap-2">
+            <Button
+                variant="outline"
+                onclick={() => (isImportDialogOpen = true)}
+            >
+                <Download class="size-4 mr-2" />
+                Import Node
+            </Button>
+            <Button onclick={() => (isCreateDialogOpen = true)}>
+                <Plus class="size-4 mr-2" />
+                New Node
+            </Button>
+        </div>
     </div>
 
-    <Tabs.Root value="installed" class="flex-1 flex flex-col">
+    <div class="flex-1 flex flex-col mt-4">
         <div class="flex items-center justify-between mb-4 gap-4">
-            <Tabs.List>
-                <Tabs.Trigger value="installed"
-                    >Installed ({installedNodes.length})</Tabs.Trigger
-                >
-                <Tabs.Trigger value="registry">Registry</Tabs.Trigger>
-            </Tabs.List>
+            <h2 class="text-xl font-semibold">
+                Installed Nodes ({installedNodes.length})
+            </h2>
 
             <div class="relative w-72">
                 <Search
@@ -179,7 +157,7 @@
             </div>
         </div>
 
-        <Tabs.Content value="installed" class="flex-1 mt-0">
+        <div class="flex-1 mt-0">
             {#if loadingInstalled}
                 <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {#each Array(3) as _}
@@ -206,58 +184,15 @@
                     {#each filteredInstalled as node}
                         <NodeCard
                             {node}
-                            isRegistry={false}
-                            isInstalled={true}
                             operation={operations[node.id]}
                             onAction={handleAction}
-                            onViewDetails={() => viewDetails(node, false, true)}
+                            onViewDetails={() => viewDetails(node)}
                         />
                     {/each}
                 </div>
             {/if}
-        </Tabs.Content>
-
-        <Tabs.Content value="registry" class="flex-1 mt-0">
-            {#if loadingRegistry}
-                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {#each Array(3) as _}
-                        <div
-                            class="animate-pulse h-36 bg-muted/50 rounded-lg"
-                        ></div>
-                    {/each}
-                </div>
-            {:else if filteredRegistry.length === 0}
-                <div
-                    class="flex flex-col items-center justify-center p-12 text-center border rounded-lg bg-muted/10 h-64 border-dashed"
-                >
-                    <p class="text-muted-foreground">
-                        No nodes found in the remote registry.
-                    </p>
-                </div>
-            {:else}
-                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {#each filteredRegistry as node}
-                        {@const installedData = installedNodes.find(
-                            (n) => n.id === node.id,
-                        )}
-                        <NodeCard
-                            node={installedData || node}
-                            isRegistry={true}
-                            isInstalled={!!installedData}
-                            operation={operations[node.id]}
-                            onAction={handleAction}
-                            onViewDetails={() =>
-                                viewDetails(
-                                    installedData || node,
-                                    true,
-                                    !!installedData,
-                                )}
-                        />
-                    {/each}
-                </div>
-            {/if}
-        </Tabs.Content>
-    </Tabs.Root>
+        </div>
+    </div>
 </div>
 
 <!-- Modals & Sheets -->
@@ -266,14 +201,43 @@
     onCreated={() => fetchInstalled()}
 />
 
+<ImportNodeDialog
+    bind:open={isImportDialogOpen}
+    onImported={() => fetchInstalled()}
+/>
+
 <NodeDetails
     bind:open={isDetailsSheetOpen}
     node={selectedNode}
-    isRegistry={selectedNodeIsRegistry}
-    isInstalled={selectedNodeIsInstalled}
     operation={selectedNode ? operations[selectedNode.id] : null}
     onAction={(action, id) => {
         isDetailsSheetOpen = false;
         handleAction(action, id);
     }}
 />
+
+<AlertDialog.Root bind:open={isDeleteDialogOpen}>
+    <AlertDialog.Content>
+        <AlertDialog.Header>
+            <AlertDialog.Title>Confirm Delete</AlertDialog.Title>
+            <AlertDialog.Description>
+                Are you sure you want to delete <span
+                    class="font-mono font-bold">{nodeToDelete}</span
+                >? This action cannot be undone.
+            </AlertDialog.Description>
+        </AlertDialog.Header>
+        <AlertDialog.Footer>
+            <AlertDialog.Cancel
+                onclick={() => {
+                    isDeleteDialogOpen = false;
+                    nodeToDelete = null;
+                }}
+            >
+                Cancel
+            </AlertDialog.Cancel>
+            <AlertDialog.Action onclick={confirmUninstall}>
+                Delete
+            </AlertDialog.Action>
+        </AlertDialog.Footer>
+    </AlertDialog.Content>
+</AlertDialog.Root>

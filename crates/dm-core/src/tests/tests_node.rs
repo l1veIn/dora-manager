@@ -1,9 +1,8 @@
 //! Tests for the node module
 
 use crate::node::{
-    create_node, dm_json_path, download_node, get_node_config, get_node_readme, install_node,
-    list_nodes, node_dir, node_status, save_node_config, uninstall_node, NodeEntry, NodeMetaFile,
-    NodeSource,
+    create_node, dm_json_path, get_node_config, get_node_readme, install_node,
+    list_nodes, node_dir, node_status, save_node_config, uninstall_node, Node, NodeSource,
 };
 use tempfile::tempdir;
 
@@ -47,23 +46,30 @@ fn test_uninstall_nonexistent_node() {
 }
 
 #[test]
-fn test_node_entry_struct() {
-    let entry = NodeEntry {
+fn test_node_struct() {
+    let node = Node {
         id: "test-node".to_string(),
         name: String::new(),
         version: "1.0.0".to_string(),
-        path: std::path::PathBuf::from("/test/path"),
         installed_at: "1234567890".to_string(),
+        source: NodeSource {
+            build: String::new(),
+            github: None,
+        },
         description: String::new(),
+        executable: String::new(),
         author: None,
         category: String::new(),
         inputs: Vec::new(),
         outputs: Vec::new(),
         avatar: None,
+        config_schema: None,
+        dm_version: "1".to_string(),
+        path: std::path::PathBuf::from("/test/path"),
     };
 
-    assert_eq!(entry.id, "test-node");
-    assert_eq!(entry.version, "1.0.0");
+    assert_eq!(node.id, "test-node");
+    assert_eq!(node.version, "1.0.0");
 }
 
 #[test]
@@ -109,7 +115,7 @@ fn test_create_node_generates_scaffold() {
     assert!(node_path.join("my_processor/main.py").exists());
     assert!(node_path.join("my_processor/__init__.py").exists());
 
-    let dm: NodeMetaFile =
+    let dm: Node =
         serde_json::from_str(&std::fs::read_to_string(node_path.join("dm.json")).unwrap()).unwrap();
     assert_eq!(dm.executable, "");
     assert_eq!(dm.id, "my-processor");
@@ -160,16 +166,6 @@ fn test_save_node_config_requires_existing_node() {
 }
 
 #[tokio::test]
-async fn test_download_node_fails_fast_when_directory_exists() {
-    let dir = tempdir().unwrap();
-    let home = dir.path();
-    std::fs::create_dir_all(node_dir(home, "demo-node")).unwrap();
-
-    let err = download_node(home, "demo-node").await.unwrap_err();
-    assert!(err.to_string().contains("already exists"));
-}
-
-#[tokio::test]
 async fn test_install_node_errors_when_missing() {
     let dir = tempdir().unwrap();
     let home = dir.path();
@@ -186,7 +182,7 @@ async fn test_install_node_errors_for_unsupported_build() {
     let node_path = node_dir(home, id);
     std::fs::create_dir_all(&node_path).unwrap();
 
-    let meta = NodeMetaFile {
+    let node = Node {
         id: id.to_string(),
         name: id.to_string(),
         version: String::new(),
@@ -203,10 +199,12 @@ async fn test_install_node_errors_for_unsupported_build() {
         outputs: Vec::new(),
         avatar: None,
         config_schema: None,
+        dm_version: "1".to_string(),
+        path: Default::default(),
     };
     std::fs::write(
         dm_json_path(home, id),
-        serde_json::to_string_pretty(&meta).unwrap(),
+        serde_json::to_string_pretty(&node).unwrap(),
     )
     .unwrap();
 

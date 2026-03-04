@@ -70,7 +70,7 @@ fn node_list_empty_home() {
         .args(["--home", home.path().to_str().unwrap(), "node", "list"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("No nodes installed"));
+        .stdout(predicate::str::contains("No nodes found"));
 }
 
 #[test]
@@ -87,8 +87,9 @@ fn node_uninstall_missing_node_shows_friendly_error() {
         ])
         .assert()
         .failure()
+        .stdout(predicate::str::contains("missing-node"))
         .stderr(predicate::str::contains(
-            "Failed to uninstall node 'missing-node'",
+            "1 node(s) failed to uninstall",
         ));
 }
 

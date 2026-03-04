@@ -13,8 +13,8 @@ pub use dataflow::{
 };
 pub use events::{count_events, export_events, ingest_event, query_events};
 pub use nodes::{
-    create_node, download_node, get_node_config, get_registry, install_node, list_nodes,
-    node_readme, node_status, save_node_config, uninstall_node,
+    create_node, get_node_config, import_node, install_node,
+    list_nodes, node_readme, node_status, save_node_config, uninstall_node,
 };
 pub use runtime::{down, install, uninstall, up, use_version};
 pub use system::{doctor, get_config, status, update_config, versions};

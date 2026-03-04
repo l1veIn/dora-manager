@@ -24,21 +24,17 @@
     let {
         open = $bindable(false),
         node = null,
-        isRegistry = false,
-        isInstalled = false,
         operation = null,
         onAction,
     } = $props<{
         open: boolean;
         node: any | null;
-        isRegistry?: boolean;
-        isInstalled?: boolean;
         operation?: string | null;
         onAction?: (action: string, id: string) => void;
     }>();
 
     let needsInstall = $derived(
-        isInstalled && (!node?.executable || node.executable.trim() === ""),
+        !node?.executable || node.executable.trim() === "",
     );
 
     let readmeContent = $state<string>("Loading...");
@@ -68,9 +64,7 @@
     $effect(() => {
         if (open && node) {
             loadReadme();
-            if (!isRegistry || isInstalled) {
-                loadConfig();
-            }
+            loadConfig();
         }
     });
 
@@ -232,14 +226,11 @@
                     value="readme"
                     class="w-full flex-1 flex flex-col min-h-0 mt-4"
                 >
-                    {#if !isRegistry || isInstalled}
-                        <Tabs.List class="mb-4 flex-shrink-0">
-                            <Tabs.Trigger value="readme">README</Tabs.Trigger>
-                            <Tabs.Trigger value="config"
-                                >Configuration</Tabs.Trigger
-                            >
-                        </Tabs.List>
-                    {/if}
+                    <Tabs.List class="mb-4 flex-shrink-0">
+                        <Tabs.Trigger value="readme">README</Tabs.Trigger>
+                        <Tabs.Trigger value="config">Configuration</Tabs.Trigger
+                        >
+                    </Tabs.List>
 
                     <Tabs.Content
                         value="readme"
@@ -261,146 +252,104 @@
                         {/if}
                     </Tabs.Content>
 
-                    {#if !isRegistry || isInstalled}
-                        <Tabs.Content
-                            value="config"
-                            class="flex-1 overflow-y-auto border rounded-md p-6 bg-muted/5 flex flex-col min-h-[40vh]"
-                        >
-                            {#if loadingConfig}
-                                <div
-                                    class="flex items-center justify-center h-48 opacity-50"
+                    <Tabs.Content
+                        value="config"
+                        class="flex-1 overflow-y-auto border rounded-md p-6 bg-muted/5 flex flex-col min-h-[40vh]"
+                    >
+                        {#if loadingConfig}
+                            <div
+                                class="flex items-center justify-center h-48 opacity-50"
+                            >
+                                <RefreshCw class="size-6 animate-spin" />
+                            </div>
+                        {:else if !configSchema}
+                            <div
+                                class="flex items-center justify-center h-48 border rounded-md border-dashed bg-muted/10"
+                            >
+                                <p class="text-muted-foreground">
+                                    This node does not expose any configuration
+                                    parameters.
+                                </p>
+                            </div>
+                        {:else}
+                            <div class="space-y-6 flex-1">
+                                {#each Object.entries(configSchema) as [key, schema]}
+                                    {@render buildConfigField(key, schema)}
+                                {/each}
+                            </div>
+                            <div
+                                class="mt-8 pt-4 border-t flex justify-end gap-3"
+                            >
+                                <Button
+                                    variant="outline"
+                                    onclick={() =>
+                                        (formData = { ...originalConfig })}
+                                    disabled={!hasChanges || savingConfig}
                                 >
-                                    <RefreshCw class="size-6 animate-spin" />
-                                </div>
-                            {:else if !configSchema}
-                                <div
-                                    class="flex items-center justify-center h-48 border rounded-md border-dashed bg-muted/10"
+                                    Revert
+                                </Button>
+                                <Button
+                                    onclick={saveConfig}
+                                    disabled={!hasChanges || savingConfig}
                                 >
-                                    <p class="text-muted-foreground">
-                                        This node does not expose any
-                                        configuration parameters.
-                                    </p>
-                                </div>
-                            {:else}
-                                <div class="space-y-6 flex-1">
-                                    {#each Object.entries(configSchema) as [key, schema]}
-                                        {@render buildConfigField(key, schema)}
-                                    {/each}
-                                </div>
-                                <div
-                                    class="mt-8 pt-4 border-t flex justify-end gap-3"
-                                >
-                                    <Button
-                                        variant="outline"
-                                        onclick={() =>
-                                            (formData = { ...originalConfig })}
-                                        disabled={!hasChanges || savingConfig}
-                                    >
-                                        Revert
-                                    </Button>
-                                    <Button
-                                        onclick={saveConfig}
-                                        disabled={!hasChanges || savingConfig}
-                                    >
-                                        {#if savingConfig}
-                                            <RefreshCw
-                                                class="size-4 animate-spin mr-2"
-                                            />
-                                        {:else}
-                                            <Save class="size-4 mr-2" />
-                                        {/if}
-                                        Save Changes
-                                    </Button>
-                                </div>
-                            {/if}
-                        </Tabs.Content>
-                    {/if}
+                                    {#if savingConfig}
+                                        <RefreshCw
+                                            class="size-4 animate-spin mr-2"
+                                        />
+                                    {:else}
+                                        <Save class="size-4 mr-2" />
+                                    {/if}
+                                    Save Changes
+                                </Button>
+                            </div>
+                        {/if}
+                    </Tabs.Content>
                 </Tabs.Root>
             </div>
 
             <!-- Footer for Node Actions -->
             {#if onAction}
                 <Dialog.Footer class="mt-4 pt-4 border-t sm:justify-end">
-                    {#if isRegistry}
-                        {#if isInstalled && !needsInstall}
-                            <Button variant="outline" disabled
-                                >Installed ✓</Button
-                            >
-                        {:else if needsInstall}
-                            <!-- <Button
-                                disabled={operation === "installing"}
-                                onclick={() => onAction("install", node.id)}
-                            >
-                                {#if operation === "installing"}
-                                    <RefreshCw
-                                        class="size-4 animate-spin mr-2"
-                                    />
-                                {:else}
-                                    <Play class="size-4 mr-2" />
-                                {/if}
-                                Complete Install
-                            </Button> -->
+                    <Button
+                        variant="destructive"
+                        class="gap-2"
+                        disabled={operation === "uninstalling"}
+                        onclick={() => onAction("uninstall", node.id)}
+                    >
+                        {#if operation === "uninstalling"}
+                            <RefreshCw class="size-4 animate-spin" />
                         {:else}
-                            <Button
-                                disabled={operation === "downloading"}
-                                onclick={() => onAction("download", node.id)}
-                            >
-                                {#if operation === "downloading"}
-                                    <RefreshCw
-                                        class="size-4 animate-spin mr-2"
-                                    />
-                                {:else}
-                                    <Download class="size-4 mr-2" />
-                                {/if}
-                                Download
-                            </Button>
+                            <Trash2 class="size-4" />
                         {/if}
+                        Delete
+                    </Button>
+                    <!-- Local Node -->
+                    {#if needsInstall}
+                        <Button
+                            disabled={operation === "installing"}
+                            onclick={() => onAction("install", node.id)}
+                        >
+                            {#if operation === "installing"}
+                                <RefreshCw class="size-4 animate-spin mr-2" />
+                            {:else}
+                                <Play class="size-4 mr-2" />
+                            {/if}
+                            Install
+                        </Button>
                     {:else}
                         <Button
-                            variant="destructive"
-                            class="gap-2"
-                            disabled={operation === "uninstalling"}
-                            onclick={() => onAction("uninstall", node.id)}
+                            variant="outline"
+                            disabled={operation === "installing"}
+                            onclick={() => onAction("install", node.id)}
+                            title="Re-install this node (e.g. after code changes)"
                         >
-                            {#if operation === "uninstalling"}
-                                <RefreshCw class="size-4 animate-spin" />
+                            {#if operation === "installing"}
+                                <RefreshCw class="size-4 animate-spin mr-2" />
                             {:else}
-                                <Trash2 class="size-4" />
+                                <RefreshCw class="size-4 mr-2" />
                             {/if}
-                            Delete
+                            Re-install
                         </Button>
-                        <!-- Local Node -->
-                        {#if needsInstall}
-                            <Button
-                                disabled={operation === "installing"}
-                                onclick={() => onAction("install", node.id)}
-                            >
-                                {#if operation === "installing"}
-                                    <RefreshCw
-                                        class="size-4 animate-spin mr-2"
-                                    />
-                                {:else}
-                                    <Play class="size-4 mr-2" />
-                                {/if}
-                                Install
-                            </Button>
-                        {:else}
-                            <Button
-                                variant="outline"
-                                disabled={operation === "installing"}
-                                onclick={() => onAction("install", node.id)}
-                                title="Re-install this node (e.g. after code changes)"
-                            >
-                                {#if operation === "installing"}
-                                    <RefreshCw
-                                        class="size-4 animate-spin mr-2"
-                                    />
-                                {:else}
-                                    <RefreshCw class="size-4 mr-2" />
-                                {/if}
-                                Re-install
-                            </Button>
-                        {/if}
                     {/if}
                 </Dialog.Footer>
             {/if}

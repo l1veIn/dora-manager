@@ -3,7 +3,7 @@ use std::fs;
 use tempfile::tempdir;
 
 use crate::dataflow::transpile_graph;
-use crate::node::{node_dir, NodeMetaFile, NodeSource};
+use crate::node::{node_dir, Node, NodeSource};
 
 fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
     let dir = node_dir(home, id);
@@ -14,7 +14,7 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
     fs::create_dir_all(exec_path.parent().unwrap()).unwrap();
     fs::write(&exec_path, "#!/bin/bash\n# stub").unwrap();
 
-    let meta = NodeMetaFile {
+    let meta = Node {
         id: id.to_string(),
         name: String::new(),
         version: "1.0.0".to_string(),
@@ -31,6 +31,8 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
         outputs: Vec::new(),
         avatar: None,
         config_schema: None,
+        dm_version: "1".to_string(),
+        path: Default::default(),
     };
 
     fs::write(
@@ -52,7 +54,7 @@ fn transpile_graph_resolves_executable_path() {
         r#"
 nodes:
   - id: n1
-    path: test-node
+    node: test-node
 "#,
     )
     .unwrap();
@@ -69,8 +71,10 @@ nodes:
         .unwrap();
     assert!(path_val.contains(".venv/bin/test-node"));
     assert!(path_val.starts_with("/"), "Path should be absolute");
-
-    // No custom block, no env block — executable handles everything
+    // `node:` should be removed, `path:` should be the resolved absolute exec
+    assert!(node
+        .get(serde_yaml::Value::String("node".into()))
+        .is_none(), "node: field should be removed after transpile");
     assert!(node
         .get(serde_yaml::Value::String("custom".into()))
         .is_none());
@@ -88,13 +92,15 @@ fn transpile_graph_leaves_unknown_node_path_unchanged() {
         r#"
 nodes:
   - id: n1
-    path: unknown-node
+    node: unknown-node
 "#,
     )
     .unwrap();
 
     let out = transpile_graph(home, &yaml_path).unwrap();
-    assert_eq!(out["nodes"][0]["path"].as_str(), Some("unknown-node"));
+    // Unknown node: `node:` stays as-is (no path resolution)
+    assert_eq!(out["nodes"][0]["node"].as_str(), Some("unknown-node"));
+    assert!(out["nodes"][0]["path"].is_null());
     assert!(out["nodes"][0]["custom"].is_null());
 }
 

@@ -7,13 +7,6 @@ use serde::Deserialize;
 use crate::handlers::err;
 use crate::AppState;
 
-/// GET /api/registry
-pub async fn get_registry() -> impl IntoResponse {
-    match dm_core::registry::fetch_registry().await {
-        Ok(nodes) => Json(nodes).into_response(),
-        Err(e) => err(e).into_response(),
-    }
-}
 
 /// GET /api/nodes
 pub async fn list_nodes(State(state): State<AppState>) -> impl IntoResponse {
@@ -51,13 +44,52 @@ pub async fn install_node(
     }
 }
 
-/// POST /api/nodes/download
-pub async fn download_node(
+
+#[derive(Deserialize)]
+pub struct ImportNodeRequest {
+    /// Local path or git URL
+    pub source: String,
+    /// Override node id (default: inferred from source basename)
+    pub id: Option<String>,
+}
+
+/// POST /api/nodes/import
+pub async fn import_node(
     State(state): State<AppState>,
-    Json(req): Json<InstallNodeRequest>,
+    Json(req): Json<ImportNodeRequest>,
 ) -> impl IntoResponse {
-    match dm_core::node::download_node(&state.home, &req.id).await {
-        Ok(entry) => Json(entry).into_response(),
+    let is_url = req.source.starts_with("https://") || req.source.starts_with("http://");
+
+    let inferred_id = req.id.unwrap_or_else(|| {
+        if is_url {
+            req.source.rsplit('/').find(|s| !s.is_empty())
+                .unwrap_or("unknown")
+                .to_string()
+        } else {
+            std::path::Path::new(&req.source)
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string()
+        }
+    });
+
+    let result = if is_url {
+        dm_core::node::import_git(&state.home, &inferred_id, &req.source).await
+    } else {
+        let source_path = std::path::Path::new(&req.source);
+        let abs_path = if source_path.is_absolute() {
+            source_path.to_path_buf()
+        } else {
+            // Relative paths resolve against dm home
+            state.home.join(source_path)
+        };
+        dm_core::node::import_local(&state.home, &inferred_id, &abs_path)
+            .map_err(|e| e.into())
+    };
+
+    match result {
+        Ok(node) => Json(node).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }
@@ -106,33 +138,9 @@ pub async fn node_readme(
         return content.into_response();
     }
 
-    // Fallback: try to fetch from registry and online
-    if let Ok(registry) = dm_core::registry::fetch_registry().await {
-        if let Some(node) = dm_core::registry::find_node(&registry, &id) {
-            let repo_url = node.source.as_ref().or(node.github.as_ref());
-            if let Some(github_url) = repo_url {
-                if github_url.starts_with("https://github.com/") {
-                    let raw_url = github_url
-                        .replace("https://github.com/", "https://raw.githubusercontent.com/")
-                        .replace("/tree/", "/")
-                        .replace("/blob/", "/");
-                    let readme_url = format!("{}/README.md", raw_url.trim_end_matches('/'));
-
-                    if let Ok(resp) = reqwest::get(&readme_url).await {
-                        if resp.status().is_success() {
-                            if let Ok(text) = resp.text().await {
-                                return text.into_response();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     (
-        StatusCode::NOT_FOUND,
-        format!("No README found locally or online for '{}'", id),
+        format!("No README found locally for '{}'", id),
     )
         .into_response()
 }

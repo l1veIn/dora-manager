@@ -86,7 +86,7 @@ fn setup_installed_node(home: &std::path::Path, id: &str) {
 fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
     let node_dir = dm_core::node::node_dir(home, id);
     std::fs::create_dir_all(&node_dir).unwrap();
-    let meta = dm_core::node::NodeMetaFile {
+    let meta = dm_core::node::Node {
         id: id.to_string(),
         name: String::new(),
         version: "1.0.0".to_string(),
@@ -103,6 +103,8 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         outputs: Vec::new(),
         avatar: None,
         config_schema: None,
+        dm_version: "1".to_string(),
+        path: Default::default(),
     };
     std::fs::write(
         dm_core::node::dm_json_path(home, id),
@@ -479,27 +481,6 @@ async fn install_node_returns_bad_request_for_unsupported_build() {
     assert!(body.contains("Unsupported build type"));
 }
 
-#[tokio::test]
-async fn download_node_returns_bad_request_for_existing_directory() {
-    let (_tmp, state) = test_state();
-    std::fs::create_dir_all(dm_core::node::node_dir(&state.home, "demo-node")).unwrap();
-
-    let resp = handlers::download_node(
-        State(state),
-        Json(
-            serde_json::from_value(serde_json::json!({
-                "id": "demo-node"
-            }))
-            .unwrap(),
-        ),
-    )
-    .await
-    .into_response();
-
-    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
-    let body = body_text(resp).await;
-    assert!(body.contains("already exists"));
-}
 
 #[tokio::test]
 async fn stop_dataflow_returns_500_without_active_dora() {

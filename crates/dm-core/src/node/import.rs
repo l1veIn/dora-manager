@@ -5,14 +5,52 @@ use anyhow::{bail, Context, Result};
 use fs_extra::dir::{copy as dir_copy, CopyOptions};
 
 use crate::events::{EventSource, OperationEvent};
-use crate::registry::{self, NodeMeta};
 
-use super::model::NodeMetaFile;
-use super::paths::{dm_json_path, node_dir};
-use super::{current_timestamp, NodeEntry, NodeSource};
+use super::init::{init_dm_json, InitHints};
+use super::model::Node;
+use super::paths::node_dir;
 
-pub async fn download_node(home: &Path, id: &str) -> Result<NodeEntry> {
-    let op = OperationEvent::new(home, EventSource::Core, "node.download").attr("node_id", id);
+/// Import a node from a local directory (copy to ~/.dm/nodes/).
+pub fn import_local(home: &Path, id: &str, source_dir: &Path) -> Result<Node> {
+    let op = OperationEvent::new(home, EventSource::Core, "node.import_local")
+        .attr("node_id", id)
+        .attr("source", source_dir.display().to_string());
+    op.emit_start();
+
+    let result = (|| {
+        let node_path = node_dir(home, id);
+        if node_path.exists() {
+            bail!("Node '{}' already exists at {}", id, node_path.display());
+        }
+
+        if !source_dir.exists() || !source_dir.is_dir() {
+            bail!("Source directory '{}' not found", source_dir.display());
+        }
+
+        std::fs::create_dir_all(&node_path)
+            .with_context(|| format!("Failed to create directory: {}", node_path.display()))?;
+
+        let mut options = CopyOptions::new();
+        options.content_only = true;
+        dir_copy(source_dir, &node_path, &options)
+            .with_context(|| format!(
+                "Failed to copy {} to {}",
+                source_dir.display(),
+                node_path.display()
+            ))?;
+
+        init_dm_json(id, &node_path, InitHints::default())
+    })();
+
+    op.emit_result(&result);
+    result
+}
+
+/// Import a node from a git URL (clone to ~/.dm/nodes/).
+pub async fn import_git(home: &Path, id: &str, git_url: &str) -> Result<Node> {
+    let op = OperationEvent::new(home, EventSource::Core, "node.import_git")
+        .attr("node_id", id)
+        .attr("url", git_url);
     op.emit_start();
 
     let result = async {
@@ -21,14 +59,15 @@ pub async fn download_node(home: &Path, id: &str) -> Result<NodeEntry> {
             bail!("Node '{}' already exists at {}", id, node_path.display());
         }
 
-        let registry = registry::fetch_registry()
-            .await
-            .context("Failed to fetch registry")?;
+        std::fs::create_dir_all(&node_path)
+            .with_context(|| format!("Failed to create directory: {}", node_path.display()))?;
 
-        let meta = registry::find_node(&registry, id)
-            .ok_or_else(|| anyhow::anyhow!("Node '{}' not found in registry", id))?;
+        if let Err(err) = clone_github_source(git_url, &node_path).await {
+            let _ = std::fs::remove_dir_all(&node_path);
+            bail!("Failed to fetch source from GitHub: {}", err);
+        }
 
-        download_registry_node(home, id, meta).await
+        init_dm_json(id, &node_path, InitHints::default())
     }
     .await;
 
@@ -36,55 +75,10 @@ pub async fn download_node(home: &Path, id: &str) -> Result<NodeEntry> {
     result
 }
 
-pub(crate) async fn download_registry_node(
-    home: &Path,
-    id: &str,
-    meta: &NodeMeta,
-) -> Result<NodeEntry> {
-    let node_path = node_dir(home, id);
-    if node_path.exists() {
-        bail!("Node '{}' already exists at {}", id, node_path.display());
-    }
 
-    std::fs::create_dir_all(&node_path)
-        .with_context(|| format!("Failed to create directory: {}", node_path.display()))?;
+// ─── Git clone helper ───
 
-    let dm_meta = NodeMetaFile {
-        id: id.to_string(),
-        name: meta.name.clone(),
-        version: String::new(),
-        installed_at: current_timestamp(),
-        source: NodeSource {
-            build: meta.build.clone(),
-            github: meta.github.clone(),
-        },
-        description: meta.description.clone(),
-        executable: String::new(),
-        author: None,
-        category: meta.category.clone(),
-        inputs: meta.inputs.clone(),
-        outputs: meta.outputs.clone(),
-        avatar: None,
-        config_schema: None,
-    };
-
-    let dm_path = dm_json_path(home, id);
-    let dm_json = serde_json::to_string_pretty(&dm_meta).context("Failed to serialize dm.json")?;
-    std::fs::write(&dm_path, dm_json)
-        .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
-
-    let repo_url = meta.source.as_ref().or(meta.github.as_ref());
-    if let Some(github_url) = repo_url {
-        if let Err(err) = download_github_source(github_url, &node_path).await {
-            let _ = std::fs::remove_dir_all(&node_path);
-            bail!("Failed to fetch source from GitHub: {}", err);
-        }
-    }
-
-    Ok(dm_meta.into_entry(node_path))
-}
-
-async fn download_github_source(github_url: &str, dest_dir: &Path) -> Result<()> {
+async fn clone_github_source(github_url: &str, dest_dir: &Path) -> Result<()> {
     if !github_url.starts_with("https://github.com/") {
         bail!("Invalid GitHub URL format: {}", github_url);
     }
@@ -150,12 +144,12 @@ async fn download_github_source(github_url: &str, dest_dir: &Path) -> Result<()>
             options.content_only = true;
             if let Err(err) = dir_copy(&src_path, dest_dir, &options) {
                 let _ = std::fs::remove_dir_all(&temp_dir);
-                bail!("Failed to copy node files via fs_extra: {}", err);
+                bail!("Failed to copy node files: {}", err);
             }
         } else {
             let _ = std::fs::remove_dir_all(&temp_dir);
             bail!(
-                "The specified node directory '{}' was not found in the repository.",
+                "Directory '{}' not found in the repository.",
                 folder_path
             );
         }
@@ -170,7 +164,7 @@ async fn download_github_source(github_url: &str, dest_dir: &Path) -> Result<()>
 
         if let Err(err) = dir_copy(&temp_dir, dest_dir, &options) {
             let _ = std::fs::remove_dir_all(&temp_dir);
-            bail!("Failed to copy node files via fs_extra: {}", err);
+            bail!("Failed to copy node files: {}", err);
         }
     }
 

@@ -2,7 +2,8 @@
 //!
 //! Nodes are installed in `~/.dm/nodes/<id>/` with metadata stored in `dm.json`.
 
-mod download;
+mod import;
+pub(crate) mod init;
 mod install;
 mod local;
 mod model;
@@ -11,13 +12,13 @@ mod paths;
 #[cfg(test)]
 mod tests;
 
-pub use download::download_node;
+pub use import::{import_git, import_local};
 pub use install::install_node;
 pub use local::{
     create_node, get_node_config, get_node_readme, list_nodes, node_status, save_node_config,
     uninstall_node,
 };
-pub use model::{NodeEntry, NodeMetaFile, NodeSource};
+pub use model::{Node, NodeSource};
 pub use paths::{dm_json_path, node_dir};
 
 pub(crate) fn current_timestamp() -> String {

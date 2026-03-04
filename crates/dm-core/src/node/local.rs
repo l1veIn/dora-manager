@@ -4,11 +4,11 @@ use anyhow::{bail, Context, Result};
 
 use crate::events::{EventSource, OperationEvent};
 
-use super::model::{fallback_entry, NodeMetaFile};
+use super::init::{init_dm_json, InitHints};
+use super::model::Node;
 use super::paths::{dm_json_path, node_dir, nodes_dir};
-use super::{current_timestamp, NodeEntry, NodeSource};
 
-pub fn create_node(home: &Path, id: &str, description: &str) -> Result<NodeEntry> {
+pub fn create_node(home: &Path, id: &str, description: &str) -> Result<Node> {
     let op = OperationEvent::new(home, EventSource::Core, "node.create").attr("node_id", id);
     op.emit_start();
 
@@ -69,39 +69,18 @@ if __name__ == "__main__":
         std::fs::write(node_path.join("README.md"), &readme)
             .context("Failed to write README.md")?;
 
-        let dm_meta = NodeMetaFile {
-            id: id.to_string(),
-            name: id.to_string(),
-            version: "0.1.0".to_string(),
-            installed_at: current_timestamp(),
-            source: NodeSource {
-                build: "pip install -e .".to_string(),
-                github: None,
-            },
-            description: description.to_string(),
-            executable: String::new(),
-            author: None,
-            category: String::new(),
-            inputs: Vec::new(),
-            outputs: vec!["output".to_string()],
-            avatar: None,
-            config_schema: None,
-        };
-
-        let dm_path = dm_json_path(home, id);
-        let dm_json =
-            serde_json::to_string_pretty(&dm_meta).context("Failed to serialize dm.json")?;
-        std::fs::write(&dm_path, dm_json)
-            .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
-
-        Ok(dm_meta.into_entry(node_path))
+        // Scaffold files written → init_dm_json will read pyproject.toml to infer metadata
+        init_dm_json(id, &node_path, InitHints {
+            description: Some(description.to_string()),
+            ..Default::default()
+        })
     })();
 
     op.emit_result(&result);
     result
 }
 
-pub fn list_nodes(home: &Path) -> Result<Vec<NodeEntry>> {
+pub fn list_nodes(home: &Path) -> Result<Vec<Node>> {
     let op = OperationEvent::new(home, EventSource::Core, "node.list");
     op.emit_start();
 
@@ -128,13 +107,13 @@ pub fn list_nodes(home: &Path) -> Result<Vec<NodeEntry>> {
 
             let meta_file = dm_json_path(home, &id);
             if let Ok(content) = std::fs::read_to_string(&meta_file) {
-                if let Ok(meta) = serde_json::from_str::<NodeMetaFile>(&content) {
-                    nodes.push(meta.into_entry(path));
+                if let Ok(node) = serde_json::from_str::<Node>(&content) {
+                    nodes.push(node.with_path(path));
                     continue;
                 }
             }
 
-            nodes.push(fallback_entry(id, path));
+            nodes.push(Node::fallback(id, path));
         }
 
         nodes.sort_by(|a, b| a.id.cmp(&b.id));
@@ -193,7 +172,7 @@ pub fn save_node_config(home: &Path, id: &str, config: &serde_json::Value) -> Re
         .with_context(|| format!("Failed to write config.json for node '{}'", id))
 }
 
-pub fn node_status(home: &Path, id: &str) -> Result<Option<NodeEntry>> {
+pub fn node_status(home: &Path, id: &str) -> Result<Option<Node>> {
     let op = OperationEvent::new(home, EventSource::Core, "node.status").attr("node_id", id);
     op.emit_start();
 
@@ -206,11 +185,11 @@ pub fn node_status(home: &Path, id: &str) -> Result<Option<NodeEntry>> {
         let meta_file = dm_json_path(home, id);
         match std::fs::read_to_string(&meta_file) {
             Ok(content) => {
-                let meta: NodeMetaFile =
+                let node: Node =
                     serde_json::from_str(&content).context("Failed to parse node metadata")?;
-                Ok(Some(meta.into_entry(node_path)))
+                Ok(Some(node.with_path(node_path)))
             }
-            Err(_) => Ok(Some(fallback_entry(id.to_string(), node_path))),
+            Err(_) => Ok(Some(Node::fallback(id.to_string(), node_path))),
         }
     })();
 

@@ -1,9 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::registry::NodeMeta;
 use tempfile::tempdir;
 
-use super::download::download_registry_node;
 use super::*;
 
 #[test]
@@ -42,7 +40,7 @@ fn test_install_and_list_and_uninstall() {
     let node_path = node_dir(home, id);
     std::fs::create_dir_all(&node_path).unwrap();
 
-    let meta = NodeMetaFile {
+    let node = Node {
         id: id.to_string(),
         name: String::new(),
         version: "1.0.0".to_string(),
@@ -59,9 +57,11 @@ fn test_install_and_list_and_uninstall() {
         outputs: Vec::new(),
         avatar: None,
         config_schema: None,
+        dm_version: "1".to_string(),
+        path: Default::default(),
     };
 
-    let meta_json = serde_json::to_string_pretty(&meta).unwrap();
+    let meta_json = serde_json::to_string_pretty(&node).unwrap();
     std::fs::write(dm_json_path(home, id), meta_json).unwrap();
 
     let nodes = list_nodes(home).unwrap();
@@ -107,47 +107,6 @@ fn test_dm_json_path() {
 }
 
 #[tokio::test]
-async fn test_download_registry_node_writes_metadata_without_source_checkout() {
-    let dir = tempdir().unwrap();
-    let home = dir.path();
-    let meta = NodeMeta {
-        id: "demo-node".to_string(),
-        name: "Demo Node".to_string(),
-        description: "test".to_string(),
-        build: "pip install dora-demo".to_string(),
-        system_deps: None,
-        inputs: vec!["in".to_string()],
-        outputs: vec!["out".to_string()],
-        tags: vec!["demo".to_string()],
-        category: "Test".to_string(),
-        github: None,
-        source: None,
-    };
-
-    let entry = download_registry_node(home, "demo-node", &meta)
-        .await
-        .unwrap();
-    assert_eq!(entry.id, "demo-node");
-    assert_eq!(entry.name, "Demo Node");
-
-    let dm: NodeMetaFile =
-        serde_json::from_str(&std::fs::read_to_string(dm_json_path(home, "demo-node")).unwrap())
-            .unwrap();
-    assert_eq!(dm.executable, "");
-    assert_eq!(dm.source.build, "pip install dora-demo");
-}
-
-#[tokio::test]
-async fn test_download_node_fails_fast_when_directory_exists() {
-    let dir = tempdir().unwrap();
-    let home = dir.path();
-    std::fs::create_dir_all(node_dir(home, "demo-node")).unwrap();
-
-    let err = download_node(home, "demo-node").await.unwrap_err();
-    assert!(err.to_string().contains("already exists"));
-}
-
-#[tokio::test]
 async fn test_install_node_errors_when_missing() {
     let dir = tempdir().unwrap();
     let home = dir.path();
@@ -164,7 +123,7 @@ async fn test_install_node_errors_for_unsupported_build() {
     let node_path = node_dir(home, id);
     std::fs::create_dir_all(&node_path).unwrap();
 
-    let meta = NodeMetaFile {
+    let node = Node {
         id: id.to_string(),
         name: id.to_string(),
         version: String::new(),
@@ -181,10 +140,12 @@ async fn test_install_node_errors_for_unsupported_build() {
         outputs: Vec::new(),
         avatar: None,
         config_schema: None,
+        dm_version: "1".to_string(),
+        path: Default::default(),
     };
     std::fs::write(
         dm_json_path(home, id),
-        serde_json::to_string_pretty(&meta).unwrap(),
+        serde_json::to_string_pretty(&node).unwrap(),
     )
     .unwrap();
 

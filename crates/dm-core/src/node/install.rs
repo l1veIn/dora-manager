@@ -4,13 +4,11 @@ use std::process::Command;
 use anyhow::{bail, Context, Result};
 
 use crate::events::{EventSource, OperationEvent};
-use crate::registry::NodeMeta;
 
-use super::model::NodeMetaFile;
+use super::model::Node;
 use super::paths::{dm_json_path, node_dir};
-use super::NodeEntry;
 
-pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
+pub async fn install_node(home: &Path, id: &str) -> Result<Node> {
     let op = OperationEvent::new(home, EventSource::Core, "node.install").attr("node_id", id);
     op.emit_start();
 
@@ -24,53 +22,51 @@ pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
 
         let dm_content = std::fs::read_to_string(&dm_path)
             .with_context(|| format!("Failed to read dm.json for '{}'", id))?;
-        let mut dm_meta: NodeMetaFile = serde_json::from_str(&dm_content)
+        let mut node: Node = serde_json::from_str(&dm_content)
             .with_context(|| format!("Failed to parse dm.json for '{}'", id))?;
 
-        let build_type = dm_meta.source.build.trim().to_lowercase();
+        let build_type = node.source.build.trim().to_lowercase();
         if build_type.starts_with("pip") || build_type.starts_with("uv") {
-            let has_local_pyproject = node_path.join("pyproject.toml").exists();
-            let registry_meta = build_meta_from_file(&dm_meta);
+            let is_local_install = build_type.contains("-e .") || build_type.contains("-e.");
 
-            let version = if has_local_pyproject {
+            let version = if is_local_install {
                 install_local_python_node(&node_path).await?
             } else {
-                install_python_node(&registry_meta, &node_path).await?
+                install_python_node(&node, &node_path).await?
             };
 
-            dm_meta.version = version;
-            dm_meta.executable = if cfg!(windows) {
+            node.version = version;
+            node.executable = if cfg!(windows) {
                 format!(".venv/Scripts/{}.exe", id)
             } else {
                 format!(".venv/bin/{}", id)
             };
         } else if build_type.starts_with("cargo") {
-            let registry_meta = build_meta_from_file(&dm_meta);
-            let version = install_cargo_node(&registry_meta, &node_path).await?;
-            dm_meta.version = version;
+            let version = install_cargo_node(&node, &node_path).await?;
+            node.version = version;
 
             let bin_name = if id.starts_with("dora-") {
                 id.to_string()
             } else {
                 format!("dora-{}", id)
             };
-            dm_meta.executable = if cfg!(windows) {
+            node.executable = if cfg!(windows) {
                 format!("bin/{}.exe", bin_name)
             } else {
                 format!("bin/{}", bin_name)
             };
         } else {
-            bail!("Unsupported build type: '{}'", dm_meta.source.build);
+            bail!("Unsupported build type: '{}'", node.source.build);
         }
 
-        dm_meta.installed_at = super::current_timestamp();
+        node.installed_at = super::current_timestamp();
 
         let dm_json =
-            serde_json::to_string_pretty(&dm_meta).context("Failed to serialize dm.json")?;
+            serde_json::to_string_pretty(&node).context("Failed to serialize dm.json")?;
         std::fs::write(&dm_path, dm_json)
             .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
 
-        Ok(dm_meta.into_entry(node_path))
+        Ok(node.with_path(node_path))
     }
     .await;
 
@@ -78,24 +74,15 @@ pub async fn install_node(home: &Path, id: &str) -> Result<NodeEntry> {
     result
 }
 
-fn build_meta_from_file(meta: &NodeMetaFile) -> NodeMeta {
-    NodeMeta {
-        id: meta.id.clone(),
-        name: meta.name.clone(),
-        build: meta.source.build.clone(),
-        description: meta.description.clone(),
-        category: meta.category.clone(),
-        inputs: meta.inputs.clone(),
-        outputs: meta.outputs.clone(),
-        system_deps: None,
-        tags: Vec::new(),
-        github: meta.source.github.clone(),
-        source: meta.source.github.clone(),
-    }
-}
-
 async fn install_local_python_node(node_path: &Path) -> Result<String> {
     let venv_path = node_path.join(".venv");
+
+    // Remove existing venv to avoid interactive prompt from `uv venv`
+    if venv_path.exists() {
+        std::fs::remove_dir_all(&venv_path)
+            .with_context(|| format!("Failed to remove existing venv at {}", venv_path.display()))?;
+    }
+
     let use_uv = Command::new("uv")
         .arg("--version")
         .output()
@@ -144,8 +131,15 @@ async fn install_local_python_node(node_path: &Path) -> Result<String> {
     }
 }
 
-async fn install_python_node(meta: &NodeMeta, node_path: &Path) -> Result<String> {
+async fn install_python_node(meta: &Node, node_path: &Path) -> Result<String> {
     let venv_path = node_path.join(".venv");
+
+    // Remove existing venv to avoid interactive prompt from `uv venv`
+    if venv_path.exists() {
+        std::fs::remove_dir_all(&venv_path)
+            .with_context(|| format!("Failed to remove existing venv at {}", venv_path.display()))?;
+    }
+
     let use_uv = Command::new("uv")
         .arg("--version")
         .output()
@@ -197,8 +191,8 @@ async fn install_python_node(meta: &NodeMeta, node_path: &Path) -> Result<String
     }
 }
 
-fn package_spec_from_build(meta: &NodeMeta) -> String {
-    let tokens: Vec<&str> = meta.build.split_whitespace().collect();
+fn package_spec_from_build(meta: &Node) -> String {
+    let tokens: Vec<&str> = meta.source.build.split_whitespace().collect();
     if tokens.starts_with(&["pip", "install"]) || tokens.starts_with(&["uv", "pip", "install"]) {
         if let Some(last) = tokens.last() {
             return (*last).to_string();
@@ -236,7 +230,7 @@ fn get_python_package_version(venv_path: &Path, package: &str) -> Result<String>
     }
 }
 
-async fn install_cargo_node(meta: &NodeMeta, node_path: &Path) -> Result<String> {
+async fn install_cargo_node(node: &Node, node_path: &Path) -> Result<String> {
     let cargo_available = Command::new("cargo")
         .arg("--version")
         .output()
@@ -247,7 +241,7 @@ async fn install_cargo_node(meta: &NodeMeta, node_path: &Path) -> Result<String>
         bail!("Cargo is not installed. Please install Rust first.");
     }
 
-    let package_name = format!("dora-{}", meta.id);
+    let package_name = format!("dora-{}", node.id);
     let status = Command::new("cargo")
         .args([
             "install",
