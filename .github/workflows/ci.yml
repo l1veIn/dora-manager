@@ -12,10 +12,27 @@ env:
 
 jobs:
   check:
-    name: Rust Check
+    name: Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Frontend build (rust-embed needs web/build at compile time)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - name: Svelte Check
+        run: npm run lint
+        working-directory: web
+      - name: Build Frontend
+        run: npm run build
+        working-directory: web
+
+      # Rust checks
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -42,19 +59,3 @@ jobs:
       - name: Audit
         run: cargo audit
 
-  frontend:
-    name: Frontend Check
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - name: Svelte Check
-        run: npm run lint
