@@ -1,6 +1,7 @@
 mod dataflow;
 mod events;
 mod nodes;
+mod runs;
 mod runtime;
 mod system;
 mod web;
@@ -17,6 +18,7 @@ pub use nodes::{
     list_nodes, node_readme, node_status, save_node_config, uninstall_node,
 };
 pub use runtime::{down, install, uninstall, up, use_version};
+pub use runs::{delete_run, get_run, get_run_logs, list_runs};
 pub use system::{doctor, get_config, status, update_config, versions};
 pub use web::serve_web;
 

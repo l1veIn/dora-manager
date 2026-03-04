@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{Context, Result};
+use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 
 use crate::config;
@@ -48,7 +49,7 @@ pub async fn run_dora(
     Ok((code, stdout, stderr))
 }
 
-/// Run dora with inherited stdio (for interactive / streaming commands).
+/// Run dora with inherited stdio (for interactive / pass-through commands).
 pub async fn exec_dora(home: &Path, args: &[String], verbose: bool) -> Result<i32> {
     let bin = active_dora_bin(home)?;
     if verbose {
@@ -64,6 +65,70 @@ pub async fn exec_dora(home: &Path, args: &[String], verbose: bool) -> Result<i3
         .with_context(|| format!("Failed to run dora at {}", bin.display()))?;
 
     Ok(status.code().unwrap_or(-1))
+}
+
+/// Run dora with real-time forwarded stdio, capturing the dataflow UUID.
+///
+/// Both stdout and stderr are piped and forwarded line-by-line so we can
+/// extract the dataflow ID from dora's output (it goes to stderr).
+/// Stdin is inherited for interactive use.
+/// Returns (exit_code, Option<dataflow_id>).
+pub async fn exec_dora_capture_id(
+    home: &Path,
+    args: &[String],
+    verbose: bool,
+) -> Result<(i32, Option<String>)> {
+    let bin = active_dora_bin(home)?;
+    if verbose {
+        eprintln!("[dm] exec: {} {}", bin.display(), args.join(" "));
+    }
+    let mut child = Command::new(&bin)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::inherit())
+        .spawn()
+        .with_context(|| format!("Failed to spawn dora at {}", bin.display()))?;
+
+    let stdout = child.stdout.take().expect("stdout should be piped");
+    let stderr = child.stderr.take().expect("stderr should be piped");
+
+    let dataflow_id = std::sync::Arc::new(tokio::sync::Mutex::new(None::<String>));
+
+    // Forward stdout
+    let stdout_handle = {
+        let mut reader = tokio::io::BufReader::new(stdout).lines();
+        tokio::spawn(async move {
+            while let Ok(Some(line)) = reader.next_line().await {
+                println!("{}", line);
+            }
+        })
+    };
+
+    // Forward stderr and extract dataflow ID
+    let stderr_handle = {
+        let df_id = dataflow_id.clone();
+        let mut reader = tokio::io::BufReader::new(stderr).lines();
+        tokio::spawn(async move {
+            while let Ok(Some(line)) = reader.next_line().await {
+                eprintln!("{}", line);
+                let mut guard = df_id.lock().await;
+                if guard.is_none() {
+                    if let Some(uuid) = line
+                        .strip_prefix("dataflow start triggered: ")
+                        .or_else(|| line.strip_prefix("dataflow started: "))
+                    {
+                        *guard = Some(uuid.trim().to_string());
+                    }
+                }
+            }
+        })
+    };
+
+    let _ = tokio::join!(stdout_handle, stderr_handle);
+    let status = child.wait().await?;
+    let result_id = dataflow_id.lock().await.clone();
+    Ok((status.code().unwrap_or(-1), result_id))
 }
 
 /// Get the version string from a dora binary.

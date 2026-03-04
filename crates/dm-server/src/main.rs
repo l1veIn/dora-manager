@@ -65,6 +65,14 @@ async fn main() {
         // ─── Dataflow Execution ───
         .route("/api/dataflow/start", post(handlers::start_dataflow))
         .route("/api/dataflow/stop", post(handlers::stop_dataflow))
+        // ─── Execution History (Runs) ───
+        .route("/api/runs", get(handlers::list_runs))
+        .route("/api/runs/{id}", get(handlers::get_run))
+        .route("/api/runs/{id}", axum::routing::delete(handlers::delete_run))
+        .route(
+            "/api/runs/{id}/logs/{node_id}",
+            get(handlers::get_run_logs),
+        )
         // ─── Events / Observability ───
         .route("/api/events/count", get(handlers::count_events))
         .route("/api/events/export", get(handlers::export_events))

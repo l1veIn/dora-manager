@@ -208,4 +208,14 @@ impl EventStore {
         let events = self.query(filter)?;
         Ok(render_xes(&events))
     }
+
+    /// Delete all events with a given case_id
+    pub fn delete_by_case_id(&self, case_id: &str) -> Result<u64> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let deleted = conn.execute("DELETE FROM events WHERE case_id = ?1", params![case_id])?;
+        Ok(deleted as u64)
+    }
 }

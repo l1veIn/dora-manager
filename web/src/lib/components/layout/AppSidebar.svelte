@@ -4,6 +4,7 @@
         LayoutDashboard,
         PackageSearch,
         Waypoints,
+        History,
         ActivitySquare,
         Settings,
     } from "lucide-svelte";
@@ -14,6 +15,7 @@
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Nodes", url: "/nodes", icon: PackageSearch },
         { title: "Dataflows", url: "/dataflows", icon: Waypoints },
+        { title: "Runs", url: "/runs", icon: History },
         { title: "Events", url: "/events", icon: ActivitySquare },
         { title: "Settings", url: "/settings", icon: Settings },
     ];

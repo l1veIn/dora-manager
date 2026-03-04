@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::events::{EventSource, OperationEvent};
+use crate::events::{EventBuilder, EventSource, OperationEvent};
 use crate::node::{dm_json_path, node_dir, Node};
 
 // ─── Dataflow Management ───
@@ -239,4 +239,79 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
 
     op.emit_result(&result);
     result
+}
+
+// ─── Dataflow Run Event Collection ───
+
+/// Collect events from a completed dataflow run.
+///
+/// Scans `~/.dm/run/out/<dataflow_id>/` for `log_<NODE_ID>.txt` files,
+/// emitting lifecycle events to the event store.
+pub fn collect_run_events(
+    home: &Path,
+    dataflow_id: &str,
+    dataflow_name: &str,
+    exit_code: i32,
+) {
+    use crate::events::try_emit;
+
+    let run_out_dir = home.join("run").join("out").join(dataflow_id);
+
+    // Emit dataflow.start
+    try_emit(
+        home,
+        EventBuilder::new(EventSource::Dataflow, "dataflow.start")
+            .case_id(dataflow_id)
+            .message(format!("Dataflow '{}' started", dataflow_name))
+            .attr("dataflow_name", dataflow_name)
+            .build(),
+    );
+
+    // Scan log files to discover participating nodes
+    let mut node_count = 0u32;
+    if run_out_dir.exists() {
+        if let Ok(entries) = fs::read_dir(&run_out_dir) {
+            for entry in entries.flatten() {
+                let filename = entry.file_name().to_string_lossy().to_string();
+                // Pattern: log_<NODE_ID>.txt
+                if let Some(node_id) = filename
+                    .strip_prefix("log_")
+                    .and_then(|s| s.strip_suffix(".txt"))
+                {
+                    let log_size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                    try_emit(
+                        home,
+                        EventBuilder::new(EventSource::Dataflow, "dataflow.node.spawn")
+                            .case_id(dataflow_id)
+                            .node_id(node_id)
+                            .message(format!("Node '{}' participated in run", node_id))
+                            .attr("log_file", filename.as_str())
+                            .attr("log_size_bytes", log_size)
+                            .build(),
+                    );
+                    node_count += 1;
+                }
+            }
+        }
+    }
+
+    // Emit dataflow.finish
+    let level = if exit_code == 0 {
+        crate::events::EventLevel::Info
+    } else {
+        crate::events::EventLevel::Warn
+    };
+    try_emit(
+        home,
+        EventBuilder::new(EventSource::Dataflow, "dataflow.finish")
+            .case_id(dataflow_id)
+            .level(level)
+            .message(format!(
+                "Dataflow '{}' finished with exit code {}",
+                dataflow_name, exit_code
+            ))
+            .attr("exit_code", exit_code)
+            .attr("node_count", node_count)
+            .build(),
+    );
 }
