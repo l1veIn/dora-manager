@@ -9,7 +9,9 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"lint": "svelte-check --tsconfig ./tsconfig.json",
+		"test": "echo 'Test framework not configured yet - see task 02' && exit 0"
 	},
 	"devDependencies": {
 		"@codemirror/lang-yaml": "^6.1.2",
