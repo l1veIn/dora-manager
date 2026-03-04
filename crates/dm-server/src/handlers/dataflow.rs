@@ -25,7 +25,10 @@ pub async fn get_dataflow(
         Err(e) => {
             if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
                 if io_err.kind() == std::io::ErrorKind::NotFound {
-                    return (StatusCode::NOT_FOUND, format!("Dataflow '{}' not found", name))
+                    return (
+                        StatusCode::NOT_FOUND,
+                        format!("Dataflow '{}' not found", name),
+                    )
                         .into_response();
                 }
             }
@@ -61,7 +64,10 @@ pub async fn delete_dataflow(
         Err(e) => {
             if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
                 if io_err.kind() == std::io::ErrorKind::NotFound {
-                    return (StatusCode::NOT_FOUND, format!("Dataflow '{}' not found", name))
+                    return (
+                        StatusCode::NOT_FOUND,
+                        format!("Dataflow '{}' not found", name),
+                    )
                         .into_response();
                 }
             }

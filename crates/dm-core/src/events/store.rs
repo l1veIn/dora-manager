@@ -45,7 +45,10 @@ impl EventStore {
 
     /// Insert a single event
     pub fn emit(&self, event: &Event) -> Result<i64> {
-        let conn = self.conn.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
         conn.execute(
             "INSERT INTO events (timestamp, case_id, activity, source, level, node_id, message, attributes)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -65,7 +68,10 @@ impl EventStore {
 
     /// Query events with optional filters
     pub fn query(&self, filter: &EventFilter) -> Result<Vec<Event>> {
-        let conn = self.conn.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
 
         let mut sql = String::from(
             "SELECT id, timestamp, case_id, activity, source, level, node_id, message, attributes FROM events WHERE 1=1",
@@ -146,7 +152,10 @@ impl EventStore {
 
     /// Count events matching a filter
     pub fn count(&self, filter: &EventFilter) -> Result<i64> {
-        let conn = self.conn.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
 
         let mut sql = String::from("SELECT COUNT(*) FROM events WHERE 1=1");
         let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();

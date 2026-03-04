@@ -115,7 +115,10 @@ pub async fn up(home: &Path, verbose: bool) -> Result<RuntimeResult> {
                 });
             }
             if verbose {
-                eprintln!("[dm] Waiting for runtime to initialize... (attempt {}/10)", i + 1);
+                eprintln!(
+                    "[dm] Waiting for runtime to initialize... (attempt {}/10)",
+                    i + 1
+                );
             }
         }
 
@@ -136,7 +139,8 @@ pub async fn down(home: &Path, verbose: bool) -> Result<RuntimeResult> {
     op.emit_start();
 
     let result = async {
-        let (code, stdout, stderr) = dora::run_dora(home, &["destroy".to_string()], verbose).await?;
+        let (code, stdout, stderr) =
+            dora::run_dora(home, &["destroy".to_string()], verbose).await?;
         if code != 0 {
             return Ok(RuntimeResult {
                 success: false,
@@ -153,7 +157,10 @@ pub async fn down(home: &Path, verbose: bool) -> Result<RuntimeResult> {
                 });
             }
             if verbose {
-                eprintln!("[dm] Waiting for runtime to shut down... (attempt {}/3)", i + 1);
+                eprintln!(
+                    "[dm] Waiting for runtime to shut down... (attempt {}/3)",
+                    i + 1
+                );
             }
         }
 

@@ -73,10 +73,8 @@ pub async fn uninstall_node(
     Json(req): Json<UninstallNodeRequest>,
 ) -> impl IntoResponse {
     match dm_core::node::uninstall_node(&state.home, &req.id) {
-        Ok(()) => {
-            Json(serde_json::json!({ "message": format!("Uninstalled node '{}'", req.id) }))
-                .into_response()
-        }
+        Ok(()) => Json(serde_json::json!({ "message": format!("Uninstalled node '{}'", req.id) }))
+            .into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }
@@ -119,7 +117,7 @@ pub async fn node_readme(
                         .replace("/tree/", "/")
                         .replace("/blob/", "/");
                     let readme_url = format!("{}/README.md", raw_url.trim_end_matches('/'));
-                    
+
                     if let Ok(resp) = reqwest::get(&readme_url).await {
                         if resp.status().is_success() {
                             if let Ok(text) = resp.text().await {
@@ -132,7 +130,11 @@ pub async fn node_readme(
         }
     }
 
-    (StatusCode::NOT_FOUND, format!("No README found locally or online for '{}'", id)).into_response()
+    (
+        StatusCode::NOT_FOUND,
+        format!("No README found locally or online for '{}'", id),
+    )
+        .into_response()
 }
 
 /// GET /api/nodes/:id/config

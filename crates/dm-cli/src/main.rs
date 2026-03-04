@@ -1,7 +1,5 @@
 mod display;
 
-
-
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -66,8 +64,6 @@ enum Commands {
     /// Live overview of runtime & dataflows
     Status,
 
-
-
     /// Manage installed dora nodes
     Node {
         #[command(subcommand)]
@@ -108,8 +104,6 @@ enum NodeCommands {
         id: String,
     },
 }
-
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -272,8 +266,6 @@ async fn main() -> Result<()> {
             display::print_status_report(&report);
         }
 
-
-
         Commands::Node { command } => match command {
             NodeCommands::Install { id } => {
                 println!("{} Installing node {}...", "→".cyan(), id.bold());
@@ -290,7 +282,8 @@ async fn main() -> Result<()> {
                 println!("  Path: {}", entry.path.display().to_string().dimmed());
             }
             NodeCommands::List => {
-                let nodes = dm_core::node::list_nodes(&home).context("Failed to list installed nodes")?;
+                let nodes =
+                    dm_core::node::list_nodes(&home).context("Failed to list installed nodes")?;
 
                 if nodes.is_empty() {
                     println!("{} No nodes installed.", "ℹ".cyan());
@@ -317,7 +310,10 @@ async fn main() -> Result<()> {
             // Check if runtime is running first
             if !dm_core::is_runtime_running(&home, cli.verbose).await {
                 eprintln!("{} Dora runtime is not running.", "✗".red());
-                eprintln!("  Run {} first to start the coordinator and daemon.", "dm up".bold());
+                eprintln!(
+                    "  Run {} first to start the coordinator and daemon.",
+                    "dm up".bold()
+                );
                 std::process::exit(1);
             }
 
@@ -333,13 +329,20 @@ async fn main() -> Result<()> {
             // Write to a temporary run file
             let run_dir = home.join("run");
             std::fs::create_dir_all(&run_dir)?;
-            let temp_run_file = run_dir.join(format!(".run_{}", file_path.file_name().unwrap_or_default().to_string_lossy()));
-            
+            let temp_run_file = run_dir.join(format!(
+                ".run_{}",
+                file_path.file_name().unwrap_or_default().to_string_lossy()
+            ));
+
             let out_content = serde_yaml::to_string(&transpiled)?;
             std::fs::write(&temp_run_file, out_content)?;
 
             if cli.verbose {
-                println!("{} Transpiled graph saved to: {}", "ℹ".cyan(), temp_run_file.display());
+                println!(
+                    "{} Transpiled graph saved to: {}",
+                    "ℹ".cyan(),
+                    temp_run_file.display()
+                );
             }
 
             println!("{} Starting dataflow...", "🚀".green());

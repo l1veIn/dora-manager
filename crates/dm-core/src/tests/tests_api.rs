@@ -177,8 +177,14 @@ async fn uninstall_emits_start_and_success_events() {
     assert!(events.iter().all(|e| e.source == "core"));
     assert_eq!(events[0].case_id, events[1].case_id);
 
-    let start = events.iter().find(|e| e.message.as_deref() == Some("START")).unwrap();
-    let end = events.iter().find(|e| e.message.as_deref() == Some("OK")).unwrap();
+    let start = events
+        .iter()
+        .find(|e| e.message.as_deref() == Some("START"))
+        .unwrap();
+    let end = events
+        .iter()
+        .find(|e| e.message.as_deref() == Some("OK"))
+        .unwrap();
     assert_eq!(end.level, "info");
 
     let attrs_start: serde_json::Value =
@@ -202,7 +208,10 @@ async fn uninstall_emits_start_and_error_events_on_failure() {
     assert!(events.iter().all(|e| e.activity == "version.uninstall"));
     assert_eq!(events[0].case_id, events[1].case_id);
 
-    let start = events.iter().find(|e| e.message.as_deref() == Some("START")).unwrap();
+    let start = events
+        .iter()
+        .find(|e| e.message.as_deref() == Some("START"))
+        .unwrap();
     let end = events.iter().find(|e| e.level == "error").unwrap();
     assert_eq!(start.message.as_deref(), Some("START"));
     assert!(end

@@ -3,7 +3,7 @@ use std::fs;
 use tempfile::tempdir;
 
 use crate::dataflow::transpile_graph;
-use crate::node::{NodeMetaFile, NodeSource, node_dir};
+use crate::node::{node_dir, NodeMetaFile, NodeSource};
 
 fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
     let dir = node_dir(home, id);
@@ -71,7 +71,9 @@ nodes:
     assert!(path_val.starts_with("/"), "Path should be absolute");
 
     // No custom block, no env block — executable handles everything
-    assert!(node.get(serde_yaml::Value::String("custom".into())).is_none());
+    assert!(node
+        .get(serde_yaml::Value::String("custom".into()))
+        .is_none());
     assert!(node.get(serde_yaml::Value::String("env".into())).is_none());
 }
 
@@ -106,7 +108,6 @@ fn transpile_graph_errors_on_invalid_yaml() {
     let err = transpile_graph(home, &yaml_path).unwrap_err().to_string();
     assert!(err.contains("Failed to parse yaml"));
 }
-
 
 #[test]
 fn transpile_graph_errors_on_missing_file() {
@@ -149,6 +150,8 @@ fn test_dataflow_crud() {
     assert!(list3.is_empty());
 
     // 7. Get should fail
-    let err = crate::dataflow::get(home, "my_flow").unwrap_err().to_string();
+    let err = crate::dataflow::get(home, "my_flow")
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("Failed to read dataflow"));
 }

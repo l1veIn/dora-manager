@@ -4,7 +4,11 @@ use anyhow::Result;
 
 use crate::util;
 
-pub(super) async fn install_from_source(git_tag: &str, target_dir: &Path, verbose: bool) -> Result<()> {
+pub(super) async fn install_from_source(
+    git_tag: &str,
+    target_dir: &Path,
+    verbose: bool,
+) -> Result<()> {
     if util::check_command("cargo").is_none() {
         anyhow::bail!(
             "No binary release for this platform and Rust is not installed.\n\

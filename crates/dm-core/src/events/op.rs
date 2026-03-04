@@ -42,8 +42,8 @@ impl OperationEvent {
     }
 
     fn builder(&self) -> EventBuilder {
-        let mut builder =
-            EventBuilder::new(self.source.clone(), self.activity.clone()).case_id(self.case_id.clone());
+        let mut builder = EventBuilder::new(self.source.clone(), self.activity.clone())
+            .case_id(self.case_id.clone());
         for (key, value) in &self.attrs {
             builder = builder.attr(key, value.clone());
         }

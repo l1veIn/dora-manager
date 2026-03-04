@@ -13,19 +13,10 @@ pub fn print_env_item(item: &EnvItem) {
     if item.found {
         let ver = item.version.as_deref().unwrap_or("");
         let path = item.path.as_deref().unwrap_or("");
-        println!(
-            "  ✅  {:<14} {} ({})",
-            item.name.bold(),
-            ver,
-            path.dimmed()
-        );
+        println!("  ✅  {:<14} {} ({})", item.name.bold(), ver, path.dimmed());
     } else {
         let suggestion = item.suggestion.as_deref().unwrap_or("");
-        println!(
-            "  ❌  {:<14} {}",
-            item.name.bold(),
-            suggestion.yellow()
-        );
+        println!("  ❌  {:<14} {}", item.name.bold(), suggestion.yellow());
     }
 }
 

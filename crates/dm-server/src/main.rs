@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use axum::routing::{get, post};
 use axum::Router;
-use tower_http::cors::CorsLayer;
 use rust_embed::Embed;
+use tower_http::cors::CorsLayer;
 
 use dm_core::events::EventStore;
 
@@ -59,7 +59,10 @@ async fn main() {
         .route("/api/dataflows", get(handlers::list_dataflows))
         .route("/api/dataflows/{name}", get(handlers::get_dataflow))
         .route("/api/dataflows/{name}", post(handlers::save_dataflow))
-        .route("/api/dataflows/{name}/delete", post(handlers::delete_dataflow))
+        .route(
+            "/api/dataflows/{name}/delete",
+            post(handlers::delete_dataflow),
+        )
         // ─── Dataflow Execution ───
         .route("/api/dataflow/start", post(handlers::start_dataflow))
         .route("/api/dataflow/stop", post(handlers::stop_dataflow))

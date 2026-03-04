@@ -48,7 +48,10 @@ pub async fn versions(home: &Path) -> Result<VersionsReport> {
             Err(_) => Vec::new(),
         };
 
-        Ok(VersionsReport { installed, available })
+        Ok(VersionsReport {
+            installed,
+            available,
+        })
     }
     .await;
 
@@ -58,7 +61,8 @@ pub async fn versions(home: &Path) -> Result<VersionsReport> {
 
 /// Remove an installed dora version
 pub async fn uninstall(home: &Path, version: &str) -> Result<()> {
-    let op = OperationEvent::new(home, EventSource::Core, "version.uninstall").attr("version", version);
+    let op =
+        OperationEvent::new(home, EventSource::Core, "version.uninstall").attr("version", version);
     op.emit_start();
 
     let result = async {
@@ -86,7 +90,8 @@ pub async fn uninstall(home: &Path, version: &str) -> Result<()> {
 
 /// Switch active dora version
 pub async fn use_version(home: &Path, version: &str) -> Result<String> {
-    let op = OperationEvent::new(home, EventSource::Core, "version.switch").attr("version", version);
+    let op =
+        OperationEvent::new(home, EventSource::Core, "version.switch").attr("version", version);
     op.emit_start();
 
     let result = async {

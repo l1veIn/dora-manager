@@ -57,7 +57,9 @@ fn node_install_requires_id() {
         .args(["node", "install"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("required arguments were not provided"));
+        .stderr(predicate::str::contains(
+            "required arguments were not provided",
+        ));
 }
 
 #[test]
@@ -76,10 +78,18 @@ fn node_uninstall_missing_node_shows_friendly_error() {
     let home = tempdir().unwrap();
 
     dm_cmd()
-        .args(["--home", home.path().to_str().unwrap(), "node", "uninstall", "missing-node"])
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "node",
+            "uninstall",
+            "missing-node",
+        ])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Failed to uninstall node 'missing-node'"));
+        .stderr(predicate::str::contains(
+            "Failed to uninstall node 'missing-node'",
+        ));
 }
 
 #[test]
@@ -106,7 +116,12 @@ fn start_requires_runtime_to_be_running() {
     let home = tempdir().unwrap();
 
     dm_cmd()
-        .args(["--home", home.path().to_str().unwrap(), "start", "graph.yml"])
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "start",
+            "graph.yml",
+        ])
         .assert()
         .failure()
         .stderr(predicate::str::contains("Dora runtime is not running"));

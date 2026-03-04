@@ -109,7 +109,11 @@ mod tests {
     fn send_progress_emits_message_when_channel_exists() {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
-        progress::send_progress(&Some(tx), InstallPhase::Fetching, "Fetching release info...");
+        progress::send_progress(
+            &Some(tx),
+            InstallPhase::Fetching,
+            "Fetching release info...",
+        );
 
         let msg = rx.try_recv().unwrap();
         assert!(matches!(msg.phase, InstallPhase::Fetching));
@@ -120,7 +124,9 @@ mod tests {
     fn extract_zip_rejects_invalid_data() {
         let dir = tempdir().unwrap();
 
-        let err = archive::extract_zip(b"not-a-zip", dir.path()).unwrap_err().to_string();
+        let err = archive::extract_zip(b"not-a-zip", dir.path())
+            .unwrap_err()
+            .to_string();
         assert!(!err.is_empty());
     }
 
@@ -128,7 +134,9 @@ mod tests {
     fn extract_tar_rejects_invalid_data() {
         let dir = tempdir().unwrap();
 
-        let err = archive::extract_tar(b"not-a-tar", dir.path()).unwrap_err().to_string();
+        let err = archive::extract_tar(b"not-a-tar", dir.path())
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("tar extraction failed"));
     }
 

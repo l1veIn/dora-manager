@@ -50,7 +50,10 @@ impl EventBuilder {
     pub fn attr(mut self, key: &str, value: impl Serialize) -> Self {
         let map = self.attributes.get_or_insert_with(|| serde_json::json!({}));
         if let Some(obj) = map.as_object_mut() {
-            obj.insert(key.to_string(), serde_json::to_value(value).unwrap_or_default());
+            obj.insert(
+                key.to_string(),
+                serde_json::to_value(value).unwrap_or_default(),
+            );
         }
         self
     }

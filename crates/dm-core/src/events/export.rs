@@ -10,7 +10,8 @@ pub(super) fn render_xes(events: &[Event]) -> String {
 "#,
     );
 
-    let mut cases: std::collections::BTreeMap<String, Vec<&Event>> = std::collections::BTreeMap::new();
+    let mut cases: std::collections::BTreeMap<String, Vec<&Event>> =
+        std::collections::BTreeMap::new();
     for event in events {
         cases.entry(event.case_id.clone()).or_default().push(event);
     }

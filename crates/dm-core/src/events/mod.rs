@@ -49,13 +49,25 @@ mod tests {
         let (_dir, store) = test_store();
 
         store
-            .emit(&EventBuilder::new(EventSource::Core, "version.switch").case_id("s1").build())
+            .emit(
+                &EventBuilder::new(EventSource::Core, "version.switch")
+                    .case_id("s1")
+                    .build(),
+            )
             .unwrap();
         store
-            .emit(&EventBuilder::new(EventSource::Dataflow, "node.spawn").case_id("df1").build())
+            .emit(
+                &EventBuilder::new(EventSource::Dataflow, "node.spawn")
+                    .case_id("df1")
+                    .build(),
+            )
             .unwrap();
         store
-            .emit(&EventBuilder::new(EventSource::Frontend, "ui.click").case_id("u1").build())
+            .emit(
+                &EventBuilder::new(EventSource::Frontend, "ui.click")
+                    .case_id("u1")
+                    .build(),
+            )
             .unwrap();
 
         let core_events = store
@@ -75,13 +87,25 @@ mod tests {
         let (_dir, store) = test_store();
 
         store
-            .emit(&EventBuilder::new(EventSource::Dataflow, "node.spawn").case_id("df_abc").build())
+            .emit(
+                &EventBuilder::new(EventSource::Dataflow, "node.spawn")
+                    .case_id("df_abc")
+                    .build(),
+            )
             .unwrap();
         store
-            .emit(&EventBuilder::new(EventSource::Dataflow, "node.output").case_id("df_abc").build())
+            .emit(
+                &EventBuilder::new(EventSource::Dataflow, "node.output")
+                    .case_id("df_abc")
+                    .build(),
+            )
             .unwrap();
         store
-            .emit(&EventBuilder::new(EventSource::Dataflow, "node.spawn").case_id("df_xyz").build())
+            .emit(
+                &EventBuilder::new(EventSource::Dataflow, "node.spawn")
+                    .case_id("df_xyz")
+                    .build(),
+            )
             .unwrap();
 
         let results = store
@@ -124,10 +148,19 @@ mod tests {
         let (_dir, store) = test_store();
 
         store
-            .emit(&EventBuilder::new(EventSource::Core, "node.install").case_id("s1").message("test").build())
+            .emit(
+                &EventBuilder::new(EventSource::Core, "node.install")
+                    .case_id("s1")
+                    .message("test")
+                    .build(),
+            )
             .unwrap();
         store
-            .emit(&EventBuilder::new(EventSource::Core, "node.start").case_id("s1").build())
+            .emit(
+                &EventBuilder::new(EventSource::Core, "node.start")
+                    .case_id("s1")
+                    .build(),
+            )
             .unwrap();
 
         let xes = store.export_xes(&EventFilter::default()).unwrap();
@@ -151,7 +184,8 @@ mod tests {
         assert_eq!(event.source, "ci");
         assert_eq!(event.level, "warn");
 
-        let attrs: serde_json::Value = serde_json::from_str(event.attributes.as_ref().unwrap()).unwrap();
+        let attrs: serde_json::Value =
+            serde_json::from_str(event.attributes.as_ref().unwrap()).unwrap();
         assert_eq!(attrs["file"], "src/main.rs");
         assert_eq!(attrs["line"], 42);
     }

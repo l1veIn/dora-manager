@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::events::{EventSource, OperationEvent};
-use crate::node::{NodeMetaFile, node_dir, dm_json_path};
+use crate::node::{dm_json_path, node_dir, NodeMetaFile};
 
 // ─── Dataflow Management ───
 
@@ -21,7 +21,7 @@ pub struct DataflowMeta {
 pub fn list(home: &Path) -> Result<Vec<DataflowMeta>> {
     let op = OperationEvent::new(home, EventSource::Core, "dataflow.list");
     op.emit_start();
-    
+
     let result = (|| -> Result<Vec<DataflowMeta>> {
         let dir = home.join("dataflows");
         if !dir.exists() {
@@ -35,8 +35,16 @@ pub fn list(home: &Path) -> Result<Vec<DataflowMeta>> {
             if path.is_file() {
                 if let Some(ext) = path.extension() {
                     if ext == "yml" || ext == "yaml" {
-                        let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                        let name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                        let filename = path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        let name = path
+                            .file_stem()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
                         let meta = entry.metadata()?;
                         let size = meta.len();
                         let modified_at = match meta.modified() {
@@ -59,57 +67,51 @@ pub fn list(home: &Path) -> Result<Vec<DataflowMeta>> {
         dataflows.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
         Ok(dataflows)
     })();
-    
+
     op.emit_result(&result);
     result
 }
 
 /// Get a single dataflow's YAML content
 pub fn get(home: &Path, name: &str) -> Result<String> {
-    let op = OperationEvent::new(home, EventSource::Core, "dataflow.get")
-        .attr("name", name);
+    let op = OperationEvent::new(home, EventSource::Core, "dataflow.get").attr("name", name);
     op.emit_start();
-    
+
     let result = {
         let path = home.join("dataflows").join(format!("{}.yml", name));
-        fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read dataflow '{}'", name))
+        fs::read_to_string(&path).with_context(|| format!("Failed to read dataflow '{}'", name))
     };
-    
+
     op.emit_result(&result);
     result
 }
 
 /// Save (create or update) a dataflow's YAML content
 pub fn save(home: &Path, name: &str, yaml: &str) -> Result<()> {
-    let op = OperationEvent::new(home, EventSource::Core, "dataflow.save")
-        .attr("name", name);
+    let op = OperationEvent::new(home, EventSource::Core, "dataflow.save").attr("name", name);
     op.emit_start();
-    
+
     let result = (|| {
         let dir = home.join("dataflows");
         fs::create_dir_all(&dir)?;
         let path = dir.join(format!("{}.yml", name));
-        fs::write(&path, yaml)
-            .with_context(|| format!("Failed to save dataflow '{}'", name))
+        fs::write(&path, yaml).with_context(|| format!("Failed to save dataflow '{}'", name))
     })();
-    
+
     op.emit_result(&result);
     result
 }
 
 /// Delete a dataflow file
 pub fn delete(home: &Path, name: &str) -> Result<()> {
-    let op = OperationEvent::new(home, EventSource::Core, "dataflow.delete")
-        .attr("name", name);
+    let op = OperationEvent::new(home, EventSource::Core, "dataflow.delete").attr("name", name);
     op.emit_start();
-    
+
     let result = {
         let path = home.join("dataflows").join(format!("{}.yml", name));
-        fs::remove_file(&path)
-            .with_context(|| format!("Failed to delete dataflow '{}'", name))
+        fs::remove_file(&path).with_context(|| format!("Failed to delete dataflow '{}'", name))
     };
-    
+
     op.emit_result(&result);
     result
 }
@@ -161,8 +163,9 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
                             if let Some(schema) = &meta.config_schema {
                                 if let Some(schema_obj) = schema.as_object() {
                                     // Read config.json defaults
-                                    let config_defaults = crate::node::get_node_config(home, &node_id)
-                                        .unwrap_or(serde_json::json!({}));
+                                    let config_defaults =
+                                        crate::node::get_node_config(home, &node_id)
+                                            .unwrap_or(serde_json::json!({}));
 
                                     // Read dataflow-level config overrides
                                     let dataflow_config = node_map
@@ -177,9 +180,12 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
                                         .unwrap_or_default();
 
                                     for (key, field_schema) in schema_obj {
-                                        if let Some(env_name) = field_schema.get("env").and_then(|e| e.as_str()) {
+                                        if let Some(env_name) =
+                                            field_schema.get("env").and_then(|e| e.as_str())
+                                        {
                                             // Priority: dataflow config > config.json > schema default
-                                            let value = dataflow_config.get(key)
+                                            let value = dataflow_config
+                                                .get(key)
                                                 .or_else(|| config_defaults.get(key))
                                                 .or_else(|| field_schema.get("default"));
 
@@ -204,7 +210,8 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
                                     }
 
                                     // Remove `config:` from output (Dora doesn't understand it)
-                                    node_map.remove(serde_yaml::Value::String("config".to_string()));
+                                    node_map
+                                        .remove(serde_yaml::Value::String("config".to_string()));
                                 }
                             }
                         }
@@ -218,5 +225,3 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
     op.emit_result(&result);
     result
 }
-
-
