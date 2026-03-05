@@ -220,19 +220,31 @@
                                 title={run.id}>{run.id}</Table.Cell
                             >
                             <Table.Cell>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    class="size-7"
-                                    onclick={(e) => {
-                                        e.stopPropagation();
-                                        deleteRun(run.id);
-                                    }}
+                                <div
+                                    class="flex items-center justify-center gap-1"
                                 >
-                                    <Trash2
-                                        class="size-3.5 text-muted-foreground hover:text-destructive"
-                                    />
-                                </Button>
+                                    <a
+                                        href="/panel?run={run.id}"
+                                        class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground size-7"
+                                        title="View panel data"
+                                        onclick={(e) => e.stopPropagation()}
+                                    >
+                                        📊
+                                    </a>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        class="size-7"
+                                        onclick={(e) => {
+                                            e.stopPropagation();
+                                            deleteRun(run.id);
+                                        }}
+                                    >
+                                        <Trash2
+                                            class="size-3.5 text-muted-foreground hover:text-destructive"
+                                        />
+                                    </Button>
+                                </div>
                             </Table.Cell>
                         </Table.Row>
                         {#if expandedRunId === run.id}

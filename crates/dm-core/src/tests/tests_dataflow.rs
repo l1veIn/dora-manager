@@ -72,9 +72,10 @@ nodes:
     assert!(path_val.contains(".venv/bin/test-node"));
     assert!(path_val.starts_with("/"), "Path should be absolute");
     // `node:` should be removed, `path:` should be the resolved absolute exec
-    assert!(node
-        .get(serde_yaml::Value::String("node".into()))
-        .is_none(), "node: field should be removed after transpile");
+    assert!(
+        node.get(serde_yaml::Value::String("node".into())).is_none(),
+        "node: field should be removed after transpile"
+    );
     assert!(node
         .get(serde_yaml::Value::String("custom".into()))
         .is_none());

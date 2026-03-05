@@ -481,7 +481,6 @@ async fn install_node_returns_bad_request_for_unsupported_build() {
     assert!(body.contains("Unsupported build type"));
 }
 
-
 #[tokio::test]
 async fn stop_dataflow_returns_500_without_active_dora() {
     let (_tmp, state) = test_state();

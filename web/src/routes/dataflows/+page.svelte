@@ -138,13 +138,20 @@
         }
     }
 
+    let runningDataflow = $state<string | null>(null);
+
     async function runDataflowFromList(name: string) {
+        if (runningDataflow) return;
+        runningDataflow = name;
         try {
             const res: any = await get(`/dataflows/${name}`);
             await post("/dataflow/start", { yaml: res.yaml });
             toast.success(`Started ${name}`);
+            goto("/panel");
         } catch (e: any) {
             toast.error(`Run failed: ${e.message}`);
+        } finally {
+            runningDataflow = null;
         }
     }
 
@@ -311,10 +318,18 @@
                             <Button
                                 variant="outline"
                                 size="sm"
+                                disabled={runningDataflow === df.name}
                                 onclick={() => runDataflowFromList(df.name)}
                             >
-                                <Play class="size-4 mr-1" />
-                                Run
+                                {#if runningDataflow === df.name}
+                                    <span
+                                        class="size-4 mr-1 animate-spin rounded-full border-2 border-current border-t-transparent"
+                                    ></span>
+                                    Starting...
+                                {:else}
+                                    <Play class="size-4 mr-1" />
+                                    Run
+                                {/if}
                             </Button>
                             <Button
                                 variant="outline"

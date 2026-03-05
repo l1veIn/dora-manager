@@ -3,6 +3,12 @@ mod display;
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+use dora_node_api::arrow::array::{
+    BooleanArray, Float64Array, Int64Array, StringArray, UInt8Array,
+};
+use dora_node_api::arrow::datatypes::DataType;
+
+use dora_node_api::{DoraNode, Event};
 use indicatif::{ProgressBar, ProgressStyle};
 
 use dm_core::types::*;
@@ -82,6 +88,10 @@ enum Commands {
         command: Option<RunsCommands>,
     },
 
+    /// Panel: real-time visualization, control, and recording
+    #[command(subcommand)]
+    Panel(PanelCommands),
+
     /// Pass-through: run any dora CLI command with the active version
     #[command(
         name = "--",
@@ -109,6 +119,29 @@ enum RunsCommands {
         /// Number of recent runs to keep (default: 10)
         #[arg(long, default_value = "10")]
         keep: usize,
+    },
+}
+
+#[derive(Subcommand)]
+enum PanelCommands {
+    /// [internal] Run as dora node (called by transpiler)
+    Serve {
+        /// Run ID (UUID)
+        #[arg(long)]
+        run_id: String,
+        /// Node ID in the dataflow graph
+        #[arg(long, default_value = "dm-panel")]
+        node_id: String,
+    },
+    /// Send a control command to the active panel
+    Send {
+        /// Output ID (e.g. "speed", "direction")
+        output_id: String,
+        /// Value (JSON format)
+        value: String,
+        /// Specific run ID (auto-discovered if omitted)
+        #[arg(long)]
+        run: Option<String>,
     },
 }
 
@@ -335,12 +368,19 @@ async fn main() -> Result<()> {
 
                 if nodes.is_empty() {
                     println!("{} No nodes found.", "ℹ".cyan());
-                    println!("  Use {} to import nodes.", "dm node import <path|url>".bold());
+                    println!(
+                        "  Use {} to import nodes.",
+                        "dm node import <path|url>".bold()
+                    );
                 } else {
                     println!("{} Nodes ({})", "📦", nodes.len());
                     println!();
                     for node in &nodes {
-                        let name = if node.name.is_empty() { &node.id } else { &node.name };
+                        let name = if node.name.is_empty() {
+                            &node.id
+                        } else {
+                            &node.name
+                        };
                         let installed = !node.executable.is_empty();
                         let status = if installed {
                             "✅".to_string()
@@ -380,18 +420,25 @@ async fn main() -> Result<()> {
                     let is_url = source.starts_with("https://") || source.starts_with("http://");
 
                     let inferred_id = if is_url {
-                        source.rsplit('/').find(|s| !s.is_empty())
+                        source
+                            .rsplit('/')
+                            .find(|s| !s.is_empty())
                             .unwrap_or("unknown")
                             .to_string()
                     } else {
-                        source_path.file_name()
+                        source_path
+                            .file_name()
                             .unwrap_or_default()
                             .to_string_lossy()
                             .to_string()
                     };
 
                     let result = if is_url {
-                        println!("{} Importing {} from git...", "→".cyan(), inferred_id.bold());
+                        println!(
+                            "{} Importing {} from git...",
+                            "→".cyan(),
+                            inferred_id.bold()
+                        );
                         dm_core::node::import_git(&home, &inferred_id, source).await
                     } else {
                         let abs_path = if source_path.is_absolute() {
@@ -399,18 +446,32 @@ async fn main() -> Result<()> {
                         } else {
                             std::env::current_dir()?.join(source_path)
                         };
-                        println!("{} Importing {} from local...", "→".cyan(), inferred_id.bold());
+                        println!(
+                            "{} Importing {} from local...",
+                            "→".cyan(),
+                            inferred_id.bold()
+                        );
                         dm_core::node::import_local(&home, &inferred_id, &abs_path)
                     };
 
                     match result {
                         Ok(node) => {
-                            println!("{} Imported {} ({})", "✅".green(), node.name.bold(), node.id.dimmed());
+                            println!(
+                                "{} Imported {} ({})",
+                                "✅".green(),
+                                node.name.bold(),
+                                node.id.dimmed()
+                            );
                             println!("  Build: {}", node.source.build.dimmed());
                             ok += 1;
                         }
                         Err(e) => {
-                            println!("{} Failed to import {}: {}", "❌".red(), inferred_id.bold(), e);
+                            println!(
+                                "{} Failed to import {}: {}",
+                                "❌".red(),
+                                inferred_id.bold(),
+                                e
+                            );
                             failed.push((source.clone(), format!("{}", e)));
                         }
                     }
@@ -554,11 +615,7 @@ async fn main() -> Result<()> {
                                 run.node_count
                             );
                         }
-                        println!(
-                            "\nShowing {}/{} runs.",
-                            result.runs.len(),
-                            result.total
-                        );
+                        println!("\nShowing {}/{} runs.", result.runs.len(), result.total);
                     }
                 }
                 Some(RunsCommands::Logs { run_id, node_id }) => {
@@ -608,11 +665,236 @@ async fn main() -> Result<()> {
             }
         }
 
+        Commands::Panel(command) => match command {
+            PanelCommands::Serve { run_id, node_id } => {
+                panel_serve(&home, &run_id, &node_id)?;
+            }
+            PanelCommands::Send {
+                output_id,
+                value,
+                run,
+            } => {
+                panel_send(&home, &output_id, &value, run)?;
+            }
+        },
+
         Commands::Passthrough { args } => {
             let code = dm_core::passthrough(&home, &args, cli.verbose).await?;
             std::process::exit(code);
         }
     }
 
+    Ok(())
+}
+
+fn panel_serve(home: &std::path::Path, run_id: &str, _node_id: &str) -> Result<()> {
+    let store = dm_core::panel::PanelStore::open(home, run_id)?;
+    let (mut node, mut events) = DoraNode::init_from_env()
+        .map_err(|e| anyhow::anyhow!("Failed to init panel node: {e}"))?;
+    let mut last_cmd_seq = 0i64;
+
+    let store2 = store.clone();
+    std::thread::spawn(move || {
+        while let Some(event) = events.recv() {
+            match event {
+                Event::Input { id, metadata, data } => {
+                    let type_hint = extract_type_hint(&metadata, &data);
+                    let bytes = arrow_to_bytes(&data);
+                    if let Err(e) = store2.write_asset(&id.to_string(), &type_hint, &bytes) {
+                        eprintln!("Panel write error: {e}");
+                    }
+                }
+                Event::Stop(_) => break,
+                _ => {}
+            }
+        }
+    });
+
+    loop {
+        for cmd in store.poll_commands(&mut last_cmd_seq)? {
+            send_json_command(&mut node, &cmd.output_id, &cmd.value)
+                .with_context(|| format!("Failed sending output '{}'", cmd.output_id))?;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+
+fn panel_send(
+    home: &std::path::Path,
+    output_id: &str,
+    value: &str,
+    run: Option<String>,
+) -> Result<()> {
+    let run_id = match run {
+        Some(id) => {
+            let db_path = home.join("panel").join(&id).join("index.db");
+            if !db_path.exists() {
+                bail!("Panel run '{}' not found", id);
+            }
+            id
+        }
+        None => {
+            let sessions = dm_core::panel::PanelStore::list_sessions(home)?;
+            let now = chrono::Utc::now();
+            let mut active = sessions
+                .into_iter()
+                .filter(|s| {
+                    chrono::DateTime::parse_from_rfc3339(&s.last_modified)
+                        .map(|dt| {
+                            now.signed_duration_since(dt.with_timezone(&chrono::Utc))
+                                .num_minutes()
+                                <= 5
+                        })
+                        .unwrap_or(false)
+                })
+                .collect::<Vec<_>>();
+            active.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+
+            match active.len() {
+                0 => bail!("No active panel session found (modified in last 5 minutes)"),
+                1 => active[0].run_id.clone(),
+                _ => {
+                    eprintln!("Multiple active panel sessions found; using most recent:");
+                    for s in &active {
+                        eprintln!("  {} ({})", s.run_id, s.last_modified);
+                    }
+                    active[0].run_id.clone()
+                }
+            }
+        }
+    };
+
+    let store = dm_core::panel::PanelStore::open(home, &run_id)?;
+    store.write_command(output_id, value)?;
+    println!("✅ Sent: {} = {}", output_id, value);
+    Ok(())
+}
+
+fn extract_type_hint(
+    metadata: &dora_node_api::Metadata,
+    data: &dora_node_api::ArrowData,
+) -> String {
+    if let Some(dora_node_api::Parameter::String(content_type)) =
+        metadata.parameters.get("content_type")
+    {
+        return content_type.clone();
+    }
+    match data.data_type() {
+        DataType::Utf8 | DataType::LargeUtf8 => "text/plain".to_string(),
+        DataType::Binary | DataType::LargeBinary => "application/octet-stream".to_string(),
+        DataType::UInt8 => "application/octet-stream".to_string(),
+        _ => format!("application/x-arrow+{:?}", data.data_type()).to_ascii_lowercase(),
+    }
+}
+
+fn arrow_to_bytes(data: &dora_node_api::ArrowData) -> Vec<u8> {
+    match data.data_type() {
+        DataType::Utf8 | DataType::LargeUtf8 => String::try_from(data)
+            .map(|s| s.into_bytes())
+            .unwrap_or_else(|_| format!("{data:?}").into_bytes()),
+        DataType::UInt8 => Vec::<u8>::try_from(data).unwrap_or_default(),
+        DataType::Binary | DataType::LargeBinary => format!("{data:?}").into_bytes(),
+        _ => format!("{data:?}").into_bytes(),
+    }
+}
+
+fn send_json_command(node: &mut DoraNode, output_id: &str, raw_json: &str) -> Result<()> {
+    let value = serde_json::from_str::<serde_json::Value>(raw_json)
+        .unwrap_or_else(|_| serde_json::Value::String(raw_json.to_string()));
+
+    match value {
+        serde_json::Value::Bool(v) => {
+            node.send_output(
+                output_id.to_string().into(),
+                Default::default(),
+                BooleanArray::from(vec![v]),
+            )
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        }
+        serde_json::Value::Number(num) => {
+            if let Some(i) = num.as_i64() {
+                node.send_output(
+                    output_id.to_string().into(),
+                    Default::default(),
+                    Int64Array::from(vec![i]),
+                )
+                .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            } else if let Some(f) = num.as_f64() {
+                node.send_output(
+                    output_id.to_string().into(),
+                    Default::default(),
+                    Float64Array::from(vec![f]),
+                )
+                .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            } else {
+                node.send_output(
+                    output_id.to_string().into(),
+                    Default::default(),
+                    StringArray::from(vec![num.to_string()]),
+                )
+                .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            }
+        }
+        serde_json::Value::String(s) => {
+            node.send_output(
+                output_id.to_string().into(),
+                Default::default(),
+                StringArray::from(vec![s]),
+            )
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        }
+        serde_json::Value::Array(items) => {
+            if items.iter().all(|v| v.as_i64().is_some()) {
+                let values = items
+                    .into_iter()
+                    .map(|v| v.as_i64().unwrap_or_default())
+                    .collect::<Vec<_>>();
+                node.send_output(
+                    output_id.to_string().into(),
+                    Default::default(),
+                    Int64Array::from(values),
+                )
+                .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            } else if items.iter().all(|v| v.as_f64().is_some()) {
+                let values = items
+                    .into_iter()
+                    .map(|v| v.as_f64().unwrap_or_default())
+                    .collect::<Vec<_>>();
+                node.send_output(
+                    output_id.to_string().into(),
+                    Default::default(),
+                    Float64Array::from(values),
+                )
+                .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            } else if items.iter().all(|v| v.as_str().is_some()) {
+                let values = items
+                    .into_iter()
+                    .map(|v| v.as_str().unwrap_or_default().to_string())
+                    .collect::<Vec<_>>();
+                node.send_output(
+                    output_id.to_string().into(),
+                    Default::default(),
+                    StringArray::from(values),
+                )
+                .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            } else {
+                node.send_output(
+                    output_id.to_string().into(),
+                    Default::default(),
+                    StringArray::from(vec![serde_json::Value::Array(items).to_string()]),
+                )
+                .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            }
+        }
+        serde_json::Value::Null | serde_json::Value::Object(_) => {
+            let bytes = value.to_string().into_bytes();
+            node.send_output(
+                output_id.to_string().into(),
+                Default::default(),
+                UInt8Array::from(bytes),
+            )
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        }
+    }
     Ok(())
 }

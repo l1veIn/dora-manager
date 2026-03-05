@@ -85,8 +85,14 @@ pub fn list_runs(home: &Path, limit: i64, offset: i64) -> Result<PaginatedRuns> 
                 .unwrap_or(serde_json::json!({}));
             (
                 Some(fin.timestamp.clone()),
-                attrs.get("exit_code").and_then(|v| v.as_i64()).map(|v| v as i32),
-                attrs.get("node_count").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                attrs
+                    .get("exit_code")
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32),
+                attrs
+                    .get("node_count")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0) as u32,
             )
         } else {
             (None, None, 0)
@@ -161,8 +167,7 @@ pub fn get_run(home: &Path, run_id: &str) -> Result<RunDetail> {
         ..Default::default()
     })?;
 
-    let (finished_at, exit_code, node_count_from_event) = if let Some(fin) = finish_events.first()
-    {
+    let (finished_at, exit_code, node_count_from_event) = if let Some(fin) = finish_events.first() {
         let fa: serde_json::Value = fin
             .attributes
             .as_deref()
@@ -170,7 +175,9 @@ pub fn get_run(home: &Path, run_id: &str) -> Result<RunDetail> {
             .unwrap_or(serde_json::json!({}));
         (
             Some(fin.timestamp.clone()),
-            fa.get("exit_code").and_then(|v| v.as_i64()).map(|v| v as i32),
+            fa.get("exit_code")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32),
             fa.get("node_count").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
         )
     } else {

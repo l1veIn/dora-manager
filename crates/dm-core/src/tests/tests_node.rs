@@ -1,8 +1,8 @@
 //! Tests for the node module
 
 use crate::node::{
-    create_node, dm_json_path, get_node_config, get_node_readme, install_node,
-    list_nodes, node_dir, node_status, save_node_config, uninstall_node, Node, NodeSource,
+    create_node, dm_json_path, get_node_config, get_node_readme, install_node, list_nodes,
+    node_dir, node_status, save_node_config, uninstall_node, Node, NodeSource,
 };
 use tempfile::tempdir;
 

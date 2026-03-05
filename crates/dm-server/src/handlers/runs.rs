@@ -28,10 +28,7 @@ pub async fn list_runs(
 }
 
 /// GET /api/runs/:id
-pub async fn get_run(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+pub async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     match dm_core::runs::get_run(&state.home, &id) {
         Ok(detail) => Json(detail).into_response(),
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
@@ -55,8 +52,9 @@ pub async fn delete_run(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     match dm_core::runs::delete_run(&state.home, &id) {
-        Ok(()) => Json(serde_json::json!({ "message": format!("Run '{}' deleted", id) }))
-            .into_response(),
+        Ok(()) => {
+            Json(serde_json::json!({ "message": format!("Run '{}' deleted", id) })).into_response()
+        }
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }

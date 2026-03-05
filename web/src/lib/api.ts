@@ -29,3 +29,4 @@ export async function del<T>(path: string): Promise<T> {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
 }
+

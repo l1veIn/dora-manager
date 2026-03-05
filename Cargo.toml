@@ -57,6 +57,7 @@ mime_guess = "2"
 
 # Async utilities
 futures-util = "0.3"
+dora-node-api = "0.4.1"
 
 # Testing
 assert_cmd = "2"

@@ -88,9 +88,7 @@ fn node_uninstall_missing_node_shows_friendly_error() {
         .assert()
         .failure()
         .stdout(predicate::str::contains("missing-node"))
-        .stderr(predicate::str::contains(
-            "1 node(s) failed to uninstall",
-        ));
+        .stderr(predicate::str::contains("1 node(s) failed to uninstall"));
 }
 
 #[test]

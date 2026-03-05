@@ -61,8 +61,7 @@ pub async fn install_node(home: &Path, id: &str) -> Result<Node> {
 
         node.installed_at = super::current_timestamp();
 
-        let dm_json =
-            serde_json::to_string_pretty(&node).context("Failed to serialize dm.json")?;
+        let dm_json = serde_json::to_string_pretty(&node).context("Failed to serialize dm.json")?;
         std::fs::write(&dm_path, dm_json)
             .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
 
@@ -79,8 +78,9 @@ async fn install_local_python_node(node_path: &Path) -> Result<String> {
 
     // Remove existing venv to avoid interactive prompt from `uv venv`
     if venv_path.exists() {
-        std::fs::remove_dir_all(&venv_path)
-            .with_context(|| format!("Failed to remove existing venv at {}", venv_path.display()))?;
+        std::fs::remove_dir_all(&venv_path).with_context(|| {
+            format!("Failed to remove existing venv at {}", venv_path.display())
+        })?;
     }
 
     let use_uv = Command::new("uv")
@@ -136,8 +136,9 @@ async fn install_python_node(meta: &Node, node_path: &Path) -> Result<String> {
 
     // Remove existing venv to avoid interactive prompt from `uv venv`
     if venv_path.exists() {
-        std::fs::remove_dir_all(&venv_path)
-            .with_context(|| format!("Failed to remove existing venv at {}", venv_path.display()))?;
+        std::fs::remove_dir_all(&venv_path).with_context(|| {
+            format!("Failed to remove existing venv at {}", venv_path.display())
+        })?;
     }
 
     let use_uv = Command::new("uv")

@@ -32,12 +32,13 @@ pub fn import_local(home: &Path, id: &str, source_dir: &Path) -> Result<Node> {
 
         let mut options = CopyOptions::new();
         options.content_only = true;
-        dir_copy(source_dir, &node_path, &options)
-            .with_context(|| format!(
+        dir_copy(source_dir, &node_path, &options).with_context(|| {
+            format!(
                 "Failed to copy {} to {}",
                 source_dir.display(),
                 node_path.display()
-            ))?;
+            )
+        })?;
 
         init_dm_json(id, &node_path, InitHints::default())
     })();
@@ -74,7 +75,6 @@ pub async fn import_git(home: &Path, id: &str, git_url: &str) -> Result<Node> {
     op.emit_result(&result);
     result
 }
-
 
 // ─── Git clone helper ───
 
@@ -148,10 +148,7 @@ async fn clone_github_source(github_url: &str, dest_dir: &Path) -> Result<()> {
             }
         } else {
             let _ = std::fs::remove_dir_all(&temp_dir);
-            bail!(
-                "Directory '{}' not found in the repository.",
-                folder_path
-            );
+            bail!("Directory '{}' not found in the repository.", folder_path);
         }
     } else {
         let mut options = CopyOptions::new();

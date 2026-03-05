@@ -3,6 +3,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::events::{EventBuilder, EventSource, OperationEvent};
 use crate::node::{dm_json_path, node_dir, Node};
@@ -137,6 +138,7 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
         let mut graph: serde_yaml::Value = serde_yaml::from_str(&content)
             .with_context(|| format!("Failed to parse yaml at {}", yaml_path.display()))?;
 
+        let panel_run_id = Uuid::new_v4().to_string();
         if let Some(nodes) = graph.get_mut("nodes").and_then(|n| n.as_sequence_mut()) {
             for node in nodes {
                 // DM format uses `node:` to reference installed node IDs.
@@ -151,14 +153,49 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
                         continue;
                     };
 
+                let node_map = node.as_mapping_mut().unwrap();
+
+                if node_id == "dm-panel" {
+                    let yaml_id = node_map
+                        .get(serde_yaml::Value::String("id".to_string()))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("dm-panel")
+                        .to_string();
+                    if from_node_field {
+                        node_map.remove(serde_yaml::Value::String("node".to_string()));
+                    } else {
+                        node_map.remove(serde_yaml::Value::String("path".to_string()));
+                    }
+                    // Resolve the `dm` CLI binary (not dm-server or any other binary).
+                    // Look in the same directory as the current executable first.
+                    let dm_exe = std::env::current_exe()
+                        .ok()
+                        .and_then(|exe| {
+                            let dir = exe.parent()?;
+                            let dm_path = dir.join("dm");
+                            if dm_path.exists() { Some(dm_path) } else { None }
+                        })
+                        .unwrap_or_else(|| std::path::PathBuf::from("dm"));
+                    node_map.insert(
+                        serde_yaml::Value::String("path".to_string()),
+                        serde_yaml::Value::String(dm_exe.display().to_string()),
+                    );
+                    node_map.insert(
+                        serde_yaml::Value::String("args".to_string()),
+                        serde_yaml::Value::String(format!(
+                            "panel serve --run-id {} --node-id {}",
+                            panel_run_id, yaml_id
+                        )),
+                    );
+                    continue;
+                }
+
                 let node_cache_dir = node_dir(home, &node_id);
                 let meta_file_path = dm_json_path(home, &node_id);
 
                 if node_cache_dir.exists() && meta_file_path.exists() {
                     let meta_content = fs::read_to_string(&meta_file_path).unwrap_or_default();
                     if let Ok(meta) = serde_json::from_str::<Node>(&meta_content) {
-                        let node_map = node.as_mapping_mut().unwrap();
-
                         // Remove the source field (`node:` or `path:`)
                         if from_node_field {
                             node_map.remove(serde_yaml::Value::String("node".to_string()));
@@ -179,9 +216,8 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
                         if let Some(schema) = &meta.config_schema {
                             if let Some(schema_obj) = schema.as_object() {
                                 // Read config.json defaults
-                                let config_defaults =
-                                    crate::node::get_node_config(home, &node_id)
-                                        .unwrap_or(serde_json::json!({}));
+                                let config_defaults = crate::node::get_node_config(home, &node_id)
+                                    .unwrap_or(serde_json::json!({}));
 
                                 // Read dataflow-level config overrides
                                 let dataflow_config = node_map
@@ -226,8 +262,7 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
                                 }
 
                                 // Remove `config:` from output (Dora doesn't understand it)
-                                node_map
-                                    .remove(serde_yaml::Value::String("config".to_string()));
+                                node_map.remove(serde_yaml::Value::String("config".to_string()));
                             }
                         }
                     }
@@ -247,12 +282,7 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
 ///
 /// Scans `~/.dm/run/out/<dataflow_id>/` for `log_<NODE_ID>.txt` files,
 /// emitting lifecycle events to the event store.
-pub fn collect_run_events(
-    home: &Path,
-    dataflow_id: &str,
-    dataflow_name: &str,
-    exit_code: i32,
-) {
+pub fn collect_run_events(home: &Path, dataflow_id: &str, dataflow_name: &str, exit_code: i32) {
     use crate::events::try_emit;
 
     let run_out_dir = home.join("run").join("out").join(dataflow_id);

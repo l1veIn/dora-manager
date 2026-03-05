@@ -70,10 +70,13 @@ if __name__ == "__main__":
             .context("Failed to write README.md")?;
 
         // Scaffold files written → init_dm_json will read pyproject.toml to infer metadata
-        init_dm_json(id, &node_path, InitHints {
-            description: Some(description.to_string()),
-            ..Default::default()
-        })
+        init_dm_json(
+            id,
+            &node_path,
+            InitHints {
+                description: Some(description.to_string()),
+            },
+        )
     })();
 
     op.emit_result(&result);

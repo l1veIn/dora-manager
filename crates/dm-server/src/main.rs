@@ -68,16 +68,24 @@ async fn main() {
         // ─── Execution History (Runs) ───
         .route("/api/runs", get(handlers::list_runs))
         .route("/api/runs/{id}", get(handlers::get_run))
-        .route("/api/runs/{id}", axum::routing::delete(handlers::delete_run))
         .route(
-            "/api/runs/{id}/logs/{node_id}",
-            get(handlers::get_run_logs),
+            "/api/runs/{id}",
+            axum::routing::delete(handlers::delete_run),
         )
+        .route("/api/runs/{id}/logs/{node_id}", get(handlers::get_run_logs))
         // ─── Events / Observability ───
         .route("/api/events/count", get(handlers::count_events))
         .route("/api/events/export", get(handlers::export_events))
         .route("/api/events", get(handlers::query_events))
         .route("/api/events", post(handlers::ingest_event))
+        // ─── Panel ───
+        .route("/api/panel/sessions", get(handlers::list_sessions_panel))
+        .route("/api/panel/{run_id}/assets", get(handlers::query_assets))
+        .route(
+            "/api/panel/{run_id}/file/{*path}",
+            get(handlers::serve_asset_file),
+        )
+        .route("/api/panel/{run_id}/commands", post(handlers::send_command))
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
         .with_state(state)

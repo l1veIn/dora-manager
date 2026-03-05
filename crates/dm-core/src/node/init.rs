@@ -30,8 +30,7 @@ pub fn init_dm_json(id: &str, node_path: &Path, hints: InitHints) -> Result<Node
         node.id = id.to_string();
         // Future: apply version migrations here based on node.dm_version
 
-        let json = serde_json::to_string_pretty(&node)
-            .context("Failed to serialize dm.json")?;
+        let json = serde_json::to_string_pretty(&node).context("Failed to serialize dm.json")?;
         std::fs::write(&dm_path, json)
             .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
 
@@ -44,16 +43,21 @@ pub fn init_dm_json(id: &str, node_path: &Path, hints: InitHints) -> Result<Node
 
     // Resolve each field with priority: pyproject/cargo > defaults
 
-    let name = pyproject.as_ref().map(|p| p.name.clone())
+    let name = pyproject
+        .as_ref()
+        .map(|p| p.name.clone())
         .or_else(|| cargo.as_ref().map(|c| c.name.clone()))
         .unwrap_or_else(|| id.to_string());
 
-    let description = hints.description
+    let description = hints
+        .description
         .or_else(|| pyproject.as_ref().and_then(|p| p.description.clone()))
         .or_else(|| cargo.as_ref().and_then(|c| c.description.clone()))
         .unwrap_or_default();
 
-    let version = pyproject.as_ref().and_then(|p| p.version.clone())
+    let version = pyproject
+        .as_ref()
+        .and_then(|p| p.version.clone())
         .or_else(|| cargo.as_ref().and_then(|c| c.version.clone()))
         .unwrap_or_default();
 
@@ -73,10 +77,7 @@ pub fn init_dm_json(id: &str, node_path: &Path, hints: InitHints) -> Result<Node
         name,
         version,
         installed_at: super::current_timestamp(),
-        source: NodeSource {
-            build,
-            github,
-        },
+        source: NodeSource { build, github },
         description,
         executable: String::new(),
         author,
@@ -89,8 +90,7 @@ pub fn init_dm_json(id: &str, node_path: &Path, hints: InitHints) -> Result<Node
         path: Default::default(),
     };
 
-    let json = serde_json::to_string_pretty(&node)
-        .context("Failed to serialize dm.json")?;
+    let json = serde_json::to_string_pretty(&node).context("Failed to serialize dm.json")?;
     std::fs::write(&dm_path, json)
         .with_context(|| format!("Failed to write dm.json to {}", dm_path.display()))?;
 
@@ -144,11 +144,8 @@ fn parse_pyproject(node_path: &Path) -> Option<PyProjectInfo> {
         name: project.name.unwrap_or_default(),
         version: project.version,
         description: project.description,
-        authors: project.authors.into_iter()
-            .filter_map(|a| a.name)
-            .collect(),
-        build_backend: toml.build_system
-            .and_then(|bs| bs.build_backend),
+        authors: project.authors.into_iter().filter_map(|a| a.name).collect(),
+        build_backend: toml.build_system.and_then(|bs| bs.build_backend),
     })
 }
 

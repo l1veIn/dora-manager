@@ -7,7 +7,6 @@ use serde::Deserialize;
 use crate::handlers::err;
 use crate::AppState;
 
-
 /// GET /api/nodes
 pub async fn list_nodes(State(state): State<AppState>) -> impl IntoResponse {
     match dm_core::node::list_nodes(&state.home) {
@@ -44,7 +43,6 @@ pub async fn install_node(
     }
 }
 
-
 #[derive(Deserialize)]
 pub struct ImportNodeRequest {
     /// Local path or git URL
@@ -62,7 +60,9 @@ pub async fn import_node(
 
     let inferred_id = req.id.unwrap_or_else(|| {
         if is_url {
-            req.source.rsplit('/').find(|s| !s.is_empty())
+            req.source
+                .rsplit('/')
+                .find(|s| !s.is_empty())
                 .unwrap_or("unknown")
                 .to_string()
         } else {
@@ -84,8 +84,7 @@ pub async fn import_node(
             // Relative paths resolve against dm home
             state.home.join(source_path)
         };
-        dm_core::node::import_local(&state.home, &inferred_id, &abs_path)
-            .map_err(|e| e.into())
+        dm_core::node::import_local(&state.home, &inferred_id, &abs_path).map_err(|e| e.into())
     };
 
     match result {
@@ -138,11 +137,7 @@ pub async fn node_readme(
         return content.into_response();
     }
 
-
-    (
-        format!("No README found locally for '{}'", id),
-    )
-        .into_response()
+    (format!("No README found locally for '{}'", id),).into_response()
 }
 
 /// GET /api/nodes/:id/config
