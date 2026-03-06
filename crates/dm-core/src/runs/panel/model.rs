@@ -35,7 +35,7 @@ pub struct OutputCommand {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PanelSession {
+pub struct PanelRun {
     pub run_id: String,
     pub asset_count: i64,
     pub command_count: i64,

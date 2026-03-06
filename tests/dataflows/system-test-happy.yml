@@ -1,0 +1,89 @@
+nodes:
+  - id: text_sender
+    node: pyarrow-sender
+    args: "--name text_sender"
+    outputs:
+      - data
+    env:
+      DATA: "'system-test-text'"
+
+  - id: json_sender
+    node: pyarrow-sender
+    args: "--name json_sender"
+    outputs:
+      - data
+    env:
+      DATA: "'{\"kind\":\"system-test\",\"value\":1}'"
+
+  - id: bytes_sender
+    node: pyarrow-sender
+    args: "--name bytes_sender"
+    outputs:
+      - data
+    env:
+      DATA: "[137,80,78,71,13,10,26,10,0,0,0,0]"
+
+  - id: text_echo
+    node: dora-echo
+    args: "--name text_echo"
+    inputs:
+      data: text_sender/data
+    outputs:
+      - data
+
+  - id: json_echo
+    node: dora-echo
+    args: "--name json_echo"
+    inputs:
+      data: json_sender/data
+    outputs:
+      - data
+
+  - id: bytes_echo
+    node: dora-echo
+    args: "--name bytes_echo"
+    inputs:
+      data: bytes_sender/data
+    outputs:
+      - data
+
+  - id: text_assert
+    node: pyarrow-assert
+    args: "--name text_assert"
+    inputs:
+      data: text_echo/data
+    env:
+      DATA: "'system-test-text'"
+
+  - id: json_assert
+    node: pyarrow-assert
+    args: "--name json_assert"
+    inputs:
+      data: json_echo/data
+    env:
+      DATA: "'{\"kind\":\"system-test\",\"value\":1}'"
+
+  - id: bytes_assert
+    node: pyarrow-assert
+    args: "--name bytes_assert"
+    inputs:
+      data: bytes_echo/data
+    env:
+      DATA: "[137,80,78,71,13,10,26,10,0,0,0,0]"
+
+  - id: recorder
+    node: dora-parquet-recorder
+    inputs:
+      text: text_echo/data
+      json: json_echo/data
+      bytes: bytes_echo/data
+    env:
+      BATCH_SIZE: "1"
+      LOG_DIR: "recorder"
+
+  - id: panel
+    node: dm-panel
+    inputs:
+      text_asset: text_echo/data
+      json_asset: json_echo/data
+      bytes_asset: bytes_echo/data

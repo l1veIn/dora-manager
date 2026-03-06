@@ -1,0 +1,33 @@
+{
+  "id": "dm-test-observer",
+  "name": "dm-test-observer",
+  "version": "0.1.0",
+  "installed_at": "1772783060",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Builtin DM test node for aggregating multimodal test events.",
+  "executable": ".venv/bin/dm-test-observer",
+  "author": "Dora Manager",
+  "category": "Builtin/Test",
+  "inputs": [
+    "audio_meta",
+    "screen_meta",
+    "timestamp_start",
+    "timestamp_end"
+  ],
+  "outputs": [
+    "summary_text",
+    "summary_json"
+  ],
+  "avatar": null,
+  "config_schema": {
+    "max_events": {
+      "env": "MAX_EVENTS",
+      "default": 1000
+    }
+  },
+  "dm_version": "1",
+  "path": ""
+}

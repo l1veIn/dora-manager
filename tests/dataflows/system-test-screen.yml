@@ -1,0 +1,15 @@
+nodes:
+  - id: screen
+    node: dm-test-media-capture
+    config:
+      mode: screenshot
+      output_format: png
+    outputs:
+      - image
+      - meta
+
+  - id: panel
+    node: dm-panel
+    inputs:
+      screenshot: screen/image
+      screenshot_meta: screen/meta

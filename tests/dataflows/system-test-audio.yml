@@ -1,0 +1,16 @@
+nodes:
+  - id: microphone
+    node: dm-test-audio-capture
+    config:
+      duration_sec: 3
+      sample_rate: 16000
+      channels: 1
+    outputs:
+      - audio
+      - meta
+
+  - id: panel
+    node: dm-panel
+    inputs:
+      audio_asset: microphone/audio
+      audio_meta: microphone/meta

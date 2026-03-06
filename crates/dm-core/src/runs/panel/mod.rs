@@ -1,7 +1,7 @@
 mod model;
 mod store;
 
-pub use model::{Asset, AssetFilter, OutputCommand, PaginatedAssets, PanelSession};
+pub use model::{Asset, AssetFilter, OutputCommand, PaginatedAssets, PanelRun};
 pub use store::PanelStore;
 
 #[cfg(test)]
@@ -58,7 +58,7 @@ mod tests {
     }
 
     #[test]
-    fn list_sessions() {
+    fn list_runs_with_panel() {
         let dir = tempdir().unwrap();
         let s1 = PanelStore::open(dir.path(), "run-1").unwrap();
         s1.write_command("a", "1").unwrap();
@@ -68,27 +68,9 @@ mod tests {
         let s2 = PanelStore::open(dir.path(), "run-2").unwrap();
         s2.write_asset("cam", "text/plain", b"x").unwrap();
 
-        let sessions = PanelStore::list_sessions(dir.path()).unwrap();
-        assert_eq!(sessions.len(), 2);
-        assert_eq!(sessions[0].run_id, "run-2");
-        assert_eq!(sessions[1].run_id, "run-1");
-    }
-
-    #[test]
-    fn clean_sessions() {
-        let dir = tempdir().unwrap();
-
-        for i in 0..5 {
-            let run_id = format!("run-{}", i);
-            let store = PanelStore::open(dir.path(), &run_id).unwrap();
-            store.write_command("x", &i.to_string()).unwrap();
-            thread::sleep(Duration::from_millis(5));
-        }
-
-        let deleted = PanelStore::clean(dir.path(), 2).unwrap();
-        assert_eq!(deleted, 3);
-
-        let sessions = PanelStore::list_sessions(dir.path()).unwrap();
-        assert_eq!(sessions.len(), 2);
+        let runs = PanelStore::list_runs(dir.path()).unwrap();
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].run_id, "run-2");
+        assert_eq!(runs[1].run_id, "run-1");
     }
 }

@@ -1,0 +1,29 @@
+nodes:
+  - id: fail_sender
+    node: pyarrow-sender
+    args: "--name fail_sender"
+    outputs:
+      - data
+    env:
+      DATA: "'system-test-actual'"
+
+  - id: fail_echo
+    node: dora-echo
+    args: "--name fail_echo"
+    inputs:
+      text: fail_sender/data
+    outputs:
+      - text
+
+  - id: fail_assert
+    node: pyarrow-assert
+    args: "--name fail_assert"
+    inputs:
+      data: fail_echo/text
+    env:
+      DATA: "'system-test-expected'"
+
+  - id: panel
+    node: dm-panel
+    inputs:
+      failed_text: fail_echo/text

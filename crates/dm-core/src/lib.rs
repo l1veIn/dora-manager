@@ -6,7 +6,6 @@ pub mod env;
 pub mod events;
 pub mod install;
 pub mod node;
-pub mod panel;
 pub mod runs;
 pub mod types;
 pub mod util;

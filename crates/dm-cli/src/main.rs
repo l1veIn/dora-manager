@@ -1,5 +1,7 @@
 mod display;
 
+use std::io::Write;
+
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -80,6 +82,9 @@ enum Commands {
     Start {
         /// Path to dataflow YAML file
         file: String,
+        /// Stop an active run with the same dataflow name before starting
+        #[arg(long)]
+        force: bool,
     },
 
     /// View dataflow execution history
@@ -107,12 +112,20 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum RunsCommands {
+    /// Stop a specific run by DM run ID
+    Stop {
+        /// Run ID
+        run_id: String,
+    },
     /// Show logs for a specific run
     Logs {
         /// Dataflow run ID (UUID)
         run_id: String,
         /// Node ID (optional, lists available nodes if omitted)
         node_id: Option<String>,
+        /// Continuously print appended log output until the run finishes
+        #[arg(long)]
+        follow: bool,
     },
     /// Clean old run history
     Clean {
@@ -510,7 +523,7 @@ async fn main() -> Result<()> {
             }
         },
 
-        Commands::Start { file } => {
+        Commands::Start { file, force } => {
             // Check if runtime is running first
             if !dm_core::is_runtime_running(&home, cli.verbose).await {
                 eprintln!("{} Dora runtime is not running.", "✗".red());
@@ -526,64 +539,24 @@ async fn main() -> Result<()> {
                 anyhow::bail!("Graph file '{}' not found.", file);
             }
 
-            let dataflow_name = file_path
-                .file_stem()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
-
-            println!("{} Translating graph with dm transpiler...", "→".cyan());
-            let transpiled = dm_core::dataflow::transpile_graph(&home, file_path)
-                .with_context(|| format!("Failed to transpile '{}'", file))?;
-
-            // Write to a temporary run file
-            let run_dir = home.join("run");
-            std::fs::create_dir_all(&run_dir)?;
-            let temp_run_file = run_dir.join(format!(
-                ".run_{}",
-                file_path.file_name().unwrap_or_default().to_string_lossy()
-            ));
-
-            let out_content = serde_yaml::to_string(&transpiled)?;
-            std::fs::write(&temp_run_file, out_content)?;
-
-            if cli.verbose {
-                println!(
-                    "{} Transpiled graph saved to: {}",
-                    "ℹ".cyan(),
-                    temp_run_file.display()
-                );
-            }
-
             println!("{} Starting dataflow...", "🚀".green());
-            let args = vec![
-                "start".to_string(),
-                temp_run_file.to_string_lossy().to_string(),
-            ];
-
-            // Ignore SIGINT in this process so only the dora child responds to Ctrl+C.
-            // After dora exits, we can still run collect_run_events.
-            let _ = ctrlc::set_handler(|| {
-                // Do nothing — let the dora child process handle the signal.
-            });
-
-            let (code, dataflow_id) =
-                dm_core::dora::exec_dora_capture_id(&home, &args, cli.verbose).await?;
-
-            // Collect run events from dora's out/ directory
-            if let Some(ref df_id) = dataflow_id {
-                dm_core::dataflow::collect_run_events(&home, df_id, &dataflow_name, code);
-                if cli.verbose {
-                    println!(
-                        "{} Events recorded for dataflow {} ({})",
-                        "ℹ".cyan(),
-                        dataflow_name.bold(),
-                        df_id.dimmed()
-                    );
-                }
+            let strategy = if force {
+                dm_core::runs::StartConflictStrategy::StopAndRestart
+            } else {
+                dm_core::runs::StartConflictStrategy::Fail
+            };
+            let result = dm_core::runs::start_run_from_file_with_source_and_strategy(
+                &home,
+                file_path,
+                dm_core::runs::RunSource::Cli,
+                strategy,
+            )
+            .await?;
+            println!("{} Run created: {}", "✅".green(), result.run.run_id.bold());
+            if let Some(dora_uuid) = &result.run.dora_uuid {
+                println!("  Dora UUID: {}", dora_uuid.dimmed());
             }
-
-            std::process::exit(code);
+            println!("  {}", result.message);
         }
 
         Commands::Runs { command } => {
@@ -600,10 +573,19 @@ async fn main() -> Result<()> {
                         );
                         println!("{}", "─".repeat(90));
                         for run in &result.runs {
-                            let status_icon = match run.exit_code {
-                                Some(0) => "✅".to_string(),
-                                Some(c) => format!("❌ {}", c),
-                                None => "⏳".to_string(),
+                            let status_icon = match run.status.as_str() {
+                                "running" => "⏳".to_string(),
+                                "succeeded" => "✅".to_string(),
+                                "stopped" => match run.exit_code {
+                                    Some(0) => "✅".to_string(),
+                                    None => "⏹".to_string(),
+                                    Some(c) => format!("❌ {}", c),
+                                },
+                                "failed" => match run.exit_code {
+                                    Some(c) => format!("❌ {}", c),
+                                    None => "❌".to_string(),
+                                },
+                                _ => "?".to_string(),
                             };
                             let started = &run.started_at[..19]; // trim timezone
                             println!(
@@ -618,14 +600,31 @@ async fn main() -> Result<()> {
                         println!("\nShowing {}/{} runs.", result.runs.len(), result.total);
                     }
                 }
-                Some(RunsCommands::Logs { run_id, node_id }) => {
+                Some(RunsCommands::Stop { run_id }) => {
+                    let run = dm_core::runs::stop_run(&home, &run_id).await?;
+                    println!("{} Stopped run {}", "✅".green(), run.run_id.bold());
+                    if let Some(stopped_at) = run.stopped_at {
+                        println!("  Stopped at: {}", stopped_at.dimmed());
+                    }
+                }
+                Some(RunsCommands::Logs {
+                    run_id,
+                    node_id,
+                    follow,
+                }) => {
                     if let Some(nid) = node_id {
-                        let content = dm_core::runs::get_run_logs(&home, &run_id, &nid)?;
-                        if content.is_empty() {
-                            println!("(empty log)");
+                        if follow {
+                            follow_run_log(&home, &run_id, &nid).await?;
                         } else {
-                            print!("{}", content);
+                            let content = dm_core::runs::read_run_log(&home, &run_id, &nid)?;
+                            if content.is_empty() {
+                                println!("(empty log)");
+                            } else {
+                                print!("{}", content);
+                            }
                         }
+                    } else if follow {
+                        anyhow::bail!("`dm runs logs --follow` requires a <node_id>.");
                     } else {
                         // No node_id: show run detail with available nodes
                         let detail = dm_core::runs::get_run(&home, &run_id)?;
@@ -688,13 +687,16 @@ async fn main() -> Result<()> {
 }
 
 fn panel_serve(home: &std::path::Path, run_id: &str, _node_id: &str) -> Result<()> {
-    let store = dm_core::panel::PanelStore::open(home, run_id)?;
-    let (mut node, mut events) = DoraNode::init_from_env()
-        .map_err(|e| anyhow::anyhow!("Failed to init panel node: {e}"))?;
+    let store = dm_core::runs::panel::PanelStore::open(home, run_id)?;
+    let (mut node, mut events) =
+        DoraNode::init_from_env().map_err(|e| anyhow::anyhow!("Failed to init panel node: {e}"))?;
     let mut last_cmd_seq = 0i64;
+    let should_stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     let store2 = store.clone();
-    std::thread::spawn(move || {
+    let stop_flag = should_stop.clone();
+    let reader = std::thread::spawn(move || {
+        let mut saw_stop = false;
         while let Some(event) = events.recv() {
             match event {
                 Event::Input { id, metadata, data } => {
@@ -704,19 +706,58 @@ fn panel_serve(home: &std::path::Path, run_id: &str, _node_id: &str) -> Result<(
                         eprintln!("Panel write error: {e}");
                     }
                 }
-                Event::Stop(_) => break,
+                Event::Stop(_) => {
+                    stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                    saw_stop = true;
+                }
                 _ => {}
             }
+            if saw_stop {
+                continue;
+            }
         }
+        stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
     });
 
     loop {
+        if should_stop.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
         for cmd in store.poll_commands(&mut last_cmd_seq)? {
             send_json_command(&mut node, &cmd.output_id, &cmd.value)
                 .with_context(|| format!("Failed sending output '{}'", cmd.output_id))?;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+
+    reader
+        .join()
+        .map_err(|_| anyhow::anyhow!("Panel event reader thread panicked"))?;
+
+    Ok(())
+}
+
+async fn follow_run_log(home: &std::path::Path, run_id: &str, node_id: &str) -> Result<()> {
+    let mut offset = 0u64;
+
+    loop {
+        let chunk = dm_core::runs::read_run_log_chunk(home, run_id, node_id, offset)?;
+        if !chunk.content.is_empty() {
+            print!("{}", chunk.content);
+            std::io::stdout().flush()?;
+        }
+
+        let no_progress = chunk.next_offset == offset;
+        offset = chunk.next_offset;
+
+        if chunk.finished && no_progress {
+            break;
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+
+    Ok(())
 }
 
 fn panel_send(
@@ -727,36 +768,27 @@ fn panel_send(
 ) -> Result<()> {
     let run_id = match run {
         Some(id) => {
-            let db_path = home.join("panel").join(&id).join("index.db");
+            let db_path = dm_core::runs::run_panel_dir(home, &id).join("index.db");
             if !db_path.exists() {
                 bail!("Panel run '{}' not found", id);
             }
             id
         }
         None => {
-            let sessions = dm_core::panel::PanelStore::list_sessions(home)?;
-            let now = chrono::Utc::now();
-            let mut active = sessions
+            let runs = dm_core::runs::refresh_run_statuses(home)?;
+            let mut active = runs
                 .into_iter()
-                .filter(|s| {
-                    chrono::DateTime::parse_from_rfc3339(&s.last_modified)
-                        .map(|dt| {
-                            now.signed_duration_since(dt.with_timezone(&chrono::Utc))
-                                .num_minutes()
-                                <= 5
-                        })
-                        .unwrap_or(false)
-                })
+                .filter(|run| run.status.is_running() && run.has_panel)
                 .collect::<Vec<_>>();
-            active.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+            active.sort_by(|a, b| b.started_at.cmp(&a.started_at));
 
             match active.len() {
-                0 => bail!("No active panel session found (modified in last 5 minutes)"),
+                0 => bail!("No active run with panel found"),
                 1 => active[0].run_id.clone(),
                 _ => {
-                    eprintln!("Multiple active panel sessions found; using most recent:");
-                    for s in &active {
-                        eprintln!("  {} ({})", s.run_id, s.last_modified);
+                    eprintln!("Multiple active runs with panel found; using most recent:");
+                    for run in &active {
+                        eprintln!("  {} ({})", run.run_id, run.started_at);
                     }
                     active[0].run_id.clone()
                 }
@@ -764,7 +796,7 @@ fn panel_send(
         }
     };
 
-    let store = dm_core::panel::PanelStore::open(home, &run_id)?;
+    let store = dm_core::runs::panel::PanelStore::open(home, &run_id)?;
     store.write_command(output_id, value)?;
     println!("✅ Sent: {} = {}", output_id, value);
     Ok(())

@@ -273,7 +273,9 @@ async fn status_empty_home() {
     assert!(report.active_version.is_none());
     assert!(report.actual_version.is_none());
     assert!(!report.runtime_running);
-    assert!(report.dataflows.is_empty());
+    assert!(report.active_runs.is_empty());
+    assert!(report.recent_runs.is_empty());
+    assert!(report.dora_probe.is_empty());
     assert!(report.dm_home.contains(tmp.path().to_str().unwrap()));
 }
 

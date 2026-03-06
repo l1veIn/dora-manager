@@ -67,25 +67,38 @@ async fn main() {
         .route("/api/dataflow/stop", post(handlers::stop_dataflow))
         // ─── Execution History (Runs) ───
         .route("/api/runs", get(handlers::list_runs))
+        .route("/api/runs/start", post(handlers::start_run))
+        .route("/api/runs/active", get(handlers::get_active_run))
         .route("/api/runs/{id}", get(handlers::get_run))
+        .route("/api/runs/{id}/stop", post(handlers::stop_run))
+        .route("/api/runs/{id}/dataflow", get(handlers::get_run_dataflow))
         .route(
             "/api/runs/{id}",
             axum::routing::delete(handlers::delete_run),
         )
         .route("/api/runs/{id}/logs/{node_id}", get(handlers::get_run_logs))
+        .route(
+            "/api/runs/{id}/logs/{node_id}/tail",
+            get(handlers::tail_run_logs),
+        )
         // ─── Events / Observability ───
         .route("/api/events/count", get(handlers::count_events))
         .route("/api/events/export", get(handlers::export_events))
         .route("/api/events", get(handlers::query_events))
         .route("/api/events", post(handlers::ingest_event))
         // ─── Panel ───
-        .route("/api/panel/sessions", get(handlers::list_sessions_panel))
-        .route("/api/panel/{run_id}/assets", get(handlers::query_assets))
         .route(
-            "/api/panel/{run_id}/file/{*path}",
+            "/api/runs/{run_id}/panel/assets",
+            get(handlers::query_assets),
+        )
+        .route(
+            "/api/runs/{run_id}/panel/file/{*path}",
             get(handlers::serve_asset_file),
         )
-        .route("/api/panel/{run_id}/commands", post(handlers::send_command))
+        .route(
+            "/api/runs/{run_id}/panel/commands",
+            post(handlers::send_command),
+        )
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
         .with_state(state)

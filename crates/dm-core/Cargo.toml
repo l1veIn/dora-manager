@@ -22,8 +22,8 @@ rusqlite.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 fs_extra.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
 reqwest.workspace = true
-

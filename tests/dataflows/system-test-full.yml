@@ -1,0 +1,57 @@
+nodes:
+  - id: microphone
+    node: dm-test-audio-capture
+    config:
+      mode: repeat
+      duration_sec: 2
+      sample_rate: 16000
+      channels: 1
+    outputs:
+      - audio
+      - audio_stream
+      - meta
+
+  - id: vad
+    node: dora-vad
+    inputs:
+      audio: microphone/audio_stream
+    outputs:
+      - timestamp_start
+      - timestamp_end
+    env:
+      THRESHOLD: "0.01"
+      MIN_SILENCE_DURATION_MS: "100"
+      MIN_SPEECH_DURATION_MS: "100"
+
+  - id: screen
+    node: dm-test-media-capture
+    config:
+      mode: repeat_screenshot
+      interval_sec: 5
+      output_format: png
+    outputs:
+      - image
+      - meta
+
+  - id: observer
+    node: dm-test-observer
+    inputs:
+      audio_meta: microphone/meta
+      screen_meta: screen/meta
+      timestamp_start: vad/timestamp_start
+      timestamp_end: vad/timestamp_end
+    outputs:
+      - summary_text
+      - summary_json
+
+  - id: panel
+    node: dm-panel
+    inputs:
+      audio_asset: microphone/audio
+      audio_meta: microphone/meta
+      screenshot: screen/image
+      screenshot_meta: screen/meta
+      vad_start: vad/timestamp_start
+      vad_end: vad/timestamp_end
+      observer_text: observer/summary_text
+      observer_json: observer/summary_json

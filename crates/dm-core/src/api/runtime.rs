@@ -3,6 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::events::{EventSource, OperationEvent};
+use crate::runs::RunInstance;
 use crate::{config, dora, types::*};
 
 /// Get runtime status overview
@@ -17,7 +18,9 @@ pub async fn status(home: &Path, verbose: bool) -> Result<StatusReport> {
             dm_home,
             runtime_running: false,
             runtime_output: String::new(),
-            dataflows: Vec::new(),
+            active_runs: Vec::new(),
+            recent_runs: Vec::new(),
+            dora_probe: Vec::new(),
         });
     }
 
@@ -47,16 +50,27 @@ pub async fn status(home: &Path, verbose: bool) -> Result<StatusReport> {
         _ => (false, String::new()),
     };
 
-    let dataflows = match list_result {
-        Ok((0, stdout, _)) => {
-            let output = stdout.trim();
-            if !output.is_empty() && !output.contains("No running dataflow") {
-                output.lines().map(|l| l.to_string()).collect()
-            } else {
-                Vec::new()
-            }
+    let runs = crate::runs::refresh_run_statuses(home).unwrap_or_default();
+    let active_runs = runs
+        .iter()
+        .filter(|run| run.status.is_running())
+        .cloned()
+        .map(to_status_run_entry)
+        .collect();
+    let recent_runs = runs
+        .iter()
+        .filter(|run| !run.status.is_running())
+        .take(3)
+        .cloned()
+        .map(to_status_run_entry)
+        .collect();
+    let dora_probe = if verbose {
+        match list_result {
+            Ok((0, stdout, _)) => build_dora_probe(&stdout, &runs),
+            _ => Vec::new(),
         }
-        _ => Vec::new(),
+    } else {
+        Vec::new()
     };
 
     Ok(StatusReport {
@@ -65,8 +79,55 @@ pub async fn status(home: &Path, verbose: bool) -> Result<StatusReport> {
         dm_home,
         runtime_running,
         runtime_output,
-        dataflows,
+        active_runs,
+        recent_runs,
+        dora_probe,
     })
+}
+
+fn build_dora_probe(stdout: &str, runs: &[RunInstance]) -> Vec<RuntimeDataflowStatus> {
+    let runtime_infos = dora::parse_runtime_infos(stdout);
+
+    runtime_infos
+        .into_iter()
+        .map(|item| {
+            let run = runs
+                .iter()
+                .find(|run| run.dora_uuid.as_deref() == Some(item.id.as_str()));
+
+            RuntimeDataflowStatus {
+                id: item.id.clone(),
+                dataflow_name: run
+                    .map(|run| run.dataflow_name.clone())
+                    .or_else(|| item.name.clone())
+                    .unwrap_or_else(|| item.id.clone()),
+                runtime_name: item.name,
+                status: item.status.unwrap_or_else(|| "Unknown".to_string()),
+                expected_nodes: run.map(|run| run.node_count_expected).unwrap_or(0),
+                observed_nodes: run
+                    .map(|run| run.node_count_observed)
+                    .or(item.nodes)
+                    .unwrap_or(0),
+                cpu: item.cpu,
+                memory: item.memory,
+            }
+        })
+        .collect()
+}
+
+fn to_status_run_entry(run: RunInstance) -> StatusRunEntry {
+    StatusRunEntry {
+        run_id: run.run_id,
+        dataflow_name: run.dataflow_name,
+        status: run.status.as_str().to_string(),
+        started_at: run.started_at,
+        finished_at: run.stopped_at,
+        expected_nodes: run.node_count_expected,
+        observed_nodes: run.node_count_observed,
+        has_panel: run.has_panel,
+        dora_uuid: run.dora_uuid,
+        outcome_summary: run.outcome.summary,
+    }
 }
 
 /// Start dora coordinator + daemon

@@ -9,13 +9,6 @@ use serde::Deserialize;
 use crate::handlers::err;
 use crate::AppState;
 
-pub async fn list_sessions_panel(State(state): State<AppState>) -> impl IntoResponse {
-    match dm_core::panel::PanelStore::list_sessions(&state.home) {
-        Ok(sessions) => Json(sessions).into_response(),
-        Err(e) => err(e).into_response(),
-    }
-}
-
 #[derive(Deserialize)]
 pub struct AssetQuery {
     pub since: Option<i64>,
@@ -29,17 +22,13 @@ pub async fn query_assets(
     Path(run_id): Path<String>,
     Query(params): Query<AssetQuery>,
 ) -> impl IntoResponse {
-    if !panel_run_exists(&state.home, &run_id) {
-        return (
-            StatusCode::NOT_FOUND,
-            format!("Panel run '{}' not found", run_id),
-        )
-            .into_response();
+    if let Err(response) = ensure_run_has_panel(&state.home, &run_id) {
+        return response;
     }
 
-    match dm_core::panel::PanelStore::open(&state.home, &run_id) {
+    match dm_core::runs::panel::PanelStore::open(&state.home, &run_id) {
         Ok(store) => {
-            let filter = dm_core::panel::AssetFilter {
+            let filter = dm_core::runs::panel::AssetFilter {
                 since_seq: params.since,
                 before_seq: params.before,
                 input_id: params.input_id,
@@ -68,7 +57,7 @@ pub async fn serve_asset_file(
         return (StatusCode::BAD_REQUEST, "Invalid file path").into_response();
     }
 
-    let full_path = state.home.join("panel").join(&run_id).join(relative);
+    let full_path = dm_core::runs::run_panel_dir(&state.home, &run_id).join(relative);
 
     match tokio::fs::read(&full_path).await {
         Ok(bytes) => {
@@ -95,15 +84,11 @@ pub async fn send_command(
     Path(run_id): Path<String>,
     Json(body): Json<CommandBody>,
 ) -> impl IntoResponse {
-    if !panel_run_exists(&state.home, &run_id) {
-        return (
-            StatusCode::NOT_FOUND,
-            format!("Panel run '{}' not found", run_id),
-        )
-            .into_response();
+    if let Err(response) = ensure_run_has_panel(&state.home, &run_id) {
+        return response;
     }
 
-    match dm_core::panel::PanelStore::open(&state.home, &run_id) {
+    match dm_core::runs::panel::PanelStore::open(&state.home, &run_id) {
         Ok(store) => match store.write_command(&body.output_id, &body.value) {
             Ok(_) => Json(serde_json::json!({ "status": "ok" })).into_response(),
             Err(e) => err(e).into_response(),
@@ -112,6 +97,25 @@ pub async fn send_command(
     }
 }
 
-fn panel_run_exists(home: &std::path::Path, run_id: &str) -> bool {
-    home.join("panel").join(run_id).join("index.db").exists()
+fn ensure_run_has_panel(
+    home: &std::path::Path,
+    run_id: &str,
+) -> Result<(), axum::response::Response> {
+    let run = dm_core::runs::load_run(home, run_id).map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("Run '{}' not found: {}", run_id, e),
+        )
+            .into_response()
+    })?;
+
+    if !run.has_panel {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Run '{}' does not have a panel", run_id),
+        )
+            .into_response());
+    }
+
+    Ok(())
 }

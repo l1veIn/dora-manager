@@ -18,8 +18,11 @@ pub use nodes::{
     create_node, get_node_config, import_node, install_node, list_nodes, node_readme, node_status,
     save_node_config, uninstall_node,
 };
-pub use panel::{list_sessions_panel, query_assets, send_command, serve_asset_file};
-pub use runs::{delete_run, get_run, get_run_logs, list_runs};
+pub use panel::{query_assets, send_command, serve_asset_file};
+pub use runs::{
+    delete_run, get_active_run, get_run, get_run_dataflow, get_run_logs, list_runs, start_run,
+    stop_run, tail_run_logs,
+};
 pub use runtime::{down, install, uninstall, up, use_version};
 pub use system::{doctor, get_config, status, update_config, versions};
 pub use web::serve_web;

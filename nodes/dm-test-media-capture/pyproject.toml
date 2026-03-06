@@ -1,0 +1,9 @@
+[project]
+name = "dm-test-media-capture"
+version = "0.1.0"
+description = "Builtin DM test node for screenshot capture"
+requires-python = ">=3.10"
+dependencies = ["dora-rs >= 0.3.9", "pyarrow"]
+
+[project.scripts]
+dm-test-media-capture = "dm_test_media_capture.main:main"

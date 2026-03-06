@@ -110,6 +110,7 @@ pub fn print_status_report(report: &StatusReport) {
                 println!("  {}", trimmed);
             }
         }
+        println!("  Active runs: {}", report.active_runs.len());
     } else {
         println!(
             "  {} Coordinator/daemon not running. Use {} to start.",
@@ -118,16 +119,87 @@ pub fn print_status_report(report: &StatusReport) {
         );
     }
 
-    print_header("Dataflows");
-    if report.dataflows.is_empty() {
-        println!("  (no running dataflows)");
+    print_header("Active Runs");
+    if report.active_runs.is_empty() {
+        println!("  (no active runs)");
     } else {
-        for line in &report.dataflows {
-            println!("  {}", line);
+        println!(
+            "  {:<8}  {:<20}  {:<10}  {:<11}  {:<7}  {:<6}  {}",
+            "Run", "Dataflow", "Status", "Nodes", "Panel", "Dora", "Started"
+        );
+        for item in &report.active_runs {
+            println!(
+                "  {:<8}  {:<20}  {:<10}  {:<11}  {:<7}  {:<6}  {}",
+                short_id(&item.run_id).dimmed(),
+                item.dataflow_name.bold(),
+                item.status.as_str(),
+                format!("{}/{}", item.observed_nodes, item.expected_nodes),
+                if item.has_panel { "yes" } else { "no" },
+                item.dora_uuid
+                    .as_deref()
+                    .map(short_id)
+                    .unwrap_or("-")
+                    .dimmed(),
+                trim_ts(&item.started_at).dimmed(),
+            );
+        }
+    }
+
+    print_header("Recent Finished");
+    if report.recent_runs.is_empty() {
+        println!("  (no recent finished runs)");
+    } else {
+        println!(
+            "  {:<8}  {:<20}  {:<10}  {:<19}  {}",
+            "Run", "Dataflow", "Status", "Finished", "Summary"
+        );
+        for item in &report.recent_runs {
+            println!(
+                "  {:<8}  {:<20}  {:<10}  {:<19}  {}",
+                short_id(&item.run_id).dimmed(),
+                item.dataflow_name.bold(),
+                item.status.as_str(),
+                item.finished_at
+                    .as_deref()
+                    .map(trim_ts)
+                    .unwrap_or("-")
+                    .dimmed(),
+                item.outcome_summary.dimmed(),
+            );
+        }
+    }
+
+    if !report.dora_probe.is_empty() {
+        print_header("Dora Probe");
+        println!(
+            "  {:<36}  {:<20}  {:<10}  {:<7}  {:<6}  {}",
+            "UUID", "Runtime Name", "Status", "Nodes", "CPU", "Memory"
+        );
+        for item in &report.dora_probe {
+            println!(
+                "  {:<36}  {:<20}  {:<10}  {:<7}  {:<6}  {}",
+                item.id.dimmed(),
+                item.runtime_name
+                    .as_deref()
+                    .unwrap_or(&item.dataflow_name)
+                    .bold(),
+                item.status.as_str(),
+                item.observed_nodes,
+                item.cpu.as_deref().unwrap_or("-"),
+                item.memory.as_deref().unwrap_or("-"),
+            );
         }
     }
 
     println!();
+}
+
+fn short_id(id: &str) -> &str {
+    id.get(..8).unwrap_or(id)
+}
+
+fn trim_ts(ts: &str) -> &str {
+    ts.get(..19).unwrap_or(ts)
 }
 
 /// Print setup report

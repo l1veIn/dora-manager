@@ -1,0 +1,36 @@
+{
+  "id": "dm-test-media-capture",
+  "name": "dm-test-media-capture",
+  "version": "0.1.0",
+  "installed_at": "1772779524",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Builtin DM test node for screenshot capture.",
+  "executable": ".venv/bin/dm-test-media-capture",
+  "author": "Dora Manager",
+  "category": "Builtin/Test",
+  "inputs": [],
+  "outputs": [
+    "image",
+    "meta"
+  ],
+  "avatar": null,
+  "config_schema": {
+    "mode": {
+      "env": "MODE",
+      "default": "screenshot"
+    },
+    "interval_sec": {
+      "env": "INTERVAL_SEC",
+      "default": 3
+    },
+    "output_format": {
+      "env": "OUTPUT_FORMAT",
+      "default": "png"
+    }
+  },
+  "dm_version": "1",
+  "path": ""
+}

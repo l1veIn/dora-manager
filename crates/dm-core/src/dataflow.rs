@@ -1,12 +1,10 @@
 use std::fs;
 use std::path::Path;
 
+use crate::events::{EventSource, OperationEvent};
+use crate::node::{resolve_dm_json_path, resolve_node_dir, Node};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-
-use crate::events::{EventBuilder, EventSource, OperationEvent};
-use crate::node::{dm_json_path, node_dir, Node};
 
 // ─── Dataflow Management ───
 
@@ -127,6 +125,14 @@ pub fn delete(home: &Path, name: &str) -> Result<()> {
 ///
 /// Config merging: config.json defaults ← dataflow `config:` overrides → env injection.
 pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Value> {
+    transpile_graph_for_run(home, yaml_path, &uuid::Uuid::new_v4().to_string())
+}
+
+pub fn transpile_graph_for_run(
+    home: &Path,
+    yaml_path: &Path,
+    run_id: &str,
+) -> Result<serde_yaml::Value> {
     let op = OperationEvent::new(home, EventSource::Dataflow, "dataflow.transpile")
         .attr("path", yaml_path.display().to_string());
     op.emit_start();
@@ -138,7 +144,6 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
         let mut graph: serde_yaml::Value = serde_yaml::from_str(&content)
             .with_context(|| format!("Failed to parse yaml at {}", yaml_path.display()))?;
 
-        let panel_run_id = Uuid::new_v4().to_string();
         if let Some(nodes) = graph.get_mut("nodes").and_then(|n| n.as_sequence_mut()) {
             for node in nodes {
                 // DM format uses `node:` to reference installed node IDs.
@@ -173,7 +178,11 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
                         .and_then(|exe| {
                             let dir = exe.parent()?;
                             let dm_path = dir.join("dm");
-                            if dm_path.exists() { Some(dm_path) } else { None }
+                            if dm_path.exists() {
+                                Some(dm_path)
+                            } else {
+                                None
+                            }
                         })
                         .unwrap_or_else(|| std::path::PathBuf::from("dm"));
                     node_map.insert(
@@ -184,14 +193,18 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
                         serde_yaml::Value::String("args".to_string()),
                         serde_yaml::Value::String(format!(
                             "panel serve --run-id {} --node-id {}",
-                            panel_run_id, yaml_id
+                            run_id, yaml_id
                         )),
                     );
                     continue;
                 }
 
-                let node_cache_dir = node_dir(home, &node_id);
-                let meta_file_path = dm_json_path(home, &node_id);
+                let Some(node_cache_dir) = resolve_node_dir(home, &node_id) else {
+                    continue;
+                };
+                let Some(meta_file_path) = resolve_dm_json_path(home, &node_id) else {
+                    continue;
+                };
 
                 if node_cache_dir.exists() && meta_file_path.exists() {
                     let meta_content = fs::read_to_string(&meta_file_path).unwrap_or_default();
@@ -274,74 +287,4 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<serde_yaml::Valu
 
     op.emit_result(&result);
     result
-}
-
-// ─── Dataflow Run Event Collection ───
-
-/// Collect events from a completed dataflow run.
-///
-/// Scans `~/.dm/run/out/<dataflow_id>/` for `log_<NODE_ID>.txt` files,
-/// emitting lifecycle events to the event store.
-pub fn collect_run_events(home: &Path, dataflow_id: &str, dataflow_name: &str, exit_code: i32) {
-    use crate::events::try_emit;
-
-    let run_out_dir = home.join("run").join("out").join(dataflow_id);
-
-    // Emit dataflow.start
-    try_emit(
-        home,
-        EventBuilder::new(EventSource::Dataflow, "dataflow.start")
-            .case_id(dataflow_id)
-            .message(format!("Dataflow '{}' started", dataflow_name))
-            .attr("dataflow_name", dataflow_name)
-            .build(),
-    );
-
-    // Scan log files to discover participating nodes
-    let mut node_count = 0u32;
-    if run_out_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&run_out_dir) {
-            for entry in entries.flatten() {
-                let filename = entry.file_name().to_string_lossy().to_string();
-                // Pattern: log_<NODE_ID>.txt
-                if let Some(node_id) = filename
-                    .strip_prefix("log_")
-                    .and_then(|s| s.strip_suffix(".txt"))
-                {
-                    let log_size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-                    try_emit(
-                        home,
-                        EventBuilder::new(EventSource::Dataflow, "dataflow.node.spawn")
-                            .case_id(dataflow_id)
-                            .node_id(node_id)
-                            .message(format!("Node '{}' participated in run", node_id))
-                            .attr("log_file", filename.as_str())
-                            .attr("log_size_bytes", log_size)
-                            .build(),
-                    );
-                    node_count += 1;
-                }
-            }
-        }
-    }
-
-    // Emit dataflow.finish
-    let level = if exit_code == 0 {
-        crate::events::EventLevel::Info
-    } else {
-        crate::events::EventLevel::Warn
-    };
-    try_emit(
-        home,
-        EventBuilder::new(EventSource::Dataflow, "dataflow.finish")
-            .case_id(dataflow_id)
-            .level(level)
-            .message(format!(
-                "Dataflow '{}' finished with exit code {}",
-                dataflow_name, exit_code
-            ))
-            .attr("exit_code", exit_code)
-            .attr("node_count", node_count)
-            .build(),
-    );
 }

@@ -6,7 +6,9 @@ use crate::events::{EventSource, OperationEvent};
 
 use super::init::{init_dm_json, InitHints};
 use super::model::Node;
-use super::paths::{dm_json_path, node_dir, nodes_dir};
+use super::paths::{
+    configured_node_dirs, dm_json_path, node_dir, resolve_dm_json_path, resolve_node_dir,
+};
 
 pub fn create_node(home: &Path, id: &str, description: &str) -> Result<Node> {
     let op = OperationEvent::new(home, EventSource::Core, "node.create").attr("node_id", id);
@@ -88,35 +90,41 @@ pub fn list_nodes(home: &Path) -> Result<Vec<Node>> {
     op.emit_start();
 
     let result = (|| {
-        let nodes_path = nodes_dir(home);
-        if !nodes_path.exists() {
-            return Ok(Vec::new());
-        }
-
         let mut nodes = Vec::new();
-        for entry in std::fs::read_dir(&nodes_path)
-            .with_context(|| format!("Failed to read directory: {}", nodes_path.display()))?
-        {
-            let entry = entry?;
-            let path = entry.path();
-            if !path.is_dir() {
+        let mut seen = std::collections::BTreeSet::new();
+
+        for nodes_path in configured_node_dirs(home) {
+            if !nodes_path.exists() {
                 continue;
             }
 
-            let id = match entry.file_name().to_str() {
-                Some(name) => name.to_string(),
-                None => continue,
-            };
-
-            let meta_file = dm_json_path(home, &id);
-            if let Ok(content) = std::fs::read_to_string(&meta_file) {
-                if let Ok(node) = serde_json::from_str::<Node>(&content) {
-                    nodes.push(node.with_path(path));
+            for entry in std::fs::read_dir(&nodes_path)
+                .with_context(|| format!("Failed to read directory: {}", nodes_path.display()))?
+            {
+                let entry = entry?;
+                let path = entry.path();
+                if !path.is_dir() {
                     continue;
                 }
-            }
 
-            nodes.push(Node::fallback(id, path));
+                let id = match entry.file_name().to_str() {
+                    Some(name) => name.to_string(),
+                    None => continue,
+                };
+                if !seen.insert(id.clone()) {
+                    continue;
+                }
+
+                let meta_file = path.join("dm.json");
+                if let Ok(content) = std::fs::read_to_string(&meta_file) {
+                    if let Ok(node) = serde_json::from_str::<Node>(&content) {
+                        nodes.push(node.with_path(path));
+                        continue;
+                    }
+                }
+
+                nodes.push(Node::fallback(id, path));
+            }
         }
 
         nodes.sort_by(|a, b| a.id.cmp(&b.id));
@@ -133,13 +141,21 @@ pub fn uninstall_node(home: &Path, id: &str) -> Result<()> {
 
     let result = (|| {
         let node_path = node_dir(home, id);
-        if !node_path.exists() {
-            bail!("Node '{}' is not installed", id);
+        if node_path.exists() {
+            std::fs::remove_dir_all(&node_path).with_context(|| {
+                format!("Failed to remove node directory: {}", node_path.display())
+            })?;
+            return Ok(());
         }
 
-        std::fs::remove_dir_all(&node_path)
-            .with_context(|| format!("Failed to remove node directory: {}", node_path.display()))?;
-        Ok(())
+        if resolve_node_dir(home, id).is_some() {
+            bail!(
+                "Node '{}' is builtin and cannot be uninstalled from the managed node directory",
+                id
+            );
+        }
+
+        bail!("Node '{}' is not installed", id);
     })();
 
     op.emit_result(&result);
@@ -147,13 +163,18 @@ pub fn uninstall_node(home: &Path, id: &str) -> Result<()> {
 }
 
 pub fn get_node_readme(home: &Path, id: &str) -> Result<String> {
-    let readme_path = node_dir(home, id).join("README.md");
+    let readme_path = resolve_node_dir(home, id)
+        .ok_or_else(|| anyhow::anyhow!("Node '{}' does not exist", id))?
+        .join("README.md");
     std::fs::read_to_string(&readme_path)
         .with_context(|| format!("Failed to read README for node '{}'", id))
 }
 
 pub fn get_node_config(home: &Path, id: &str) -> Result<serde_json::Value> {
-    let config_path = node_dir(home, id).join("config.json");
+    let Some(node_path) = resolve_node_dir(home, id) else {
+        return Ok(serde_json::json!({}));
+    };
+    let config_path = node_path.join("config.json");
     if !config_path.exists() {
         return Ok(serde_json::json!({}));
     }
@@ -165,7 +186,8 @@ pub fn get_node_config(home: &Path, id: &str) -> Result<serde_json::Value> {
 }
 
 pub fn save_node_config(home: &Path, id: &str, config: &serde_json::Value) -> Result<()> {
-    let node_path = node_dir(home, id);
+    let node_path = resolve_node_dir(home, id)
+        .ok_or_else(|| anyhow::anyhow!("Node '{}' does not exist", id))?;
     if !node_path.exists() {
         bail!("Node '{}' does not exist", id);
     }
@@ -180,12 +202,14 @@ pub fn node_status(home: &Path, id: &str) -> Result<Option<Node>> {
     op.emit_start();
 
     let result = (|| {
-        let node_path = node_dir(home, id);
+        let Some(node_path) = resolve_node_dir(home, id) else {
+            return Ok(None);
+        };
         if !node_path.exists() {
             return Ok(None);
         }
 
-        let meta_file = dm_json_path(home, id);
+        let meta_file = resolve_dm_json_path(home, id).unwrap_or_else(|| dm_json_path(home, id));
         match std::fs::read_to_string(&meta_file) {
             Ok(content) => {
                 let node: Node =

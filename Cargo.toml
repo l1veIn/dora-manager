@@ -48,6 +48,7 @@ tempfile = "3"
 # IDs
 uuid = { version = "1", features = ["v4"] }
 semver = { version = "1", features = ["serde"] }
+sha2 = "0.10"
 
 # HTTP server
 axum = "0.8"

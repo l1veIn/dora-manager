@@ -6,15 +6,16 @@ use anyhow::{bail, Context, Result};
 use crate::events::{EventSource, OperationEvent};
 
 use super::model::Node;
-use super::paths::{dm_json_path, node_dir};
+use super::paths::{dm_json_path, resolve_dm_json_path, resolve_node_dir};
 
 pub async fn install_node(home: &Path, id: &str) -> Result<Node> {
     let op = OperationEvent::new(home, EventSource::Core, "node.install").attr("node_id", id);
     op.emit_start();
 
     let result = async {
-        let node_path = node_dir(home, id);
-        let dm_path = dm_json_path(home, id);
+        let node_path =
+            resolve_node_dir(home, id).unwrap_or_else(|| super::paths::node_dir(home, id));
+        let dm_path = resolve_dm_json_path(home, id).unwrap_or_else(|| dm_json_path(home, id));
 
         if !node_path.exists() || !dm_path.exists() {
             bail!("Node '{}' not found. Download or create it first.", id);

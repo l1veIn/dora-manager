@@ -11,21 +11,42 @@ fn dm_cmd() -> Command {
     cmd
 }
 
+const FAKE_DORA_UUID: &str = "019cc181-adad-7654-aa78-63502362337b";
+
 fn setup_fake_runtime(home: &std::path::Path, active_version: &str) {
     let version_dir = home.join("versions").join(active_version);
     fs::create_dir_all(&version_dir).unwrap();
 
     let bin = version_dir.join("dora");
+    let state_file = home.join("active_dataflow_id");
     fs::write(
         &bin,
-        r#"#!/bin/sh
+        format!(
+            r#"#!/bin/sh
 cmd="$1"
 case "$cmd" in
   check)
     exit 0
     ;;
+  list)
+    if [ -f "{state_file}" ]; then
+      echo "UUID Name Status Nodes CPU Memory"
+      printf "%s test-flow Running 1 0.0%% 0.0\\ GB\\n" "$(cat "{state_file}")"
+    fi
+    exit 0
+    ;;
   start)
-    echo "started"
+    run_yaml="$2"
+    run_dir="$(dirname "$run_yaml")"
+    mkdir -p "$run_dir/out/{fake_uuid}"
+    echo "worker log line" > "$run_dir/out/{fake_uuid}/log_worker.txt"
+    echo "{fake_uuid}" > "{state_file}"
+    echo "dataflow started: {fake_uuid}"
+    exit 0
+    ;;
+  stop)
+    rm -f "{state_file}"
+    echo "stopped"
     exit 0
     ;;
   *)
@@ -33,6 +54,9 @@ case "$cmd" in
     ;;
 esac
 "#,
+            state_file = state_file.display(),
+            fake_uuid = FAKE_DORA_UUID
+        ),
     )
     .unwrap();
 
@@ -63,14 +87,15 @@ fn node_install_requires_id() {
 }
 
 #[test]
-fn node_list_empty_home() {
+fn node_list_includes_builtin_nodes() {
     let home = tempdir().unwrap();
 
     dm_cmd()
         .args(["--home", home.path().to_str().unwrap(), "node", "list"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("No nodes found"));
+        .stdout(predicate::str::contains("dm-test-media-capture"))
+        .stdout(predicate::str::contains("dm-test-audio-capture"));
 }
 
 #[test]
@@ -124,4 +149,148 @@ fn start_requires_runtime_to_be_running() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("Dora runtime is not running"));
+}
+
+#[test]
+fn start_creates_run_and_runs_list_shows_it() {
+    let home = tempdir().unwrap();
+    setup_fake_runtime(home.path(), "0.4.1");
+    let graph_file = home.path().join("ok.yml");
+    fs::write(&graph_file, "nodes: []\n").unwrap();
+
+    let output = dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "start",
+            graph_file.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Run created:"));
+
+    dm_cmd()
+        .args(["--home", home.path().to_str().unwrap(), "runs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ok"))
+        .stdout(predicate::str::contains("⏳"));
+}
+
+#[test]
+fn runs_logs_and_stop_work_for_started_run() {
+    let home = tempdir().unwrap();
+    setup_fake_runtime(home.path(), "0.4.1");
+    let graph_file = home.path().join("ok.yml");
+    fs::write(&graph_file, "nodes: []\n").unwrap();
+
+    let output = dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "start",
+            graph_file.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let run_id = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("✅ Run created: "))
+        .map(str::trim)
+        .unwrap()
+        .to_string();
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "runs",
+            "logs",
+            &run_id,
+            "worker",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("worker log line"));
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "runs",
+            "stop",
+            &run_id,
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Stopped run"));
+
+    dm_cmd()
+        .args(["--home", home.path().to_str().unwrap(), "runs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("✅"));
+}
+
+#[test]
+fn start_rejects_conflicting_active_run_without_force() {
+    let home = tempdir().unwrap();
+    setup_fake_runtime(home.path(), "0.4.1");
+    let graph_file = home.path().join("ok.yml");
+    fs::write(&graph_file, "nodes: []\n").unwrap();
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "start",
+            graph_file.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "start",
+            graph_file.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("already running as run"));
+}
+
+#[test]
+fn runs_refresh_marks_stale_running_run_as_stopped() {
+    let home = tempdir().unwrap();
+    setup_fake_runtime(home.path(), "0.4.1");
+    let graph_file = home.path().join("ok.yml");
+    fs::write(&graph_file, "nodes: []\n").unwrap();
+
+    let output = dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "start",
+            graph_file.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    fs::remove_file(home.path().join("active_dataflow_id")).unwrap();
+
+    dm_cmd()
+        .args(["--home", home.path().to_str().unwrap(), "runs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("✅"))
+        .stdout(predicate::str::contains("ok"));
 }

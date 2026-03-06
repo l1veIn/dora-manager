@@ -1,11 +1,21 @@
 use std::path::{Path, PathBuf};
+use std::process::Command as StdCommand;
 use std::process::Stdio;
 
 use anyhow::{Context, Result};
-use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 
 use crate::config;
+
+#[derive(Debug, Clone)]
+pub struct DataflowRuntimeInfo {
+    pub id: String,
+    pub name: Option<String>,
+    pub status: Option<String>,
+    pub nodes: Option<u32>,
+    pub cpu: Option<String>,
+    pub memory: Option<String>,
+}
 
 /// Resolve the path to the active dora binary managed by dm.
 pub fn active_dora_bin(home: &Path) -> Result<PathBuf> {
@@ -67,68 +77,83 @@ pub async fn exec_dora(home: &Path, args: &[String], verbose: bool) -> Result<i3
     Ok(status.code().unwrap_or(-1))
 }
 
-/// Run dora with real-time forwarded stdio, capturing the dataflow UUID.
-///
-/// Both stdout and stderr are piped and forwarded line-by-line so we can
-/// extract the dataflow ID from dora's output (it goes to stderr).
-/// Stdin is inherited for interactive use.
-/// Returns (exit_code, Option<dataflow_id>).
-pub async fn exec_dora_capture_id(
-    home: &Path,
-    args: &[String],
-    verbose: bool,
-) -> Result<(i32, Option<String>)> {
+pub async fn list_dataflow_ids(home: &Path, verbose: bool) -> Result<Vec<String>> {
+    let (code, stdout, stderr) = run_dora(home, &["list".to_string()], verbose).await?;
+    if code != 0 {
+        anyhow::bail!(stderr.trim().to_string());
+    }
+
+    Ok(parse_runtime_infos(&stdout)
+        .into_iter()
+        .map(|item| item.id)
+        .collect())
+}
+
+pub async fn list_dataflows(home: &Path, verbose: bool) -> Result<Vec<DataflowRuntimeInfo>> {
+    let (code, stdout, stderr) = run_dora(home, &["list".to_string()], verbose).await?;
+    if code != 0 {
+        anyhow::bail!(stderr.trim().to_string());
+    }
+
+    Ok(parse_runtime_infos(&stdout))
+}
+
+pub fn list_dataflow_ids_blocking(home: &Path, verbose: bool) -> Result<Vec<String>> {
+    Ok(list_dataflows_blocking(home, verbose)?
+        .into_iter()
+        .map(|item| item.id)
+        .collect())
+}
+
+pub fn list_dataflows_blocking(home: &Path, verbose: bool) -> Result<Vec<DataflowRuntimeInfo>> {
     let bin = active_dora_bin(home)?;
     if verbose {
-        eprintln!("[dm] exec: {} {}", bin.display(), args.join(" "));
+        eprintln!("[dm] exec: {} list", bin.display());
     }
-    let mut child = Command::new(&bin)
-        .args(args)
+
+    let output = StdCommand::new(&bin)
+        .arg("list")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(Stdio::inherit())
-        .spawn()
-        .with_context(|| format!("Failed to spawn dora at {}", bin.display()))?;
+        .output()
+        .with_context(|| format!("Failed to run dora at {}", bin.display()))?;
 
-    let stdout = child.stdout.take().expect("stdout should be piped");
-    let stderr = child.stderr.take().expect("stderr should be piped");
+    if !output.status.success() {
+        anyhow::bail!(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
 
-    let dataflow_id = std::sync::Arc::new(tokio::sync::Mutex::new(None::<String>));
+    Ok(parse_runtime_infos(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
+}
 
-    // Forward stdout
-    let stdout_handle = {
-        let mut reader = tokio::io::BufReader::new(stdout).lines();
-        tokio::spawn(async move {
-            while let Ok(Some(line)) = reader.next_line().await {
-                println!("{}", line);
+pub(crate) fn parse_runtime_infos(stdout: &str) -> Vec<DataflowRuntimeInfo> {
+    stdout
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .filter(|line| !line.starts_with("UUID"))
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            let id = parts.first()?.to_string();
+            if uuid::Uuid::parse_str(&id).is_err() {
+                return None;
             }
+            let name = parts.get(1).map(|value| value.to_string());
+            let status = parts.get(2).map(|value| value.to_string());
+            let nodes = parts.get(3).and_then(|value| value.parse::<u32>().ok());
+            let cpu = parts.get(4).map(|value| value.to_string());
+            let memory = parts.get(5).map(|value| value.to_string());
+            Some(DataflowRuntimeInfo {
+                id,
+                name,
+                status,
+                nodes,
+                cpu,
+                memory,
+            })
         })
-    };
-
-    // Forward stderr and extract dataflow ID
-    let stderr_handle = {
-        let df_id = dataflow_id.clone();
-        let mut reader = tokio::io::BufReader::new(stderr).lines();
-        tokio::spawn(async move {
-            while let Ok(Some(line)) = reader.next_line().await {
-                eprintln!("{}", line);
-                let mut guard = df_id.lock().await;
-                if guard.is_none() {
-                    if let Some(uuid) = line
-                        .strip_prefix("dataflow start triggered: ")
-                        .or_else(|| line.strip_prefix("dataflow started: "))
-                    {
-                        *guard = Some(uuid.trim().to_string());
-                    }
-                }
-            }
-        })
-    };
-
-    let _ = tokio::join!(stdout_handle, stderr_handle);
-    let status = child.wait().await?;
-    let result_id = dataflow_id.lock().await.clone();
-    Ok((status.code().unwrap_or(-1), result_id))
+        .collect()
 }
 
 /// Get the version string from a dora binary.

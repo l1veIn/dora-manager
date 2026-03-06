@@ -19,7 +19,7 @@ pub use local::{
     uninstall_node,
 };
 pub use model::{Node, NodeSource};
-pub use paths::{dm_json_path, node_dir};
+pub use paths::{dm_json_path, is_managed_node, node_dir, resolve_dm_json_path, resolve_node_dir};
 
 pub(crate) fn current_timestamp() -> String {
     let now = std::time::SystemTime::now()

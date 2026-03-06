@@ -1,0 +1,29 @@
+nodes:
+  - id: finish_sender
+    node: pyarrow-sender
+    args: "--name finish_sender"
+    outputs:
+      - data
+    env:
+      DATA: "'system-test-finish'"
+
+  - id: finish_echo
+    node: dora-echo
+    args: "--name finish_echo"
+    inputs:
+      text: finish_sender/data
+    outputs:
+      - text
+
+  - id: finish_assert
+    node: pyarrow-assert
+    args: "--name finish_assert"
+    inputs:
+      data: finish_echo/text
+    env:
+      DATA: "'system-test-finish'"
+
+  - id: panel
+    node: dm-panel
+    inputs:
+      finish_text: finish_echo/text

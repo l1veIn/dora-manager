@@ -1,0 +1,24 @@
+nodes:
+  - id: plain_sender
+    node: pyarrow-sender
+    args: "--name plain_sender"
+    outputs:
+      - data
+    env:
+      DATA: "'system-test-no-panel'"
+
+  - id: plain_echo
+    node: dora-echo
+    args: "--name plain_echo"
+    inputs:
+      text: plain_sender/data
+    outputs:
+      - text
+
+  - id: plain_assert
+    node: pyarrow-assert
+    args: "--name plain_assert"
+    inputs:
+      data: plain_echo/text
+    env:
+      DATA: "'system-test-no-panel'"

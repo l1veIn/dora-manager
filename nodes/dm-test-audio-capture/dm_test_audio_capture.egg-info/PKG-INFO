@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: dm-test-audio-capture
+Version: 0.1.0
+Summary: Builtin DM test node for fixed-duration microphone capture
+Requires-Python: >=3.10
+Requires-Dist: dora-rs>=0.3.9
+Requires-Dist: pyarrow
+Requires-Dist: numpy
+Requires-Dist: sounddevice

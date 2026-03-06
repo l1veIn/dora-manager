@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use rusqlite::{params, Connection};
 
-use super::{Asset, AssetFilter, OutputCommand, PaginatedAssets, PanelSession};
+use super::{Asset, AssetFilter, OutputCommand, PaginatedAssets, PanelRun};
 
 #[derive(Clone)]
 pub struct PanelStore {
@@ -16,7 +16,7 @@ pub struct PanelStore {
 
 impl PanelStore {
     pub fn open(home: &Path, run_id: &str) -> Result<Self> {
-        let run_dir = home.join("panel").join(run_id);
+        let run_dir = crate::runs::run_panel_dir(home, run_id);
         fs::create_dir_all(&run_dir)
             .with_context(|| format!("Failed to create panel run dir {}", run_dir.display()))?;
 
@@ -110,15 +110,9 @@ impl PanelStore {
             .lock()
             .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
 
-        // Build WHERE clauses dynamically
         let mut conditions: Vec<String> = Vec::new();
         let mut params_list: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         let mut param_idx = 1;
-
-        // Determine direction:
-        // - before_seq: load older records (backward)
-        // - since_seq: load newer records (forward)
-        // - neither: load the latest N records (backward, no WHERE on seq)
         let is_backward = filter.before_seq.is_some() || filter.since_seq.is_none();
 
         if let Some(before) = filter.before_seq {
@@ -130,7 +124,6 @@ impl PanelStore {
             params_list.push(Box::new(since));
             param_idx += 1;
         }
-        // else: no seq filter → get the latest N records
 
         if let Some(input_id) = &filter.input_id {
             conditions.push(format!("input_id = ?{}", param_idx));
@@ -144,8 +137,6 @@ impl PanelStore {
             format!("WHERE {}", conditions.join(" AND "))
         };
 
-        // For backward loading: ORDER BY seq DESC to get the N most recent before the cursor
-        // Then reverse for chronological display
         let order = if is_backward { "DESC" } else { "ASC" };
 
         let sql = format!(
@@ -156,8 +147,8 @@ impl PanelStore {
         params_list.push(Box::new(limit));
 
         let total_sql = format!("SELECT COUNT(*) FROM assets {}", where_clause);
-
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params_list.iter().map(|p| p.as_ref()).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_list.iter().map(|p| p.as_ref()).collect();
 
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params_refs.as_slice(), |row| {
@@ -177,15 +168,16 @@ impl PanelStore {
             assets.push(row?);
         }
 
-        // Reverse backward results to chronological order
         if is_backward {
             assets.reverse();
         }
 
-        // Total count uses only the non-limit params
-        let total_params_refs: Vec<&dyn rusqlite::ToSql> =
-            params_list[..params_list.len() - 1].iter().map(|p| p.as_ref()).collect();
-        let total: i64 = conn.query_row(&total_sql, total_params_refs.as_slice(), |row| row.get(0))?;
+        let total_params_refs: Vec<&dyn rusqlite::ToSql> = params_list[..params_list.len() - 1]
+            .iter()
+            .map(|p| p.as_ref())
+            .collect();
+        let total: i64 =
+            conn.query_row(&total_sql, total_params_refs.as_slice(), |row| row.get(0))?;
 
         Ok(PaginatedAssets { assets, total })
     }
@@ -236,107 +228,17 @@ impl PanelStore {
         Ok(commands)
     }
 
-    pub fn list_sessions(home: &Path) -> Result<Vec<PanelSession>> {
-        let base = home.join("panel");
-        if !base.exists() {
-            return Ok(Vec::new());
-        }
-
-        let mut sessions = Vec::new();
-        for entry in fs::read_dir(&base).context("Failed to read panel sessions")? {
-            let entry = entry?;
-            let path = entry.path();
-            if !path.is_dir() {
-                continue;
-            }
-
-            let run_id = entry.file_name().to_string_lossy().to_string();
-            let db_path = path.join("index.db");
-            if !db_path.exists() {
-                continue;
-            }
-
+    pub fn list_runs(home: &Path) -> Result<Vec<PanelRun>> {
+        let mut runs = Vec::new();
+        for (run_id, db_dir) in panel_run_dirs(home)? {
+            let db_path = db_dir.join("index.db");
             let conn = Connection::open(&db_path)
                 .with_context(|| format!("Failed to open panel db {}", db_path.display()))?;
-            let asset_count: i64 = conn
-                .query_row("SELECT COUNT(*) FROM assets", [], |row| row.get(0))
-                .unwrap_or(0);
-            let command_count: i64 = conn
-                .query_row("SELECT COUNT(*) FROM commands", [], |row| row.get(0))
-                .unwrap_or(0);
-
-            let disk_size_bytes = dir_size_bytes(&path)?;
-            // Use the latest timestamp from DB records instead of filesystem mtime,
-            // because opening DB with WAL mode resets directory mtime.
-            let last_asset_ts: Option<String> = conn
-                .query_row(
-                    "SELECT MAX(timestamp) FROM assets",
-                    [],
-                    |row| row.get(0),
-                )
-                .unwrap_or(None);
-            let last_cmd_ts: Option<String> = conn
-                .query_row(
-                    "SELECT MAX(timestamp) FROM commands",
-                    [],
-                    |row| row.get(0),
-                )
-                .unwrap_or(None);
-            let last_modified = match (last_asset_ts, last_cmd_ts) {
-                (Some(a), Some(c)) => if a > c { a } else { c },
-                (Some(a), None) => a,
-                (None, Some(c)) => c,
-                (None, None) => {
-                    // Fallback to filesystem mtime for empty sessions
-                    entry
-                        .metadata()
-                        .and_then(|m| m.modified())
-                        .ok()
-                        .map(|t| {
-                            let dt: chrono::DateTime<chrono::Utc> = t.into();
-                            dt.to_rfc3339()
-                        })
-                        .unwrap_or_default()
-                }
-            };
-
-            sessions.push(PanelSession {
-                run_id,
-                asset_count,
-                command_count,
-                disk_size_bytes,
-                last_modified,
-            });
+            runs.push(build_run(&run_id, &db_dir, &conn)?);
         }
 
-        sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
-        Ok(sessions)
-    }
-
-    pub fn clean(home: &Path, keep: usize) -> Result<u32> {
-        let sessions = Self::list_sessions(home)?;
-        if sessions.len() <= keep {
-            let _ = crate::runs::clean_runs(home, keep);
-            return Ok(0);
-        }
-
-        let mut deleted = 0u32;
-        for session in &sessions[keep..] {
-            let dir = home.join("panel").join(&session.run_id);
-            match fs::remove_dir_all(&dir) {
-                Ok(_) => deleted += 1,
-                Err(e) => {
-                    eprintln!(
-                        "Warning: failed to clean panel session {}: {}",
-                        session.run_id, e
-                    )
-                }
-            }
-        }
-
-        let _ = crate::runs::clean_runs(home, keep);
-
-        Ok(deleted)
+        runs.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+        Ok(runs)
     }
 }
 
@@ -350,6 +252,72 @@ fn normalize_type(type_hint: &str, data: &[u8]) -> String {
     } else {
         "application/octet-stream".to_string()
     }
+}
+
+fn panel_run_dirs(home: &Path) -> Result<Vec<(String, PathBuf)>> {
+    let mut dirs = Vec::new();
+    let runs_base = crate::runs::runs_dir(home);
+    if !runs_base.exists() {
+        return Ok(dirs);
+    }
+
+    for entry in fs::read_dir(&runs_base).context("Failed to read runs directory")? {
+        let entry = entry?;
+        if !entry.path().is_dir() {
+            continue;
+        }
+
+        let run_id = entry.file_name().to_string_lossy().to_string();
+        let panel_dir = crate::runs::run_panel_dir(home, &run_id);
+        if panel_dir.join("index.db").exists() {
+            dirs.push((run_id, panel_dir));
+        }
+    }
+
+    Ok(dirs)
+}
+
+fn build_run(run_id: &str, path: &Path, conn: &Connection) -> Result<PanelRun> {
+    let asset_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM assets", [], |row| row.get(0))
+        .unwrap_or(0);
+    let command_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM commands", [], |row| row.get(0))
+        .unwrap_or(0);
+    let disk_size_bytes = dir_size_bytes(path)?;
+    let last_asset_ts: Option<String> = conn
+        .query_row("SELECT MAX(timestamp) FROM assets", [], |row| row.get(0))
+        .unwrap_or(None);
+    let last_cmd_ts: Option<String> = conn
+        .query_row("SELECT MAX(timestamp) FROM commands", [], |row| row.get(0))
+        .unwrap_or(None);
+    let last_modified = match (last_asset_ts, last_cmd_ts) {
+        (Some(a), Some(c)) => {
+            if a > c {
+                a
+            } else {
+                c
+            }
+        }
+        (Some(a), None) => a,
+        (None, Some(c)) => c,
+        (None, None) => fs::metadata(path)
+            .and_then(|m| m.modified())
+            .ok()
+            .map(|t| {
+                let dt: chrono::DateTime<chrono::Utc> = t.into();
+                dt.to_rfc3339()
+            })
+            .unwrap_or_default(),
+    };
+
+    Ok(PanelRun {
+        run_id: run_id.to_string(),
+        asset_count,
+        command_count,
+        disk_size_bytes,
+        last_modified,
+    })
 }
 
 fn should_inline(content_type: &str, data: &[u8]) -> bool {
@@ -377,31 +345,49 @@ fn sanitize_fs_component(s: &str) -> String {
 }
 
 fn infer_ext(content_type: &str) -> &'static str {
-    match content_type.to_ascii_lowercase().as_str() {
-        "image/jpeg" | "image/jpg" => "jpg",
-        "image/png" => "png",
-        "image/gif" => "gif",
-        "image/webp" => "webp",
-        "application/json" | "text/json" => "json",
-        "text/plain" => "txt",
-        "audio/wav" | "audio/x-wav" => "wav",
-        "audio/mpeg" => "mp3",
-        "video/mp4" => "mp4",
-        _ => "bin",
+    let ct = content_type.to_ascii_lowercase();
+    if ct.contains("jpeg") || ct.contains("jpg") {
+        "jpg"
+    } else if ct.contains("png") {
+        "png"
+    } else if ct.contains("gif") {
+        "gif"
+    } else if ct.contains("webp") {
+        "webp"
+    } else if ct.contains("wav") {
+        "wav"
+    } else if ct.contains("mpeg") || ct.contains("mp3") {
+        "mp3"
+    } else if ct.contains("mp4") {
+        "mp4"
+    } else if ct.contains("webm") {
+        "webm"
+    } else if ct.contains("json") {
+        "json"
+    } else if ct.starts_with("text/") {
+        "txt"
+    } else {
+        "bin"
     }
 }
 
 fn dir_size_bytes(path: &Path) -> Result<u64> {
-    let mut size = 0u64;
-    for entry in fs::read_dir(path)? {
+    let mut total = 0u64;
+    if !path.exists() {
+        return Ok(total);
+    }
+
+    for entry in fs::read_dir(path)
+        .with_context(|| format!("Failed to read panel directory {}", path.display()))?
+    {
         let entry = entry?;
-        let p = entry.path();
-        let meta = entry.metadata()?;
-        if meta.is_dir() {
-            size += dir_size_bytes(&p)?;
-        } else {
-            size += meta.len();
+        let entry_path = entry.path();
+        if entry_path.is_dir() {
+            total += dir_size_bytes(&entry_path)?;
+        } else if entry_path.is_file() {
+            total += entry.metadata().map(|m| m.len()).unwrap_or(0);
         }
     }
-    Ok(size)
+
+    Ok(total)
 }

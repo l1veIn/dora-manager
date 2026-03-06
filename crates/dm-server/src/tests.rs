@@ -10,6 +10,8 @@ use tempfile::TempDir;
 use crate::handlers;
 use crate::AppState;
 
+const FAKE_DORA_UUID: &str = "019cc181-adad-7654-aa78-63502362337b";
+
 fn test_state() -> (TempDir, AppState) {
     let tmp = TempDir::new().unwrap();
     let home = tmp.path().to_path_buf();
@@ -38,8 +40,9 @@ case "$cmd" in
     echo "Runtime OK"
     ;;
   list)
-    echo "flow-a"
-    echo "flow-b"
+    echo "UUID Name Status Nodes CPU Memory"
+    echo "019cc181-adad-7654-aa78-63502362337b flow-a Running 1 0.0% 0.0"
+    echo "019cc181-adad-7654-aa78-635023623380 flow-b Succeeded 2 0.0% 0.0"
     ;;
   up)
     echo "started"
@@ -77,6 +80,75 @@ esac
         },
     )
     .unwrap();
+}
+
+fn setup_fake_dora_home_with_active_file(
+    home: &std::path::Path,
+    active_version: &str,
+) -> std::path::PathBuf {
+    let version_dir = dm_core::config::versions_dir(home).join(active_version);
+    std::fs::create_dir_all(&version_dir).unwrap();
+    let state_file = home.join("active_dataflow_id");
+
+    let bin = version_dir.join("dora");
+    std::fs::write(
+        &bin,
+        format!(
+            r#"#!/bin/sh
+cmd="$1"
+case "$cmd" in
+  --version)
+    echo "dora-cli 0.4.1"
+    ;;
+  check)
+    echo "Runtime OK"
+    ;;
+  list)
+    if [ -f "{state_file}" ]; then
+      echo "UUID Name Status Nodes CPU Memory"
+      printf "%s test-flow Running 1 0.0%% 0.0\\ GB\\n" "$(cat "{state_file}")"
+    fi
+    ;;
+  start)
+    run_yaml="$2"
+    run_dir="$(dirname "$run_yaml")"
+    mkdir -p "$run_dir/out/{fake_uuid}"
+    echo "worker log line" > "$run_dir/out/{fake_uuid}/log_worker.txt"
+    echo "{fake_uuid}" > "{state_file}"
+    echo "dataflow started: {fake_uuid}"
+    ;;
+  stop)
+    rm -f "{state_file}"
+    echo "dataflow stopped"
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"#,
+            state_file = state_file.display(),
+            fake_uuid = FAKE_DORA_UUID
+        ),
+    )
+    .unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&bin, perms).unwrap();
+    }
+
+    dm_core::config::save_config(
+        home,
+        &dm_core::config::DmConfig {
+            active_version: Some(active_version.to_string()),
+        },
+    )
+    .unwrap();
+
+    state_file
 }
 
 fn setup_installed_node(home: &std::path::Path, id: &str) {
@@ -180,8 +252,9 @@ async fn status_handler_uses_fake_dora_binary() {
     assert_eq!(json["actual_version"], "0.4.1");
     assert_eq!(json["runtime_running"], true);
     assert_eq!(json["runtime_output"], "Runtime OK");
-    assert_eq!(json["dataflows"][0], "flow-a");
-    assert_eq!(json["dataflows"][1], "flow-b");
+    assert!(json["active_runs"].as_array().unwrap().is_empty());
+    assert!(json["recent_runs"].as_array().unwrap().is_empty());
+    assert!(json["dora_probe"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -214,7 +287,7 @@ async fn node_status_returns_entry_for_installed_node() {
 }
 
 #[tokio::test]
-async fn list_nodes_returns_empty_array() {
+async fn list_nodes_returns_builtin_entries() {
     let (_tmp, state) = test_state();
 
     let resp = handlers::list_nodes(State(state)).await.into_response();
@@ -222,7 +295,12 @@ async fn list_nodes_returns_empty_array() {
 
     let body = body_text(resp).await;
     let nodes: Vec<serde_json::Value> = serde_json::from_str(&body).unwrap();
-    assert!(nodes.is_empty());
+    assert!(nodes
+        .iter()
+        .any(|node| node["id"] == "dm-test-media-capture"));
+    assert!(nodes
+        .iter()
+        .any(|node| node["id"] == "dm-test-audio-capture"));
 }
 
 #[tokio::test]
@@ -482,14 +560,14 @@ async fn install_node_returns_bad_request_for_unsupported_build() {
 }
 
 #[tokio::test]
-async fn stop_dataflow_returns_500_without_active_dora() {
+async fn stop_dataflow_returns_404_without_active_run() {
     let (_tmp, state) = test_state();
 
     let resp = handlers::stop_dataflow(State(state)).await.into_response();
-    assert_eq!(resp.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
 
     let body = body_text(resp).await;
-    assert!(body.contains("No active dora version"));
+    assert!(body.contains("No active run found"));
 }
 
 #[tokio::test]
@@ -673,7 +751,194 @@ async fn start_dataflow_returns_error_for_invalid_yaml_when_runtime_is_up() {
 
     assert_eq!(resp.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
     let body = body_text(resp).await;
-    assert!(body.contains("Failed to parse yaml"));
+    assert!(body.contains("Failed to transpile"));
+}
+
+#[tokio::test]
+async fn start_run_returns_conflict_for_same_active_dataflow() {
+    let (_tmp, state) = test_state();
+    setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
+
+    let first = handlers::start_run(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []",
+                "name": "demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(first.status(), axum::http::StatusCode::OK);
+
+    let second = handlers::start_run(
+        State(state),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []",
+                "name": "demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(second.status(), axum::http::StatusCode::CONFLICT);
+
+    let body = body_text(second).await;
+    assert!(body.contains("already running as run"));
+}
+
+#[tokio::test]
+async fn list_runs_refreshes_stale_running_status() {
+    let (_tmp, state) = test_state();
+    let active_file = setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
+
+    let started = handlers::start_run(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []",
+                "name": "demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(started.status(), axum::http::StatusCode::OK);
+
+    std::fs::remove_file(active_file).unwrap();
+
+    let resp = handlers::list_runs(
+        State(state),
+        Query(serde_json::from_value(serde_json::json!({})).unwrap()),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["runs"][0]["status"], "stopped");
+}
+
+#[tokio::test]
+async fn tail_run_logs_returns_incremental_chunks() {
+    let (_tmp, state) = test_state();
+    setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
+
+    let started = handlers::start_run(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []",
+                "name": "demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(started.status(), axum::http::StatusCode::OK);
+
+    let started_body = body_text(started).await;
+    let started_json: serde_json::Value = serde_json::from_str(&started_body).unwrap();
+    let run_id = started_json["run_id"].as_str().unwrap().to_string();
+
+    let first = handlers::tail_run_logs(
+        State(state.clone()),
+        Path((run_id.clone(), "worker".to_string())),
+        Query(serde_json::from_value(serde_json::json!({ "offset": 0 })).unwrap()),
+    )
+    .await
+    .into_response();
+    assert_eq!(first.status(), axum::http::StatusCode::OK);
+    let first_body = body_text(first).await;
+    let first_json: serde_json::Value = serde_json::from_str(&first_body).unwrap();
+    assert_eq!(first_json["content"], "worker log line\n");
+    let next_offset = first_json["next_offset"].as_u64().unwrap();
+    assert!(next_offset > 0);
+
+    let second = handlers::tail_run_logs(
+        State(state),
+        Path((run_id, "worker".to_string())),
+        Query(serde_json::from_value(serde_json::json!({ "offset": next_offset })).unwrap()),
+    )
+    .await
+    .into_response();
+    assert_eq!(second.status(), axum::http::StatusCode::OK);
+    let second_body = body_text(second).await;
+    let second_json: serde_json::Value = serde_json::from_str(&second_body).unwrap();
+    assert_eq!(second_json["content"], "");
+    assert_eq!(second_json["next_offset"].as_u64().unwrap(), next_offset);
+}
+
+#[tokio::test]
+async fn status_prefers_run_metadata_for_active_runs() {
+    let (_tmp, state) = test_state();
+    setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
+
+    let started = handlers::start_run(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []",
+                "name": "demo-flow"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(started.status(), axum::http::StatusCode::OK);
+
+    let status = handlers::status(State(state)).await.into_response();
+    assert_eq!(status.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(status).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["active_runs"][0]["dataflow_name"], "demo-flow");
+    assert_eq!(json["active_runs"][0]["status"], "running");
+    assert_eq!(json["active_runs"][0]["expected_nodes"], 0);
+    assert_eq!(json["dora_probe"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn query_panel_assets_rejects_run_without_panel() {
+    let (_tmp, state) = test_state();
+    setup_fake_dora_home(&state.home, "0.4.1");
+
+    let started = handlers::start_run(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []",
+                "name": "demo-flow"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(started.status(), axum::http::StatusCode::OK);
+
+    let started_body = body_text(started).await;
+    let started_json: serde_json::Value = serde_json::from_str(&started_body).unwrap();
+    let run_id = started_json["run_id"].as_str().unwrap().to_string();
+
+    let resp = handlers::query_assets(
+        State(state),
+        Path(run_id),
+        Query(serde_json::from_value(serde_json::json!({ "limit": 10 })).unwrap()),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    assert!(body.contains("does not have a panel"));
 }
 
 #[tokio::test]

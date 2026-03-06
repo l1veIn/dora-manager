@@ -6,13 +6,23 @@ use crate::node::{
 };
 use tempfile::tempdir;
 
+fn builtin_test_node_ids() -> [&'static str; 2] {
+    ["dm-test-audio-capture", "dm-test-media-capture"]
+}
+
 #[test]
 fn test_list_nodes_empty_directory() {
     let dir = tempdir().unwrap();
     let home = dir.path();
 
     let nodes = list_nodes(home).unwrap();
-    assert!(nodes.is_empty(), "Empty directory should return empty list");
+    for id in builtin_test_node_ids() {
+        assert!(
+            nodes.iter().any(|node| node.id == id),
+            "Builtin node '{}' should be discoverable",
+            id
+        );
+    }
 }
 
 #[test]
@@ -21,10 +31,9 @@ fn test_list_nodes_no_nodes_dir() {
     let home = dir.path();
 
     let nodes = list_nodes(home).unwrap();
-    assert!(
-        nodes.is_empty(),
-        "Missing nodes directory should return empty list"
-    );
+    for id in builtin_test_node_ids() {
+        assert!(nodes.iter().any(|node| node.id == id));
+    }
 }
 
 #[test]
@@ -81,9 +90,8 @@ fn test_list_nodes_with_manual_entry() {
     std::fs::create_dir_all(&manual_dir).unwrap();
 
     let nodes = list_nodes(home).unwrap();
-    assert_eq!(nodes.len(), 1);
-    assert_eq!(nodes[0].id, "manual-node");
-    assert_eq!(nodes[0].version, "unknown");
+    let manual = nodes.iter().find(|node| node.id == "manual-node").unwrap();
+    assert_eq!(manual.version, "unknown");
 }
 
 #[test]
@@ -97,6 +105,15 @@ fn test_uninstall_removes_directory() {
 
     uninstall_node(home, "to-remove").unwrap();
     assert!(!installed_dir.exists(), "Node directory should be removed");
+}
+
+#[test]
+fn test_uninstall_builtin_node_rejected() {
+    let dir = tempdir().unwrap();
+    let home = dir.path();
+
+    let err = uninstall_node(home, "dm-test-media-capture").unwrap_err();
+    assert!(err.to_string().contains("builtin"));
 }
 
 #[test]

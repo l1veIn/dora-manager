@@ -1,0 +1,41 @@
+{
+  "id": "dm-test-audio-capture",
+  "name": "dm-test-audio-capture",
+  "version": "0.1.0",
+  "installed_at": "1772779592",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Builtin DM test node for fixed-duration microphone capture.",
+  "executable": ".venv/bin/dm-test-audio-capture",
+  "author": "Dora Manager",
+  "category": "Builtin/Test",
+  "inputs": [],
+  "outputs": [
+    "audio",
+    "audio_stream",
+    "meta"
+  ],
+  "avatar": null,
+  "config_schema": {
+    "mode": {
+      "env": "MODE",
+      "default": "once"
+    },
+    "duration_sec": {
+      "env": "DURATION_SEC",
+      "default": 3
+    },
+    "sample_rate": {
+      "env": "SAMPLE_RATE",
+      "default": 16000
+    },
+    "channels": {
+      "env": "CHANNELS",
+      "default": 1
+    }
+  },
+  "dm_version": "1",
+  "path": ""
+}

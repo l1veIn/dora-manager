@@ -4,13 +4,19 @@ use tempfile::tempdir;
 
 use super::*;
 
+fn builtin_test_node_ids() -> [&'static str; 2] {
+    ["dm-test-audio-capture", "dm-test-media-capture"]
+}
+
 #[test]
 fn test_list_nodes_empty() {
     let dir = tempdir().unwrap();
     let home = dir.path();
 
     let nodes = list_nodes(home).unwrap();
-    assert!(nodes.is_empty());
+    for id in builtin_test_node_ids() {
+        assert!(nodes.iter().any(|node| node.id == id));
+    }
 }
 
 #[test]
@@ -65,9 +71,8 @@ fn test_install_and_list_and_uninstall() {
     std::fs::write(dm_json_path(home, id), meta_json).unwrap();
 
     let nodes = list_nodes(home).unwrap();
-    assert_eq!(nodes.len(), 1);
-    assert_eq!(nodes[0].id, id);
-    assert_eq!(nodes[0].version, "1.0.0");
+    let installed = nodes.iter().find(|node| node.id == id).unwrap();
+    assert_eq!(installed.version, "1.0.0");
 
     let status = node_status(home, id).unwrap().unwrap();
     assert_eq!(status.id, id);
@@ -76,7 +81,16 @@ fn test_install_and_list_and_uninstall() {
     assert!(!node_path.exists());
 
     let nodes = list_nodes(home).unwrap();
-    assert!(nodes.is_empty());
+    assert!(!nodes.iter().any(|node| node.id == id));
+}
+
+#[test]
+fn test_builtin_node_cannot_be_uninstalled() {
+    let dir = tempdir().unwrap();
+    let home = dir.path();
+
+    let err = uninstall_node(home, "dm-test-media-capture").unwrap_err();
+    assert!(err.to_string().contains("builtin"));
 }
 
 #[test]

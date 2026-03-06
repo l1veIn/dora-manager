@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+dm_test_audio_capture/__init__.py
+dm_test_audio_capture/main.py
+dm_test_audio_capture.egg-info/PKG-INFO
+dm_test_audio_capture.egg-info/SOURCES.txt
+dm_test_audio_capture.egg-info/dependency_links.txt
+dm_test_audio_capture.egg-info/entry_points.txt
+dm_test_audio_capture.egg-info/requires.txt
+dm_test_audio_capture.egg-info/top_level.txt

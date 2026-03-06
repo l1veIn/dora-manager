@@ -189,11 +189,46 @@ fn status_report_serialization() {
         dm_home: "/home/user/.dm".into(),
         runtime_running: false,
         runtime_output: String::new(),
-        dataflows: vec!["flow1".into(), "flow2".into()],
+        active_runs: vec![StatusRunEntry {
+            run_id: "5c49b211-5575-4a7e-a666-cf32c198ea5e".into(),
+            dataflow_name: "flow1".into(),
+            status: "running".into(),
+            started_at: "2026-03-06T05:32:40+00:00".into(),
+            finished_at: None,
+            expected_nodes: 3,
+            observed_nodes: 2,
+            has_panel: true,
+            dora_uuid: Some("019cc181-adad-7654-aa78-63502362337b".into()),
+            outcome_summary: "Running".into(),
+        }],
+        recent_runs: vec![StatusRunEntry {
+            run_id: "ec7155dd-a357-4261-993b-72f18e304ea5".into(),
+            dataflow_name: "flow2".into(),
+            status: "stopped".into(),
+            started_at: "2026-03-06T05:30:00+00:00".into(),
+            finished_at: Some("2026-03-06T05:31:00+00:00".into()),
+            expected_nodes: 4,
+            observed_nodes: 4,
+            has_panel: false,
+            dora_uuid: Some("019cc181-adad-7654-aa78-635023623380".into()),
+            outcome_summary: "Stopped by user".into(),
+        }],
+        dora_probe: vec![RuntimeDataflowStatus {
+            id: "019cc181-adad-7654-aa78-63502362337b".into(),
+            dataflow_name: "flow1".into(),
+            runtime_name: Some("endless-junco".into()),
+            status: "Running".into(),
+            expected_nodes: 3,
+            observed_nodes: 2,
+            cpu: Some("0.0%".into()),
+            memory: Some("0.0".into()),
+        }],
     };
     let json = serde_json::to_string(&report).unwrap();
     let parsed: StatusReport = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed.dataflows.len(), 2);
+    assert_eq!(parsed.active_runs.len(), 1);
+    assert_eq!(parsed.recent_runs.len(), 1);
+    assert_eq!(parsed.dora_probe.len(), 1);
     assert!(!parsed.runtime_running);
 }
 

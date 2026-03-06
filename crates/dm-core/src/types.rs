@@ -88,6 +88,32 @@ pub struct RuntimeResult {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeDataflowStatus {
+    pub id: String,
+    pub dataflow_name: String,
+    pub runtime_name: Option<String>,
+    pub status: String,
+    pub expected_nodes: u32,
+    pub observed_nodes: u32,
+    pub cpu: Option<String>,
+    pub memory: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusRunEntry {
+    pub run_id: String,
+    pub dataflow_name: String,
+    pub status: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub expected_nodes: u32,
+    pub observed_nodes: u32,
+    pub has_panel: bool,
+    pub dora_uuid: Option<String>,
+    pub outcome_summary: String,
+}
+
 /// Status report returned by `status()`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusReport {
@@ -96,7 +122,9 @@ pub struct StatusReport {
     pub dm_home: String,
     pub runtime_running: bool,
     pub runtime_output: String,
-    pub dataflows: Vec<String>,
+    pub active_runs: Vec<StatusRunEntry>,
+    pub recent_runs: Vec<StatusRunEntry>,
+    pub dora_probe: Vec<RuntimeDataflowStatus>,
 }
 
 // ─── Setup ───
