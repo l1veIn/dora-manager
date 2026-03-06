@@ -1,2 +1,0 @@
-[console_scripts]
-dm-test-observer = dm_test_observer.main:main

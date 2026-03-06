@@ -1,2 +1,0 @@
-[console_scripts]
-dm-test-media-capture = dm_test_media_capture.main:main

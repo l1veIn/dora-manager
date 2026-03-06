@@ -1,2 +1,0 @@
-[console_scripts]
-dm-test-audio-capture = dm_test_audio_capture.main:main

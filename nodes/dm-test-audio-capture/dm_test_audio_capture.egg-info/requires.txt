@@ -1,4 +1,0 @@
-dora-rs>=0.3.9
-pyarrow
-numpy
-sounddevice
