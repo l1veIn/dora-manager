@@ -117,6 +117,12 @@ enum RunsCommands {
         /// Run ID
         run_id: String,
     },
+    /// Delete one or more runs by DM run ID
+    Delete {
+        /// One or more run IDs
+        #[arg(required = true)]
+        run_ids: Vec<String>,
+    },
     /// Show logs for a specific run
     Logs {
         /// Dataflow run ID (UUID)
@@ -607,6 +613,36 @@ async fn main() -> Result<()> {
                         println!("  Stopped at: {}", stopped_at.dimmed());
                     }
                 }
+                Some(RunsCommands::Delete { run_ids }) => {
+                    let total = run_ids.len();
+                    let mut deleted = 0usize;
+                    let mut failed = Vec::new();
+
+                    for run_id in run_ids {
+                        match dm_core::runs::delete_run(&home, &run_id) {
+                            Ok(()) => {
+                                deleted += 1;
+                                println!("{} Deleted run {}", "✅".green(), run_id.bold());
+                            }
+                            Err(e) => {
+                                failed.push((run_id, e.to_string()));
+                            }
+                        }
+                    }
+
+                    if !failed.is_empty() {
+                        eprintln!(
+                            "{} Deleted {}/{} runs. Failures:",
+                            "⚠".yellow(),
+                            deleted,
+                            total
+                        );
+                        for (run_id, message) in failed {
+                            eprintln!("  {} {}", run_id.bold(), message);
+                        }
+                        anyhow::bail!("Failed to delete one or more runs");
+                    }
+                }
                 Some(RunsCommands::Logs {
                     run_id,
                     node_id,
@@ -701,7 +737,7 @@ fn panel_serve(home: &std::path::Path, run_id: &str, _node_id: &str) -> Result<(
             match event {
                 Event::Input { id, metadata, data } => {
                     let type_hint = extract_type_hint(&metadata, &data);
-                    let bytes = arrow_to_bytes(&data);
+                    let bytes = arrow_to_bytes(&metadata, &data);
                     if let Err(e) = store2.write_asset(&id.to_string(), &type_hint, &bytes) {
                         eprintln!("Panel write error: {e}");
                     }
@@ -811,6 +847,9 @@ fn extract_type_hint(
     {
         return content_type.clone();
     }
+    if sample_rate_from_metadata(metadata).is_some() && is_audio_array(data.data_type()) {
+        return "audio/wav".to_string();
+    }
     match data.data_type() {
         DataType::Utf8 | DataType::LargeUtf8 => "text/plain".to_string(),
         DataType::Binary | DataType::LargeBinary => "application/octet-stream".to_string(),
@@ -819,7 +858,12 @@ fn extract_type_hint(
     }
 }
 
-fn arrow_to_bytes(data: &dora_node_api::ArrowData) -> Vec<u8> {
+fn arrow_to_bytes(metadata: &dora_node_api::Metadata, data: &dora_node_api::ArrowData) -> Vec<u8> {
+    if let Some(sample_rate) = sample_rate_from_metadata(metadata) {
+        if let Some(bytes) = audio_array_to_wav_bytes(sample_rate, data) {
+            return bytes;
+        }
+    }
     match data.data_type() {
         DataType::Utf8 | DataType::LargeUtf8 => String::try_from(data)
             .map(|s| s.into_bytes())
@@ -828,6 +872,76 @@ fn arrow_to_bytes(data: &dora_node_api::ArrowData) -> Vec<u8> {
         DataType::Binary | DataType::LargeBinary => format!("{data:?}").into_bytes(),
         _ => format!("{data:?}").into_bytes(),
     }
+}
+
+fn sample_rate_from_metadata(metadata: &dora_node_api::Metadata) -> Option<u32> {
+    match metadata.parameters.get("sample_rate") {
+        Some(dora_node_api::Parameter::Integer(v)) if *v > 0 => Some(*v as u32),
+        Some(dora_node_api::Parameter::Float(v)) if *v > 0.0 => Some(*v as u32),
+        _ => None,
+    }
+}
+
+fn is_audio_array(data_type: &DataType) -> bool {
+    matches!(
+        data_type,
+        DataType::Float32
+            | DataType::Float64
+            | DataType::Int16
+            | DataType::Int32
+            | DataType::UInt16
+            | DataType::UInt32
+    )
+}
+
+fn audio_array_to_wav_bytes(sample_rate: u32, data: &dora_node_api::ArrowData) -> Option<Vec<u8>> {
+    let samples = match data.data_type() {
+        DataType::Float32 => {
+            let values = Vec::<f32>::try_from(data).ok()?;
+            values
+                .into_iter()
+                .map(|v| (v.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
+                .collect::<Vec<_>>()
+        }
+        DataType::Float64 => {
+            let values = Vec::<f64>::try_from(data).ok()?;
+            values
+                .into_iter()
+                .map(|v| (v.clamp(-1.0, 1.0) * i16::MAX as f64) as i16)
+                .collect::<Vec<_>>()
+        }
+        _ => return None,
+    };
+
+    Some(encode_wav_mono_i16(sample_rate, &samples))
+}
+
+fn encode_wav_mono_i16(sample_rate: u32, samples: &[i16]) -> Vec<u8> {
+    let bits_per_sample = 16u16;
+    let channels = 1u16;
+    let block_align = channels * (bits_per_sample / 8);
+    let byte_rate = sample_rate * block_align as u32;
+    let data_len = (samples.len() * std::mem::size_of::<i16>()) as u32;
+    let riff_len = 36 + data_len;
+
+    let mut out = Vec::with_capacity(44 + data_len as usize);
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&riff_len.to_le_bytes());
+    out.extend_from_slice(b"WAVE");
+    out.extend_from_slice(b"fmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&channels.to_le_bytes());
+    out.extend_from_slice(&sample_rate.to_le_bytes());
+    out.extend_from_slice(&byte_rate.to_le_bytes());
+    out.extend_from_slice(&block_align.to_le_bytes());
+    out.extend_from_slice(&bits_per_sample.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data_len.to_le_bytes());
+    for sample in samples {
+        out.extend_from_slice(&sample.to_le_bytes());
+    }
+    out
 }
 
 fn send_json_command(node: &mut DoraNode, output_id: &str, raw_json: &str) -> Result<()> {

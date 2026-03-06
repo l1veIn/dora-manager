@@ -1,37 +1,65 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-    import { get, getText, del } from "$lib/api";
+    import { onMount, tick } from "svelte";
+    import { get, del, post } from "$lib/api";
     import * as Table from "$lib/components/ui/table/index.js";
     import { Button } from "$lib/components/ui/button/index.js";
-    import { Badge } from "$lib/components/ui/badge/index.js";
+    import * as Select from "$lib/components/ui/select/index.js";
+    import { Input } from "$lib/components/ui/input/index.js";
     import {
         RefreshCw,
         ChevronLeft,
         ChevronRight,
-        ChevronDown,
-        ChevronUp,
+        Search,
+        LayoutDashboard,
         Trash2,
-        FileText,
-        X,
     } from "lucide-svelte";
+    import RunStatusBadge from "$lib/components/runs/RunStatusBadge.svelte";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
+    import { Badge } from "$lib/components/ui/badge/index.js";
+    import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+    import { goto } from "$app/navigation";
 
-    // State
     let runs = $state<any[]>([]);
     let loading = $state(true);
     let totalRuns = $state(0);
+    let selectedRunIds = $state<string[]>([]);
+    let isDeleting = $state(false);
+    let isDeleteDialogOpen = $state(false);
+
+    // Filters & Pagination
     let currentPage = $state(1);
-    const pageSize = 20;
+    let pageSize = $state(20);
+    let statusFilter = $state("all"); // 'all', 'running', 'succeeded', 'stopped', 'failed'
+    let searchQuery = $state(""); // search by dataflow_name or run_id
 
-    // Expanded row
-    let expandedRunId = $state<string | null>(null);
-    let expandedDetail = $state<any | null>(null);
-    let detailLoading = $state(false);
+    // Selected options for Select components
+    let pageSizeStr = $state("20");
 
-    // Log viewer
-    let logContent = $state<string | null>(null);
-    let logNodeId = $state("");
-    let logRunId = $state("");
-    let logLoading = $state(false);
+    // Sync options to state
+    $effect(() => {
+        let newSize = parseInt(pageSizeStr, 10);
+        if (pageSize !== newSize) {
+            pageSize = newSize;
+            currentPage = 1;
+            fetchRuns();
+        }
+    });
+
+    $effect(() => {
+        if (statusFilter) {
+            currentPage = 1;
+            fetchRuns();
+        }
+    });
+
+    let debounceTimer: ReturnType<typeof setTimeout>;
+    function handleSearchInput() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            currentPage = 1;
+            fetchRuns();
+        }, 300);
+    }
 
     async function fetchRuns() {
         loading = true;
@@ -39,6 +67,13 @@
             const params = new URLSearchParams();
             params.append("limit", pageSize.toString());
             params.append("offset", ((currentPage - 1) * pageSize).toString());
+            if (statusFilter !== "all") {
+                params.append("status", statusFilter);
+            }
+            if (searchQuery.trim() !== "") {
+                params.append("search", searchQuery.trim());
+            }
+
             const result = (await get(`/runs?${params.toString()}`)) as any;
             runs = result.runs || [];
             totalRuns = result.total || 0;
@@ -49,56 +84,45 @@
         }
     }
 
-    async function toggleExpand(runId: string) {
-        if (expandedRunId === runId) {
-            expandedRunId = null;
-            expandedDetail = null;
-            return;
-        }
-        expandedRunId = runId;
-        detailLoading = true;
-        try {
-            expandedDetail = await get(`/runs/${runId}`);
-        } catch (e) {
-            console.error("Failed to fetch run detail", e);
-            expandedDetail = null;
-        } finally {
-            detailLoading = false;
+    let isAllSelected = $derived(
+        runs.length > 0 && selectedRunIds.length === runs.length,
+    );
+
+    function toggleAll(checked: boolean) {
+        if (checked) {
+            selectedRunIds = runs.map((r) => r.id);
+        } else {
+            selectedRunIds = [];
         }
     }
 
-    async function viewLogs(runId: string, nodeId: string) {
-        logRunId = runId;
-        logNodeId = nodeId;
-        logLoading = true;
-        logContent = null;
-        try {
-            const text = await getText(`/runs/${runId}/logs/${nodeId}`);
-            logContent = text;
-        } catch (e) {
-            logContent = "(Failed to load log)";
-        } finally {
-            logLoading = false;
-        }
-    }
-
-    function closeLogs() {
-        logContent = null;
-        logNodeId = "";
-        logRunId = "";
-    }
-
-    async function deleteRun(runId: string) {
-        if (!confirm(`Delete run ${runId}?`)) return;
-        try {
-            await del(`/runs/${runId}`);
-            if (expandedRunId === runId) {
-                expandedRunId = null;
-                expandedDetail = null;
+    function toggleSelection(runId: string, checked: boolean) {
+        if (checked) {
+            if (!selectedRunIds.includes(runId)) {
+                selectedRunIds = [...selectedRunIds, runId];
             }
+        } else {
+            selectedRunIds = selectedRunIds.filter((id) => id !== runId);
+        }
+    }
+
+    function openDeleteDialog() {
+        if (selectedRunIds.length === 0) return;
+        isDeleteDialogOpen = true;
+    }
+
+    async function confirmDeleteSelectedRuns() {
+        isDeleteDialogOpen = false;
+        isDeleting = true;
+        try {
+            await post("/runs/delete", { run_ids: selectedRunIds });
+            selectedRunIds = [];
             fetchRuns();
-        } catch (e) {
-            console.error("Failed to delete run", e);
+        } catch (e: any) {
+            console.error("Failed to delete runs", e);
+            alert("Failed to delete runs: " + e.message);
+        } finally {
+            isDeleting = false;
         }
     }
 
@@ -107,10 +131,8 @@
         return new Date(ts).toLocaleString();
     }
 
-    function formatSize(bytes: number) {
-        if (bytes === 0) return "(empty)";
-        if (bytes < 1024) return `${bytes} B`;
-        return `${(bytes / 1024).toFixed(1)} KB`;
+    function rowClick(runId: string) {
+        goto(`/runs/${runId}`);
     }
 
     onMount(() => {
@@ -118,71 +140,236 @@
     });
 </script>
 
-<div class="p-6 max-w-6xl mx-auto space-y-4 h-full flex flex-col">
+<div class="p-6 max-w-7xl mx-auto flex flex-col h-full gap-4">
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-3xl font-bold tracking-tight">Runs</h1>
-            <p class="text-sm text-muted-foreground">
-                Dataflow execution history and node logs.
+            <p class="text-sm text-muted-foreground mt-1">
+                Dataflow execution history and instances.
             </p>
         </div>
 
-        <Button variant="outline" size="sm" onclick={fetchRuns}>
-            <RefreshCw class="mr-2 size-4 {loading ? 'animate-spin' : ''}" /> Refresh
-        </Button>
+        <div class="flex items-center gap-2">
+            {#if selectedRunIds.length > 0}
+                <Button
+                    variant="destructive"
+                    size="sm"
+                    onclick={openDeleteDialog}
+                    disabled={isDeleting}
+                >
+                    <Trash2
+                        class="mr-2 size-4 {isDeleting ? 'animate-pulse' : ''}"
+                    />
+                    {isDeleting
+                        ? "Deleting..."
+                        : `Delete Selected (${selectedRunIds.length})`}
+                </Button>
+            {/if}
+            <Button variant="outline" size="sm" onclick={fetchRuns}>
+                <RefreshCw
+                    class="mr-2 size-4 {loading ? 'animate-spin' : ''}"
+                /> Refresh
+            </Button>
+        </div>
     </div>
 
-    <div class="border rounded-md shrink-0 overflow-auto bg-card flex-1">
+    <!-- Filters/Search/Pagination Controls -->
+    <div
+        class="flex flex-col sm:flex-row gap-3 items-center justify-between border bg-card p-3 rounded-md shadow-sm shrink-0"
+    >
+        <div class="flex items-center gap-3 w-full sm:w-auto flex-1">
+            <div class="relative max-w-sm w-full">
+                <Search
+                    class="absolute left-2.5 top-2.5 size-4 text-muted-foreground"
+                />
+                <Input
+                    type="text"
+                    placeholder="Search by name or run ID..."
+                    class="pl-9 bg-background w-full"
+                    bind:value={searchQuery}
+                    oninput={handleSearchInput}
+                />
+            </div>
+
+            <div class="w-[140px]">
+                <Select.Root type="single" bind:value={statusFilter}>
+                    <Select.Trigger class="bg-background">
+                        {statusFilter === "all" ? "All Status" : statusFilter}
+                    </Select.Trigger>
+                    <Select.Content>
+                        <Select.Item value="all">All Status</Select.Item>
+                        <Select.Item value="running">Running</Select.Item>
+                        <Select.Item value="succeeded">Succeeded</Select.Item>
+                        <Select.Item value="stopped">Stopped</Select.Item>
+                        <Select.Item value="failed">Failed</Select.Item>
+                    </Select.Content>
+                </Select.Root>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 shrink-0">
+            <div class="w-[120px]">
+                <Select.Root type="single" bind:value={pageSizeStr}>
+                    <Select.Trigger class="bg-background">
+                        {pageSizeStr} / page
+                    </Select.Trigger>
+                    <Select.Content>
+                        <Select.Item value="10">10 / page</Select.Item>
+                        <Select.Item value="20">20 / page</Select.Item>
+                        <Select.Item value="50">50 / page</Select.Item>
+                        <Select.Item value="100">100 / page</Select.Item>
+                    </Select.Content>
+                </Select.Root>
+            </div>
+
+            <div
+                class="flex items-center gap-1 border rounded-md overflow-hidden bg-background"
+            >
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    class="rounded-none h-9 w-9"
+                    disabled={currentPage <= 1 || loading}
+                    onclick={() => {
+                        currentPage--;
+                        fetchRuns();
+                    }}
+                >
+                    <ChevronLeft class="size-4" />
+                </Button>
+                <div
+                    class="text-sm font-medium w-12 text-center select-none text-muted-foreground"
+                >
+                    {currentPage}
+                </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    class="rounded-none h-9 w-9"
+                    disabled={currentPage * pageSize >= totalRuns || loading}
+                    onclick={() => {
+                        currentPage++;
+                        fetchRuns();
+                    }}
+                >
+                    <ChevronRight class="size-4" />
+                </Button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Runs Table -->
+    <div
+        class="border rounded-md shrink-0 overflow-auto bg-card flex-1 shadow-sm"
+    >
         <Table.Root>
             <Table.Header class="sticky top-0 bg-card z-10 shadow-sm">
                 <Table.Row>
-                    <Table.Head class="w-[40px]"></Table.Head>
-                    <Table.Head class="w-[120px]">Name</Table.Head>
-                    <Table.Head class="w-[180px]">Started</Table.Head>
-                    <Table.Head class="w-[180px]">Finished</Table.Head>
-                    <Table.Head class="w-[80px]">Status</Table.Head>
-                    <Table.Head class="w-[80px]">Nodes</Table.Head>
-                    <Table.Head class="w-[280px]">Run ID</Table.Head>
-                    <Table.Head class="w-[60px]"></Table.Head>
+                    <Table.Head class="w-[40px] text-center">
+                        <Checkbox
+                            checked={isAllSelected}
+                            onCheckedChange={(v: any) => toggleAll(v === true)}
+                            class="translate-y-[2px]"
+                        />
+                    </Table.Head>
+                    <Table.Head class="w-[200px]">Name</Table.Head>
+                    <Table.Head class="w-[100px]">Status</Table.Head>
+                    <Table.Head class="w-[160px]">Started</Table.Head>
+                    <Table.Head class="w-[160px]">Finished</Table.Head>
+                    <Table.Head class="w-[80px] text-center">Nodes</Table.Head>
+                    <Table.Head class="w-[80px] text-center">Panel</Table.Head>
+                    <Table.Head class="w-[120px]">Source</Table.Head>
                 </Table.Row>
             </Table.Header>
             <Table.Body>
                 {#if loading && runs.length === 0}
                     <Table.Row>
-                        <Table.Cell colspan={8} class="h-24 text-center"
-                            >Loading runs...</Table.Cell
+                        <Table.Cell
+                            colspan={7}
+                            class="h-32 text-center text-muted-foreground"
                         >
+                            Loading runs...
+                        </Table.Cell>
                     </Table.Row>
                 {:else if runs.length === 0}
                     <Table.Row>
                         <Table.Cell
-                            colspan={8}
-                            class="h-24 text-center text-muted-foreground"
-                            >No runs recorded yet. Start a dataflow with <code
-                                >dm start</code
-                            > to see history here.</Table.Cell
+                            colspan={7}
+                            class="h-48 text-center text-muted-foreground"
                         >
+                            <div
+                                class="flex flex-col items-center justify-center gap-3"
+                            >
+                                <div class="bg-muted p-3 rounded-full">
+                                    <LayoutDashboard
+                                        class="size-6 text-muted-foreground"
+                                    />
+                                </div>
+                                <div class="space-y-1">
+                                    <p class="font-medium text-foreground">
+                                        No runs found
+                                    </p>
+                                    <p class="text-sm">
+                                        There are no records matching your
+                                        criteria.
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    class="mt-2"
+                                    onclick={() => goto("/dataflows")}
+                                >
+                                    Go to Dataflows
+                                </Button>
+                            </div>
+                        </Table.Cell>
                     </Table.Row>
                 {:else}
                     {#each runs as run}
+                        <!-- Row with detail mapping -->
                         <Table.Row
-                            class="cursor-pointer hover:bg-muted/50 transition-colors"
-                            onclick={() => toggleExpand(run.id)}
+                            class="cursor-pointer hover:bg-muted/50 transition-colors group {selectedRunIds.includes(
+                                run.id,
+                            )
+                                ? 'bg-muted/50'
+                                : ''}"
+                            onclick={() => rowClick(run.id)}
                         >
-                            <Table.Cell class="px-2">
-                                {#if expandedRunId === run.id}
-                                    <ChevronUp
-                                        class="size-4 text-muted-foreground"
-                                    />
-                                {:else}
-                                    <ChevronDown
-                                        class="size-4 text-muted-foreground"
-                                    />
+                            <Table.Cell
+                                onclick={(e) => e.stopPropagation()}
+                                class="text-center"
+                            >
+                                <Checkbox
+                                    checked={selectedRunIds.includes(run.id)}
+                                    onCheckedChange={(v: any) =>
+                                        toggleSelection(run.id, v === true)}
+                                    class="translate-y-[2px]"
+                                />
+                            </Table.Cell>
+                            <Table.Cell>
+                                <div class="flex flex-col">
+                                    <span
+                                        class="font-semibold group-hover:underline decoration-muted-foreground underline-offset-4"
+                                        >{run.name}</span
+                                    >
+                                    <span
+                                        class="font-mono text-[10px] text-muted-foreground truncate"
+                                        title={run.id}
+                                        >{run.id.substring(0, 12)}...</span
+                                    >
+                                </div>
+                                {#if run.outcome_summary}
+                                    <div
+                                        class="text-xs text-muted-foreground mt-1 max-w-[200px] truncate"
+                                        title={run.outcome_summary}
+                                    >
+                                        {run.outcome_summary}
+                                    </div>
                                 {/if}
                             </Table.Cell>
-                            <Table.Cell class="font-semibold"
-                                >{run.name}</Table.Cell
-                            >
+                            <Table.Cell>
+                                <RunStatusBadge status={run.status} />
+                            </Table.Cell>
                             <Table.Cell
                                 class="font-mono text-xs text-muted-foreground"
                                 >{formatTime(run.started_at)}</Table.Cell
@@ -191,191 +378,65 @@
                                 class="font-mono text-xs text-muted-foreground"
                                 >{formatTime(run.finished_at)}</Table.Cell
                             >
-                            <Table.Cell>
-                                {#if run.exit_code === null || run.exit_code === undefined}
+                            <Table.Cell class="text-center font-mono text-sm"
+                                >{run.node_count ?? "-"}</Table.Cell
+                            >
+                            <Table.Cell class="text-center">
+                                {#if run.has_panel}
                                     <Badge
                                         variant="outline"
-                                        class="text-[10px] font-mono"
-                                        >running</Badge
-                                    >
-                                {:else if run.exit_code === 0}
-                                    <Badge
-                                        variant="default"
-                                        class="text-[10px] font-mono bg-green-600"
-                                        >success</Badge
+                                        class="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800 font-mono text-[10px]"
+                                        >Yes</Badge
                                     >
                                 {:else}
-                                    <Badge
-                                        variant="destructive"
-                                        class="text-[10px] font-mono"
-                                        >exit {run.exit_code}</Badge
+                                    <span class="text-muted-foreground text-sm"
+                                        >-</span
                                     >
                                 {/if}
                             </Table.Cell>
-                            <Table.Cell class="text-center"
-                                >{run.node_count}</Table.Cell
-                            >
-                            <Table.Cell
-                                class="font-mono text-[11px] text-muted-foreground truncate max-w-[280px]"
-                                title={run.id}>{run.id}</Table.Cell
-                            >
                             <Table.Cell>
-                                <div
-                                    class="flex items-center justify-center gap-1"
+                                <Badge
+                                    variant="secondary"
+                                    class="font-mono text-[10px] truncate max-w-[100px]"
+                                    >{run.source || "unknown"}</Badge
                                 >
-                                    <a
-                                        href="/panel?run={run.id}"
-                                        class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground size-7"
-                                        title="View panel data"
-                                        onclick={(e) => e.stopPropagation()}
-                                    >
-                                        📊
-                                    </a>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        class="size-7"
-                                        onclick={(e) => {
-                                            e.stopPropagation();
-                                            deleteRun(run.id);
-                                        }}
-                                    >
-                                        <Trash2
-                                            class="size-3.5 text-muted-foreground hover:text-destructive"
-                                        />
-                                    </Button>
-                                </div>
                             </Table.Cell>
                         </Table.Row>
-                        {#if expandedRunId === run.id}
-                            <Table.Row>
-                                <Table.Cell colspan={8} class="p-0">
-                                    <div class="bg-muted/30 border-t px-6 py-3">
-                                        {#if detailLoading}
-                                            <p
-                                                class="text-sm text-muted-foreground"
-                                            >
-                                                Loading...
-                                            </p>
-                                        {:else if expandedDetail?.nodes?.length > 0}
-                                            <p
-                                                class="text-xs font-medium text-muted-foreground mb-2"
-                                            >
-                                                Node Logs
-                                            </p>
-                                            <div
-                                                class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2"
-                                            >
-                                                {#each expandedDetail.nodes as node}
-                                                    <button
-                                                        class="flex items-center gap-2 px-3 py-2 rounded-md border bg-card text-sm hover:bg-accent transition-colors text-left"
-                                                        onclick={() =>
-                                                            viewLogs(
-                                                                run.id,
-                                                                node.id,
-                                                            )}
-                                                    >
-                                                        <FileText
-                                                            class="size-3.5 text-muted-foreground shrink-0"
-                                                        />
-                                                        <span
-                                                            class="font-medium truncate"
-                                                            >{node.id}</span
-                                                        >
-                                                        <span
-                                                            class="text-xs text-muted-foreground ml-auto"
-                                                            >{formatSize(
-                                                                node.log_size,
-                                                            )}</span
-                                                        >
-                                                    </button>
-                                                {/each}
-                                            </div>
-                                        {:else}
-                                            <p
-                                                class="text-sm text-muted-foreground"
-                                            >
-                                                No log files found for this run.
-                                            </p>
-                                        {/if}
-                                    </div>
-                                </Table.Cell>
-                            </Table.Row>
-                        {/if}
                     {/each}
                 {/if}
             </Table.Body>
         </Table.Root>
     </div>
 
-    <!-- Pagination -->
-    <div class="flex items-center justify-between px-2 pt-2">
-        <div class="text-sm text-muted-foreground">
+    <!-- Footer info -->
+    <div
+        class="flex justify-between items-center text-xs text-muted-foreground px-1 py-1"
+    >
+        <div>
             Showing {totalRuns === 0 ? 0 : (currentPage - 1) * pageSize + 1} to
             {Math.min(currentPage * pageSize, totalRuns)} of
             <span class="font-medium text-foreground">{totalRuns}</span> runs
         </div>
-        <div class="flex items-center gap-2">
-            <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage === 1 || loading}
-                onclick={() => {
-                    currentPage--;
-                    fetchRuns();
-                }}
-            >
-                <ChevronLeft class="size-4 mr-1" /> Previous
-            </Button>
-            <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage * pageSize >= totalRuns || loading}
-                onclick={() => {
-                    currentPage++;
-                    fetchRuns();
-                }}
-            >
-                Next <ChevronRight class="size-4 ml-1" />
-            </Button>
-        </div>
     </div>
 </div>
 
-<!-- Log Viewer Modal -->
-{#if logContent !== null}
-    <div
-        class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
-        role="dialog"
-    >
-        <div
-            class="bg-card border rounded-lg shadow-xl w-[90vw] max-w-4xl max-h-[80vh] flex flex-col"
-        >
-            <div class="flex items-center justify-between px-4 py-3 border-b">
-                <div class="text-sm font-medium">
-                    <span class="text-muted-foreground">Log:</span>
-                    {logNodeId}
-                    <span class="text-muted-foreground ml-2 text-xs font-mono"
-                        >{logRunId}</span
-                    >
-                </div>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    class="size-7"
-                    onclick={closeLogs}
-                >
-                    <X class="size-4" />
-                </Button>
-            </div>
-            <div class="flex-1 overflow-auto p-4">
-                {#if logLoading}
-                    <p class="text-sm text-muted-foreground">Loading...</p>
-                {:else}
-                    <pre
-                        class="text-xs font-mono whitespace-pre-wrap break-all text-muted-foreground">{logContent}</pre>
-                {/if}
-            </div>
-        </div>
-    </div>
-{/if}
+<AlertDialog.Root bind:open={isDeleteDialogOpen}>
+    <AlertDialog.Content>
+        <AlertDialog.Header>
+            <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
+            <AlertDialog.Description>
+                This action cannot be undone. This will permanently delete
+                <strong class="text-foreground">{selectedRunIds.length}</strong>
+                run instance(s) and erase all associated logs, events, and panel
+                assets from your disk.
+            </AlertDialog.Description>
+        </AlertDialog.Header>
+        <AlertDialog.Footer>
+            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+            <AlertDialog.Action
+                class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onclick={confirmDeleteSelectedRuns}>Delete</AlertDialog.Action
+            >
+        </AlertDialog.Footer>
+    </AlertDialog.Content>
+</AlertDialog.Root>

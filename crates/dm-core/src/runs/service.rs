@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use super::graph::{build_transpile_metadata, extract_node_ids_from_yaml};
 use super::model::{
-    LogSyncState, PaginatedRuns, RunDetail, RunInstance, RunLogChunk, RunLogSync, RunSource,
-    RunStatus, RunSummary, StartConflictStrategy, StartRunResult, TerminationReason,
+    LogSyncState, PaginatedRuns, RunDetail, RunInstance, RunListFilter, RunLogChunk, RunLogSync,
+    RunSource, RunStatus, RunSummary, StartConflictStrategy, StartRunResult, TerminationReason,
 };
 use super::state::{
     apply_terminal_state, build_outcome, infer_failure_details, parse_failure_details,
@@ -19,7 +19,17 @@ use super::{repo, runtime};
 use crate::runs::runtime::RuntimeBackend;
 
 pub fn list_runs(home: &Path, limit: i64, offset: i64) -> Result<PaginatedRuns> {
+    list_runs_filtered(home, limit, offset, &RunListFilter::default())
+}
+
+pub fn list_runs_filtered(
+    home: &Path,
+    limit: i64,
+    offset: i64,
+    filter: &RunListFilter,
+) -> Result<PaginatedRuns> {
     let runs = refresh_run_statuses(home)?;
+    let runs = apply_run_list_filter(runs, filter);
     let total = runs.len() as i64;
     let offset = offset.max(0) as usize;
     let limit = limit.max(1) as usize;
@@ -38,9 +48,14 @@ pub fn list_runs(home: &Path, limit: i64, offset: i64) -> Result<PaginatedRuns> 
 }
 
 pub fn get_active_run(home: &Path) -> Result<Option<RunInstance>> {
+    Ok(list_active_runs(home)?.into_iter().next())
+}
+
+pub fn list_active_runs(home: &Path) -> Result<Vec<RunInstance>> {
     Ok(refresh_run_statuses(home)?
         .into_iter()
-        .find(|run| run.status.is_running()))
+        .filter(|run| run.status.is_running())
+        .collect())
 }
 
 pub async fn start_run_from_yaml(
@@ -267,6 +282,10 @@ pub fn read_run_log(home: &Path, run_id: &str, node_id: &str) -> Result<String> 
     repo::read_run_log_file(home, run_id, node_id)
 }
 
+pub fn read_run_transpiled(home: &Path, run_id: &str) -> Result<String> {
+    repo::read_run_transpiled(home, run_id)
+}
+
 pub fn read_run_log_chunk(
     home: &Path,
     run_id: &str,
@@ -485,4 +504,45 @@ fn find_active_run_by_name(home: &Path, dataflow_name: &str) -> Result<Option<Ru
     Ok(refresh_run_statuses(home)?
         .into_iter()
         .find(|run| run.status.is_running() && run.dataflow_name == dataflow_name))
+}
+
+fn apply_run_list_filter(runs: Vec<RunInstance>, filter: &RunListFilter) -> Vec<RunInstance> {
+    let normalized_status = filter
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_ascii_lowercase());
+    let normalized_search = filter
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_ascii_lowercase());
+
+    runs.into_iter()
+        .filter(|run| {
+            if let Some(has_panel) = filter.has_panel {
+                if run.has_panel != has_panel {
+                    return false;
+                }
+            }
+
+            if let Some(status) = normalized_status.as_deref() {
+                if run.status.as_str() != status {
+                    return false;
+                }
+            }
+
+            if let Some(search) = normalized_search.as_deref() {
+                let run_id = run.run_id.to_ascii_lowercase();
+                let dataflow_name = run.dataflow_name.to_ascii_lowercase();
+                if !run_id.contains(search) && !dataflow_name.contains(search) {
+                    return false;
+                }
+            }
+
+            true
+        })
+        .collect()
 }

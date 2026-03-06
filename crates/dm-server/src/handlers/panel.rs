@@ -12,6 +12,8 @@ use crate::AppState;
 #[derive(Deserialize)]
 pub struct AssetQuery {
     pub since: Option<i64>,
+    pub after: Option<i64>,
+    pub cursor: Option<i64>,
     pub before: Option<i64>,
     pub input_id: Option<String>,
     pub limit: Option<i64>,
@@ -29,7 +31,7 @@ pub async fn query_assets(
     match dm_core::runs::panel::PanelStore::open(&state.home, &run_id) {
         Ok(store) => {
             let filter = dm_core::runs::panel::AssetFilter {
-                since_seq: params.since,
+                since_seq: params.since.or(params.after).or(params.cursor),
                 before_seq: params.before,
                 input_id: params.input_id,
                 limit: params.limit,
@@ -75,8 +77,9 @@ pub async fn serve_asset_file(
 
 #[derive(Deserialize)]
 pub struct CommandBody {
-    pub output_id: String,
-    pub value: String,
+    pub output_id: Option<String>,
+    pub value: Option<String>,
+    pub command: Option<String>,
 }
 
 pub async fn send_command(
@@ -89,10 +92,21 @@ pub async fn send_command(
     }
 
     match dm_core::runs::panel::PanelStore::open(&state.home, &run_id) {
-        Ok(store) => match store.write_command(&body.output_id, &body.value) {
-            Ok(_) => Json(serde_json::json!({ "status": "ok" })).into_response(),
-            Err(e) => err(e).into_response(),
-        },
+        Ok(store) => {
+            let output_id = body.output_id.as_deref().unwrap_or("input");
+            let value = body.value.as_deref().or(body.command.as_deref());
+            let Some(value) = value else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    "Missing command payload: provide `value` or `command`",
+                )
+                    .into_response();
+            };
+            match store.write_command(output_id, value) {
+                Ok(_) => Json(serde_json::json!({ "status": "ok" })).into_response(),
+                Err(e) => err(e).into_response(),
+            }
+        }
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
 }

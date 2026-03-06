@@ -30,6 +30,8 @@ mod tests {
         assert_eq!(all.assets.len(), 2);
         assert_eq!(all.assets[0].storage, "inline");
         assert_eq!(all.assets[0].data.as_deref(), Some("hello panel"));
+        assert_eq!(all.assets[0].producer_id, None);
+        assert_eq!(all.assets[0].output_field, None);
         assert_eq!(all.assets[1].storage, "file");
         assert!(all.assets[1]
             .path
@@ -72,5 +74,44 @@ mod tests {
         assert_eq!(runs.len(), 2);
         assert_eq!(runs[0].run_id, "run-2");
         assert_eq!(runs[1].run_id, "run-1");
+    }
+
+    #[test]
+    fn write_asset_records_producer_and_output_field() {
+        let dir = tempdir().unwrap();
+        crate::runs::create_layout(dir.path(), "run-c").unwrap();
+        std::fs::write(
+            crate::runs::run_snapshot_path(dir.path(), "run-c"),
+            r#"
+nodes:
+  - id: panel
+    node: dm-panel
+    inputs:
+      observer_json: observer/summary_json
+"#,
+        )
+        .unwrap();
+
+        let mut run = crate::runs::RunInstance::default();
+        run.run_id = "run-c".to_string();
+        run.dataflow_name = "demo".to_string();
+        run.started_at = "2026-03-06T00:00:00Z".to_string();
+        run.has_panel = true;
+        run.transpile.panel_node_ids = vec!["panel".to_string()];
+        crate::runs::save_run(dir.path(), &run).unwrap();
+
+        let store = PanelStore::open(dir.path(), "run-c").unwrap();
+        store
+            .write_asset("observer_json", "application/json", br#"{"ok":true}"#)
+            .unwrap();
+
+        let assets = store.query_assets(&AssetFilter::default()).unwrap();
+        assert_eq!(assets.total, 1);
+        assert_eq!(assets.assets[0].input_id, "observer_json");
+        assert_eq!(assets.assets[0].producer_id.as_deref(), Some("observer"));
+        assert_eq!(
+            assets.assets[0].output_field.as_deref(),
+            Some("summary_json")
+        );
     }
 }

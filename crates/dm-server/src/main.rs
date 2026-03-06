@@ -73,9 +73,10 @@ async fn main() {
         .route("/api/runs/{id}/stop", post(handlers::stop_run))
         .route("/api/runs/{id}/dataflow", get(handlers::get_run_dataflow))
         .route(
-            "/api/runs/{id}",
-            axum::routing::delete(handlers::delete_run),
+            "/api/runs/{id}/transpiled",
+            get(handlers::get_run_transpiled),
         )
+        .route("/api/runs/delete", post(handlers::delete_runs))
         .route("/api/runs/{id}/logs/{node_id}", get(handlers::get_run_logs))
         .route(
             "/api/runs/{id}/logs/{node_id}/tail",
@@ -97,6 +98,10 @@ async fn main() {
         )
         .route(
             "/api/runs/{run_id}/panel/commands",
+            post(handlers::send_command),
+        )
+        .route(
+            "/api/runs/{run_id}/panel/command",
             post(handlers::send_command),
         )
         // ─── Middleware ───

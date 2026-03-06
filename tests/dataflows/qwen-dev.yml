@@ -1,0 +1,75 @@
+nodes:
+  - id: dora-microphone
+    node: dora-microphone
+    inputs:
+      tick: dora/timer/millis/2000
+    outputs:
+      - audio
+
+  - id: dora-vad
+    node: dora-vad
+    inputs:
+      audio: dora-microphone/audio
+    outputs:
+      - audio
+
+  - id: screen
+    node: dm-test-media-capture
+    inputs:
+      trigger: dora-vad/audio
+    outputs:
+      - image
+      - meta
+    config:
+      mode: screenshot
+      output_format: png
+
+  - id: screen-video
+    node: dm-test-media-capture
+    inputs:
+      trigger: dora-vad/audio
+    outputs:
+      - video
+      - meta
+    config:
+      mode: record_clip
+      clip_duration_sec: 5
+      output_format: mp4
+
+  - id: dora-distil-whisper
+    node: dora-distil-whisper
+    inputs:
+      text_noise: dora-qwen/text
+      input: dora-vad/audio
+    outputs:
+      - text
+    env:
+      TARGET_LANGUAGE: english
+
+  - id: dora-qwen
+    node: dora-qwen
+    inputs:
+      text: dora-distil-whisper/text
+    outputs:
+      - text
+
+  - id: panel
+    node: dm-panel
+    inputs:
+      audio_vad: dora-vad/audio
+      audio_tts: dora-kokoro-tts/audio
+      screenshot: screen/image
+      screenshot_meta: screen/meta
+      video_clip: screen-video/video
+      video_clip_meta: screen-video/meta
+      text_qwen: dora-qwen/text
+      text_whisper: dora-distil-whisper/text
+
+  - id: dora-kokoro-tts
+    node: dora-kokoro-tts
+    inputs:
+      text: dora-qwen/text
+    outputs:
+      - audio
+    env:
+      ACTIVATION_WORDS: you

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -12,6 +13,13 @@ use super::{Asset, AssetFilter, OutputCommand, PaginatedAssets, PanelRun};
 pub struct PanelStore {
     run_dir: Arc<PathBuf>,
     conn: Arc<Mutex<Connection>>,
+    input_bindings: Arc<HashMap<String, InputBinding>>,
+}
+
+#[derive(Clone, Debug)]
+struct InputBinding {
+    producer_id: String,
+    output_field: String,
 }
 
 impl PanelStore {
@@ -29,6 +37,8 @@ impl PanelStore {
             "CREATE TABLE IF NOT EXISTS assets (
                 seq       INTEGER PRIMARY KEY AUTOINCREMENT,
                 input_id  TEXT NOT NULL,
+                producer_id TEXT,
+                output_field TEXT,
                 timestamp TEXT NOT NULL,
                 type      TEXT NOT NULL,
                 storage   TEXT NOT NULL,
@@ -50,12 +60,16 @@ impl PanelStore {
         Ok(Self {
             run_dir: Arc::new(run_dir),
             conn: Arc::new(Mutex::new(conn)),
+            input_bindings: Arc::new(load_input_bindings(home, run_id).unwrap_or_default()),
         })
     }
 
     pub fn write_asset(&self, input_id: &str, type_hint: &str, data: &[u8]) -> Result<i64> {
         let now = Utc::now().to_rfc3339();
         let normalized_type = normalize_type(type_hint, data);
+        let binding = self.input_bindings.get(input_id);
+        let producer_id = binding.map(|b| b.producer_id.as_str());
+        let output_field = binding.map(|b| b.output_field.as_str());
 
         let conn = self
             .conn
@@ -65,17 +79,24 @@ impl PanelStore {
         if should_inline(&normalized_type, data) {
             let inline_data = String::from_utf8(data.to_vec()).ok();
             conn.execute(
-                "INSERT INTO assets (input_id, timestamp, type, storage, path, data)
-                 VALUES (?1, ?2, ?3, 'inline', NULL, ?4)",
-                params![input_id, now, normalized_type, inline_data],
+                "INSERT INTO assets (input_id, producer_id, output_field, timestamp, type, storage, path, data)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 'inline', NULL, ?6)",
+                params![
+                    input_id,
+                    producer_id,
+                    output_field,
+                    now,
+                    normalized_type,
+                    inline_data
+                ],
             )?;
             return Ok(conn.last_insert_rowid());
         }
 
         conn.execute(
-            "INSERT INTO assets (input_id, timestamp, type, storage, path, data)
-             VALUES (?1, ?2, ?3, 'file', NULL, NULL)",
-            params![input_id, now, normalized_type],
+            "INSERT INTO assets (input_id, producer_id, output_field, timestamp, type, storage, path, data)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'file', NULL, NULL)",
+            params![input_id, producer_id, output_field, now, normalized_type],
         )?;
         let seq = conn.last_insert_rowid();
 
@@ -140,7 +161,7 @@ impl PanelStore {
         let order = if is_backward { "DESC" } else { "ASC" };
 
         let sql = format!(
-            "SELECT seq, input_id, timestamp, type, storage, path, data
+            "SELECT seq, input_id, producer_id, output_field, timestamp, type, storage, path, data
              FROM assets {} ORDER BY seq {} LIMIT ?{}",
             where_clause, order, param_idx
         );
@@ -155,11 +176,13 @@ impl PanelStore {
             Ok(Asset {
                 seq: row.get(0)?,
                 input_id: row.get(1)?,
-                timestamp: row.get(2)?,
-                type_: row.get(3)?,
-                storage: row.get(4)?,
-                path: row.get(5)?,
-                data: row.get(6)?,
+                producer_id: row.get(2)?,
+                output_field: row.get(3)?,
+                timestamp: row.get(4)?,
+                type_: row.get(5)?,
+                storage: row.get(6)?,
+                path: row.get(7)?,
+                data: row.get(8)?,
             })
         })?;
 
@@ -240,6 +263,55 @@ impl PanelStore {
         runs.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
         Ok(runs)
     }
+}
+
+fn load_input_bindings(home: &Path, run_id: &str) -> Result<HashMap<String, InputBinding>> {
+    let run = crate::runs::load_run(home, run_id)?;
+    if run.transpile.panel_node_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let snapshot = crate::runs::read_run_dataflow(home, run_id)?;
+    let yaml: serde_yaml::Value = serde_yaml::from_str(&snapshot)
+        .with_context(|| format!("Failed to parse run snapshot for '{}'", run_id))?;
+
+    let mut bindings = HashMap::new();
+    let Some(nodes) = yaml.get("nodes").and_then(|nodes| nodes.as_sequence()) else {
+        return Ok(bindings);
+    };
+
+    for node in nodes {
+        let Some(node_id) = node.get("id").and_then(|id| id.as_str()) else {
+            continue;
+        };
+        if !run.transpile.panel_node_ids.iter().any(|id| id == node_id) {
+            continue;
+        }
+
+        let Some(inputs) = node.get("inputs").and_then(|inputs| inputs.as_mapping()) else {
+            continue;
+        };
+        for (input_key, input_value) in inputs {
+            let Some(input_id) = input_key.as_str() else {
+                continue;
+            };
+            let Some(binding) = input_value.as_str() else {
+                continue;
+            };
+            let Some((producer_id, output_field)) = binding.split_once('/') else {
+                continue;
+            };
+            bindings.insert(
+                input_id.to_string(),
+                InputBinding {
+                    producer_id: producer_id.to_string(),
+                    output_field: output_field.to_string(),
+                },
+            );
+        }
+    }
+
+    Ok(bindings)
 }
 
 fn normalize_type(type_hint: &str, data: &[u8]) -> String {

@@ -17,7 +17,6 @@
         { title: "Dataflows", url: "/dataflows", icon: Waypoints },
         { title: "Runs", url: "/runs", icon: History },
         { title: "Events", url: "/events", icon: ActivitySquare },
-        { title: "Panel", url: "/panel", icon: ActivitySquare }, // Reuse ActivitySquare or find a better icon like LayoutDashboard or MonitorPlay
         { title: "Settings", url: "/settings", icon: Settings },
     ];
 </script>

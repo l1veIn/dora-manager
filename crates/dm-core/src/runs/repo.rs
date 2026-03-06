@@ -89,6 +89,12 @@ pub fn read_run_dataflow(home: &Path, run_id: &str) -> Result<String> {
         .with_context(|| format!("Failed to read run snapshot {}", path.display()))
 }
 
+pub fn read_run_transpiled(home: &Path, run_id: &str) -> Result<String> {
+    let path = run_transpiled_path(home, run_id);
+    fs::read_to_string(&path)
+        .with_context(|| format!("Failed to read transpiled run snapshot {}", path.display()))
+}
+
 pub fn read_run_log_file(home: &Path, run_id: &str, node_id: &str) -> Result<String> {
     let path = run_logs_dir(home, run_id).join(format!("{}.log", node_id));
     fs::read_to_string(&path).with_context(|| format!("Failed to read node log {}", path.display()))

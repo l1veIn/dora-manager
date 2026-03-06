@@ -11,6 +11,9 @@ use crate::AppState;
 pub struct PaginationParams {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    pub status: Option<String>,
+    pub search: Option<String>,
+    pub has_panel: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -25,6 +28,11 @@ pub struct StartRunRequest {
     pub force: Option<bool>,
 }
 
+#[derive(Deserialize)]
+pub struct DeleteRunsRequest {
+    pub run_ids: Vec<String>,
+}
+
 /// GET /api/runs?limit=20&offset=0
 pub async fn list_runs(
     State(state): State<AppState>,
@@ -32,8 +40,13 @@ pub async fn list_runs(
 ) -> impl IntoResponse {
     let limit = params.limit.unwrap_or(20);
     let offset = params.offset.unwrap_or(0);
+    let filter = dm_core::runs::RunListFilter {
+        status: params.status,
+        search: params.search,
+        has_panel: params.has_panel,
+    };
 
-    match dm_core::runs::list_runs(&state.home, limit, offset) {
+    match dm_core::runs::list_runs_filtered(&state.home, limit, offset, &filter) {
         Ok(result) => Json(result).into_response(),
         Err(e) => err(e).into_response(),
     }
@@ -41,9 +54,17 @@ pub async fn list_runs(
 
 /// GET /api/runs/active
 pub async fn get_active_run(State(state): State<AppState>) -> impl IntoResponse {
-    match dm_core::runs::get_active_run(&state.home) {
-        Ok(Some(run)) => Json(run).into_response(),
-        Ok(None) => StatusCode::NO_CONTENT.into_response(),
+    match dm_core::runs::list_runs_filtered(
+        &state.home,
+        10_000,
+        0,
+        &dm_core::runs::RunListFilter {
+            status: Some("running".to_string()),
+            search: None,
+            has_panel: None,
+        },
+    ) {
+        Ok(result) => Json(result.runs).into_response(),
         Err(e) => err(e).into_response(),
     }
 }
@@ -54,6 +75,17 @@ pub async fn get_run_dataflow(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     match dm_core::runs::read_run_dataflow(&state.home, &id) {
+        Ok(content) => content.into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    }
+}
+
+/// GET /api/runs/:id/transpiled
+pub async fn get_run_transpiled(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match dm_core::runs::read_run_transpiled(&state.home, &id) {
         Ok(content) => content.into_response(),
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
@@ -153,15 +185,49 @@ pub async fn stop_run(State(state): State<AppState>, Path(id): Path<String>) -> 
     }
 }
 
-/// DELETE /api/runs/:id
-pub async fn delete_run(
+/// POST /api/runs/delete
+pub async fn delete_runs(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Json(req): Json<DeleteRunsRequest>,
 ) -> impl IntoResponse {
-    match dm_core::runs::delete_run(&state.home, &id) {
-        Ok(()) => {
-            Json(serde_json::json!({ "message": format!("Run '{}' deleted", id) })).into_response()
-        }
-        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    if req.run_ids.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "run_ids must not be empty"
+            })),
+        )
+            .into_response();
     }
+
+    let total = req.run_ids.len();
+    let mut deleted = Vec::new();
+    let mut failed = Vec::new();
+
+    for run_id in req.run_ids {
+        match dm_core::runs::delete_run(&state.home, &run_id) {
+            Ok(()) => deleted.push(run_id),
+            Err(e) => failed.push(serde_json::json!({
+                "run_id": run_id,
+                "error": e.to_string(),
+            })),
+        }
+    }
+
+    let status = if failed.is_empty() {
+        StatusCode::OK
+    } else {
+        StatusCode::MULTI_STATUS
+    };
+
+    (
+        status,
+        Json(serde_json::json!({
+            "deleted": deleted,
+            "failed": failed,
+            "deleted_count": total - failed.len(),
+            "failed_count": failed.len(),
+        })),
+    )
+        .into_response()
 }

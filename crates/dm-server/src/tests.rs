@@ -826,6 +826,129 @@ async fn list_runs_refreshes_stale_running_status() {
 }
 
 #[tokio::test]
+async fn list_runs_supports_status_and_search_filters() {
+    let (_tmp, state) = test_state();
+    setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
+
+    let started = handlers::start_run(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []",
+                "name": "search-demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(started.status(), axum::http::StatusCode::OK);
+
+    let started_body = body_text(started).await;
+    let started_json: serde_json::Value = serde_json::from_str(&started_body).unwrap();
+    let run_id = started_json["run_id"].as_str().unwrap().to_string();
+
+    let filtered = handlers::list_runs(
+        State(state.clone()),
+        Query(
+            serde_json::from_value(serde_json::json!({
+                "status": "running",
+                "search": "search-demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(filtered.status(), axum::http::StatusCode::OK);
+
+    let filtered_body = body_text(filtered).await;
+    let filtered_json: serde_json::Value = serde_json::from_str(&filtered_body).unwrap();
+    assert_eq!(filtered_json["total"], 1);
+    assert_eq!(filtered_json["runs"][0]["id"], run_id);
+
+    let empty = handlers::list_runs(
+        State(state),
+        Query(
+            serde_json::from_value(serde_json::json!({
+                "status": "failed",
+                "search": "search-demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(empty.status(), axum::http::StatusCode::OK);
+    let empty_body = body_text(empty).await;
+    let empty_json: serde_json::Value = serde_json::from_str(&empty_body).unwrap();
+    assert_eq!(empty_json["total"], 0);
+}
+
+#[tokio::test]
+async fn get_active_run_returns_active_run_summaries() {
+    let (_tmp, state) = test_state();
+    setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
+
+    let started = handlers::start_run(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []",
+                "name": "active-demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(started.status(), axum::http::StatusCode::OK);
+
+    let active = handlers::get_active_run(State(state)).await.into_response();
+    assert_eq!(active.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(active).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert!(json.is_array());
+    assert_eq!(json[0]["name"], "active-demo");
+    assert_eq!(json[0]["status"], "running");
+}
+
+#[tokio::test]
+async fn delete_runs_deletes_multiple_runs_via_post() {
+    let (_tmp, state) = test_state();
+
+    for run_id in ["run-a", "run-b"] {
+        dm_core::runs::create_layout(&state.home, run_id).unwrap();
+        let mut run = dm_core::runs::RunInstance::default();
+        run.run_id = run_id.to_string();
+        run.dataflow_name = run_id.to_string();
+        run.started_at = "2026-03-06T00:00:00Z".to_string();
+        dm_core::runs::save_run(&state.home, &run).unwrap();
+    }
+
+    let resp = handlers::delete_runs(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "run_ids": ["run-a", "run-b"]
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["deleted_count"], 2);
+    assert_eq!(json["failed_count"], 0);
+    assert!(!dm_core::runs::run_dir(&state.home, "run-a").exists());
+    assert!(!dm_core::runs::run_dir(&state.home, "run-b").exists());
+}
+
+#[tokio::test]
 async fn tail_run_logs_returns_incremental_chunks() {
     let (_tmp, state) = test_state();
     setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
@@ -874,6 +997,43 @@ async fn tail_run_logs_returns_incremental_chunks() {
     let second_json: serde_json::Value = serde_json::from_str(&second_body).unwrap();
     assert_eq!(second_json["content"], "");
     assert_eq!(second_json["next_offset"].as_u64().unwrap(), next_offset);
+}
+
+#[tokio::test]
+async fn get_run_transpiled_returns_transpiled_snapshot() {
+    let (_tmp, state) = test_state();
+    setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
+
+    let started = handlers::start_run(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": r#"
+nodes:
+  - id: worker
+    path: python3
+"#,
+                "name": "demo"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(started.status(), axum::http::StatusCode::OK);
+
+    let started_body = body_text(started).await;
+    let started_json: serde_json::Value = serde_json::from_str(&started_body).unwrap();
+    let run_id = started_json["run_id"].as_str().unwrap().to_string();
+
+    let resp = handlers::get_run_transpiled(State(state), Path(run_id))
+        .await
+        .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(resp).await;
+    assert!(body.contains("nodes:"));
+    assert!(body.contains("worker"));
 }
 
 #[tokio::test]
@@ -939,6 +1099,41 @@ async fn query_panel_assets_rejects_run_without_panel() {
     assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
     let body = body_text(resp).await;
     assert!(body.contains("does not have a panel"));
+}
+
+#[tokio::test]
+async fn send_panel_command_accepts_command_shorthand() {
+    let (_tmp, state) = test_state();
+
+    let run_id = "panel-run";
+    dm_core::runs::create_layout(&state.home, run_id).unwrap();
+    let mut run = dm_core::runs::RunInstance::default();
+    run.run_id = run_id.to_string();
+    run.dataflow_name = "panel-demo".to_string();
+    run.started_at = "2026-03-06T00:00:00Z".to_string();
+    run.has_panel = true;
+    dm_core::runs::save_run(&state.home, &run).unwrap();
+
+    let resp = handlers::send_command(
+        State(state.clone()),
+        Path(run_id.to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "command": "{\"text\":\"hello\"}"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let store = dm_core::runs::panel::PanelStore::open(&state.home, run_id).unwrap();
+    let mut since = 0;
+    let commands = store.poll_commands(&mut since).unwrap();
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].output_id, "input");
+    assert_eq!(commands[0].value, "{\"text\":\"hello\"}");
 }
 
 #[tokio::test]

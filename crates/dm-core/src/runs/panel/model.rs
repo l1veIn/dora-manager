@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct Asset {
     pub seq: i64,
     pub input_id: String,
+    pub producer_id: Option<String>,
+    pub output_field: Option<String>,
     pub timestamp: String,
     #[serde(rename = "type")]
     pub type_: String,

@@ -236,3 +236,10 @@ pub struct PaginatedRuns {
     pub limit: i64,
     pub offset: i64,
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RunListFilter {
+    pub status: Option<String>,
+    pub search: Option<String>,
+    pub has_panel: Option<bool>,
+}
