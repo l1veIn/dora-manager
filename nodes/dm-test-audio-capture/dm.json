@@ -4,38 +4,131 @@
   "version": "0.1.0",
   "installed_at": "1772779592",
   "source": {
-    "build": "pip install -e .",
-    "github": null
+    "build": "pip install -e ."
   },
   "description": "Builtin DM test node for fixed-duration microphone capture.",
   "executable": ".venv/bin/dm-test-audio-capture",
-  "author": "Dora Manager",
-  "category": "Builtin/Test",
-  "inputs": [],
-  "outputs": [
-    "audio",
-    "audio_stream",
-    "meta"
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
   ],
-  "avatar": null,
+  "display": {
+    "category": "Builtin/Test",
+    "tags": [
+      "builtin",
+      "test"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    "media"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "audio",
+      "name": "audio",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "audio_stream",
+      "name": "audio_stream",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "meta",
+      "name": "meta",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_test_audio_capture/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
   "config_schema": {
     "mode": {
       "env": "MODE",
-      "default": "once"
+      "default": "once",
+      "x-widget": {
+        "type": "select",
+        "options": [
+          "once",
+          "continuous"
+        ]
+      }
     },
     "duration_sec": {
       "env": "DURATION_SEC",
-      "default": 3
+      "default": 3,
+      "x-widget": {
+        "type": "slider",
+        "min": 1,
+        "max": 60,
+        "step": 1
+      }
     },
     "sample_rate": {
       "env": "SAMPLE_RATE",
-      "default": 16000
+      "default": 16000,
+      "x-widget": {
+        "type": "select",
+        "options": [
+          8000,
+          16000,
+          32000,
+          44100,
+          48000
+        ]
+      }
     },
     "channels": {
       "env": "CHANNELS",
-      "default": 1
+      "default": 1,
+      "x-widget": {
+        "type": "radio",
+        "options": [
+          1,
+          2
+        ]
+      }
+    },
+    "output_dir": {
+      "description": "Where to save captured audio",
+      "default": "/tmp/dora-audio",
+      "x-widget": {
+        "type": "directory"
+      }
+    },
+    "reference_audio": {
+      "description": "Optional reference audio for noise cancellation",
+      "default": "",
+      "x-widget": {
+        "type": "file"
+      }
+    },
+    "enable_vad": {
+      "description": "Voice Activity Detection",
+      "default": false,
+      "x-widget": {
+        "type": "switch"
+      }
     }
-  },
-  "dm_version": "1",
-  "path": ""
+  }
 }

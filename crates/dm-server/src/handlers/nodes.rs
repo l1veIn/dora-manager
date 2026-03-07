@@ -162,3 +162,40 @@ pub async fn save_node_config(
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }
+
+/// GET /api/nodes/:id/files
+pub async fn get_node_files(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match dm_core::node::git_like_file_tree(&state.home, &id) {
+        Ok(files) => Json(files).into_response(),
+        Err(e) => node_file_err(e, &id).into_response(),
+    }
+}
+
+/// GET /api/nodes/:id/files/{*path}
+pub async fn get_node_file_content(
+    State(state): State<AppState>,
+    Path((id, file_path)): Path<(String, String)>,
+) -> impl IntoResponse {
+    match dm_core::node::read_node_file(&state.home, &id, &file_path) {
+        Ok(content) => content.into_response(),
+        Err(e) => node_file_err(e, &id).into_response(),
+    }
+}
+
+fn node_file_err(e: anyhow::Error, id: &str) -> (StatusCode, String) {
+    let message = e.to_string();
+    if message.contains("Invalid node file path") {
+        return (StatusCode::BAD_REQUEST, message);
+    }
+    if message.contains("does not exist")
+        || message.contains("No such file or directory")
+        || message == format!("Node '{}' not found", id)
+    {
+        return (StatusCode::NOT_FOUND, message);
+    }
+
+    (StatusCode::INTERNAL_SERVER_ERROR, message)
+}

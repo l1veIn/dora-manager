@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
@@ -185,6 +185,28 @@ pub fn get_node_config(home: &Path, id: &str) -> Result<serde_json::Value> {
         .with_context(|| format!("Failed to parse config.json for node '{}'", id))
 }
 
+pub fn git_like_file_tree(home: &Path, id: &str) -> Result<Vec<String>> {
+    let node_path = resolve_node_dir(home, id)
+        .ok_or_else(|| anyhow::anyhow!("Node '{}' does not exist", id))?;
+
+    let mut files = Vec::new();
+    collect_node_files(&node_path, &node_path, &mut files)?;
+    files.sort();
+    Ok(files)
+}
+
+pub fn read_node_file(home: &Path, id: &str, file_path: &str) -> Result<String> {
+    let node_path = resolve_node_dir(home, id)
+        .ok_or_else(|| anyhow::anyhow!("Node '{}' does not exist", id))?;
+    let root = node_path
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve node root for '{}'", id))?;
+    let candidate = resolve_safe_node_file(&root, file_path)?;
+
+    std::fs::read_to_string(&candidate)
+        .with_context(|| format!("Failed to read node file '{}'", candidate.display()))
+}
+
 pub fn save_node_config(home: &Path, id: &str, config: &serde_json::Value) -> Result<()> {
     let node_path = resolve_node_dir(home, id)
         .ok_or_else(|| anyhow::anyhow!("Node '{}' does not exist", id))?;
@@ -222,4 +244,81 @@ pub fn node_status(home: &Path, id: &str) -> Result<Option<Node>> {
 
     op.emit_result(&result);
     result
+}
+
+fn collect_node_files(root: &Path, current: &Path, files: &mut Vec<String>) -> Result<()> {
+    for entry in std::fs::read_dir(current)
+        .with_context(|| format!("Failed to read directory: {}", current.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+
+        if should_skip_node_path(&name) || file_type.is_symlink() {
+            continue;
+        }
+
+        if file_type.is_dir() {
+            collect_node_files(root, &path, files)?;
+            continue;
+        }
+
+        if file_type.is_file() {
+            let relative = path
+                .strip_prefix(root)
+                .with_context(|| format!("Failed to relativize path '{}'", path.display()))?;
+            files.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+
+    Ok(())
+}
+
+fn resolve_safe_node_file(root: &Path, file_path: &str) -> Result<PathBuf> {
+    let requested = Path::new(file_path);
+    if file_path.is_empty() || requested.is_absolute() {
+        bail!("Invalid node file path '{}'", file_path);
+    }
+
+    for component in requested.components() {
+        match component {
+            Component::Normal(_) => {}
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                bail!("Invalid node file path '{}'", file_path);
+            }
+        }
+    }
+
+    let candidate = root.join(requested);
+    let resolved = candidate
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve node file '{}'", file_path))?;
+
+    if !resolved.starts_with(root) {
+        bail!("Invalid node file path '{}'", file_path);
+    }
+
+    Ok(resolved)
+}
+
+fn should_skip_node_path(name: &str) -> bool {
+    matches!(
+        name,
+        ".git"
+            | ".hg"
+            | ".svn"
+            | ".next"
+            | ".nuxt"
+            | ".svelte-kit"
+            | ".venv"
+            | "venv"
+            | "__pycache__"
+            | "node_modules"
+            | "dist"
+            | "build"
+            | "target"
+    )
 }

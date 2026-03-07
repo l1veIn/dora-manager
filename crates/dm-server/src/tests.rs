@@ -169,13 +169,16 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         },
         description: String::new(),
         executable: String::new(),
-        author: None,
-        category: String::new(),
-        inputs: Vec::new(),
-        outputs: Vec::new(),
-        avatar: None,
+        repository: None,
+        maintainers: Vec::new(),
+        license: None,
+        display: dm_core::node::NodeDisplay::default(),
+        capabilities: Vec::new(),
+        runtime: dm_core::node::NodeRuntime::default(),
+        ports: Vec::new(),
+        files: dm_core::node::NodeFiles::default(),
+        examples: Vec::new(),
         config_schema: None,
-        dm_version: "1".to_string(),
         path: Default::default(),
     };
     std::fs::write(
@@ -341,6 +344,8 @@ async fn dataflow_crud_handlers_roundtrip() {
     let dataflows: Vec<serde_json::Value> = serde_json::from_str(&list_body).unwrap();
     assert_eq!(dataflows.len(), 1);
     assert_eq!(dataflows[0]["name"], "demo-flow");
+    assert_eq!(dataflows[0]["meta"]["name"], "demo-flow");
+    assert_eq!(dataflows[0]["executable"]["can_run"], true);
 
     let get_resp = handlers::get_dataflow(State(state.clone()), Path("demo-flow".to_string()))
         .await
@@ -349,6 +354,8 @@ async fn dataflow_crud_handlers_roundtrip() {
     let get_body = body_text(get_resp).await;
     let get_json: serde_json::Value = serde_json::from_str(&get_body).unwrap();
     assert_eq!(get_json["yaml"], "nodes: []");
+    assert_eq!(get_json["meta"]["name"], "demo-flow");
+    assert_eq!(get_json["executable"]["can_run"], true);
 
     let delete_resp =
         handlers::delete_dataflow(State(state.clone()), Path("demo-flow".to_string()))
@@ -360,6 +367,232 @@ async fn dataflow_crud_handlers_roundtrip() {
         .await
         .into_response();
     assert_eq!(missing_resp.status(), axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn dataflow_meta_and_config_handlers_roundtrip() {
+    let (_tmp, state) = test_state();
+
+    let _ = handlers::save_dataflow(
+        State(state.clone()),
+        Path("demo-flow".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []\n"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    let meta_resp = handlers::save_dataflow_meta(
+        State(state.clone()),
+        Path("demo-flow".to_string()),
+        Json(dm_core::dataflow::FlowMeta {
+            id: "demo-flow".to_string(),
+            name: "Demo Flow".to_string(),
+            description: "Demo".to_string(),
+            r#type: "chat".to_string(),
+            tags: vec!["llm".to_string()],
+            author: Some("yangchen".to_string()),
+            cover: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }),
+    )
+    .await
+    .into_response();
+    assert_eq!(meta_resp.status(), axum::http::StatusCode::OK);
+
+    let get_meta_resp =
+        handlers::get_dataflow_meta(State(state.clone()), Path("demo-flow".to_string()))
+            .await
+            .into_response();
+    assert_eq!(get_meta_resp.status(), axum::http::StatusCode::OK);
+    let meta_body = body_text(get_meta_resp).await;
+    let meta_json: serde_json::Value = serde_json::from_str(&meta_body).unwrap();
+    assert_eq!(meta_json["name"], "Demo Flow");
+    assert_eq!(meta_json["type"], "chat");
+
+    let config_resp = handlers::save_dataflow_config(
+        State(state.clone()),
+        Path("demo-flow".to_string()),
+        Json(serde_json::json!({
+            "dora-qwen": {
+                "model": "qwen-max"
+            }
+        })),
+    )
+    .await
+    .into_response();
+    assert_eq!(config_resp.status(), axum::http::StatusCode::OK);
+
+    let get_config_resp =
+        handlers::get_dataflow_config(State(state), Path("demo-flow".to_string()))
+            .await
+            .into_response();
+    assert_eq!(get_config_resp.status(), axum::http::StatusCode::OK);
+    let config_body = body_text(get_config_resp).await;
+    let config_json: serde_json::Value = serde_json::from_str(&config_body).unwrap();
+    assert_eq!(config_json["config"]["dora-qwen"]["model"], "qwen-max");
+    assert_eq!(config_json["executable"]["can_run"], true);
+}
+
+#[tokio::test]
+async fn dataflow_history_handlers_roundtrip() {
+    let (_tmp, state) = test_state();
+
+    let _ = handlers::save_dataflow(
+        State(state.clone()),
+        Path("demo-flow".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes: []\n"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    let _ = handlers::save_dataflow(
+        State(state.clone()),
+        Path("demo-flow".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes:\n  - id: a\n"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    let history_resp =
+        handlers::list_dataflow_history(State(state.clone()), Path("demo-flow".to_string()))
+            .await
+            .into_response();
+    assert_eq!(history_resp.status(), axum::http::StatusCode::OK);
+    let history_body = body_text(history_resp).await;
+    let history: Vec<serde_json::Value> = serde_json::from_str(&history_body).unwrap();
+    assert_eq!(history.len(), 1);
+    let version = history[0]["version"].as_str().unwrap().to_string();
+
+    let version_resp = handlers::get_dataflow_history_version(
+        State(state.clone()),
+        Path(("demo-flow".to_string(), version.clone())),
+    )
+    .await
+    .into_response();
+    assert_eq!(version_resp.status(), axum::http::StatusCode::OK);
+    let version_body = body_text(version_resp).await;
+    let version_json: serde_json::Value = serde_json::from_str(&version_body).unwrap();
+    assert_eq!(version_json["yaml"], "nodes: []\n");
+
+    let restore_resp = handlers::restore_dataflow_history_version(
+        State(state.clone()),
+        Path(("demo-flow".to_string(), version)),
+    )
+    .await
+    .into_response();
+    assert_eq!(restore_resp.status(), axum::http::StatusCode::OK);
+
+    let get_resp = handlers::get_dataflow(State(state), Path("demo-flow".to_string()))
+        .await
+        .into_response();
+    let get_body = body_text(get_resp).await;
+    let get_json: serde_json::Value = serde_json::from_str(&get_body).unwrap();
+    assert_eq!(get_json["yaml"], "nodes: []\n");
+}
+
+#[tokio::test]
+async fn import_dataflows_handler_imports_local_yaml() {
+    let (_tmp, state) = test_state();
+    let source = state.home.join("external.yml");
+    std::fs::write(&source, "nodes: []\n").unwrap();
+
+    let resp = handlers::import_dataflows(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "sources": [source.display().to_string()]
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["imported"][0]["name"], "external");
+    assert_eq!(json["imported"][0]["executable"]["can_run"], true);
+    assert_eq!(
+        std::fs::read_to_string(state.home.join("dataflows/external/dataflow.yml")).unwrap(),
+        "nodes: []\n"
+    );
+}
+
+#[tokio::test]
+async fn get_dataflow_config_schema_returns_aggregated_fields() {
+    let (_tmp, state) = test_state();
+    setup_installed_node(&state.home, "cfg-node");
+
+    let node_dir = dm_core::node::node_dir(&state.home, "cfg-node");
+    let mut meta: dm_core::node::Node = serde_json::from_str(
+        &std::fs::read_to_string(dm_core::node::dm_json_path(&state.home, "cfg-node")).unwrap(),
+    )
+    .unwrap();
+    meta.config_schema = Some(serde_json::json!({
+        "mode": {
+            "default": "default-mode",
+            "x-widget": { "type": "select", "options": ["default-mode", "flow-mode"] }
+        }
+    }));
+    std::fs::write(
+        node_dir.join("dm.json"),
+        serde_json::to_string_pretty(&meta).unwrap(),
+    )
+    .unwrap();
+
+    let _ = handlers::save_dataflow(
+        State(state.clone()),
+        Path("cfg-flow".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "yaml": "nodes:\n  - id: worker\n    node: cfg-node\n"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    let _ = handlers::save_dataflow_config(
+        State(state.clone()),
+        Path("cfg-flow".to_string()),
+        Json(serde_json::json!({
+            "worker": { "mode": "flow-mode" }
+        })),
+    )
+    .await
+    .into_response();
+
+    let resp = handlers::get_dataflow_config_schema(
+        State(state),
+        Path("cfg-flow".to_string()),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["nodes"][0]["yaml_id"], "worker");
+    assert_eq!(json["nodes"][0]["fields"]["mode"]["effective_source"], "flow");
+    assert_eq!(json["nodes"][0]["fields"]["mode"]["effective_value"], "flow-mode");
+    assert_eq!(json["executable"]["can_run"], true);
 }
 
 #[tokio::test]
@@ -751,7 +984,7 @@ async fn start_dataflow_returns_error_for_invalid_yaml_when_runtime_is_up() {
 
     assert_eq!(resp.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
     let body = body_text(resp).await;
-    assert!(body.contains("Failed to transpile"));
+    assert!(body.contains("is not executable: invalid yaml"));
 }
 
 #[tokio::test]

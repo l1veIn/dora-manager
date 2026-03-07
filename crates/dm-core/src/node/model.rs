@@ -9,6 +9,98 @@ pub struct NodeSource {
     pub github: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeRepository {
+    #[serde(default)]
+    pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subdir: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeMaintainer {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeDisplay {
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avatar: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NodePortDirection {
+    #[default]
+    Input,
+    Output,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodePort {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub direction: NodePortDirection,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_type: Option<String>,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default = "default_true")]
+    pub required: bool,
+    #[serde(default)]
+    pub multiple: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeRuntime {
+    #[serde(default)]
+    pub language: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub python: Option<String>,
+    #[serde(default)]
+    pub platforms: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeFiles {
+    #[serde(default = "default_readme_path")]
+    pub readme: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<String>,
+    #[serde(default)]
+    pub tests: Vec<String>,
+    #[serde(default)]
+    pub examples: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeExample {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub description: String,
+}
+
 /// A managed dora node, persisted as `dm.json` in `~/.dm/nodes/{id}/`.
 ///
 /// This is the single source of truth for node metadata:
@@ -33,35 +125,48 @@ pub struct Node {
     /// Relative path to the node executable (empty if not yet installed)
     #[serde(default)]
     pub executable: String,
-    /// Author name
+    /// Canonical repository metadata for the node source tree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository: Option<NodeRepository>,
+    /// Node maintainers shown on the detail page.
     #[serde(default)]
-    pub author: Option<String>,
-    /// Category tag (e.g., "Visualization", "Peripheral")
+    pub maintainers: Vec<NodeMaintainer>,
+    /// SPDX or human-readable license identifier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license: Option<String>,
+    /// Presentation metadata for list/detail pages.
     #[serde(default)]
-    pub category: String,
-    /// Declared input ports
+    pub display: NodeDisplay,
+    /// Declared runtime capabilities such as `panel` or `audio`.
     #[serde(default)]
-    pub inputs: Vec<String>,
-    /// Declared output ports
+    pub capabilities: Vec<String>,
+    /// Runtime requirements and language metadata.
     #[serde(default)]
-    pub outputs: Vec<String>,
-    /// Avatar / icon URL
+    pub runtime: NodeRuntime,
+    /// Rich port metadata used by the node detail page and graph tooling.
     #[serde(default)]
-    pub avatar: Option<String>,
+    pub ports: Vec<NodePort>,
+    /// Well-known files inside the node directory.
+    #[serde(default)]
+    pub files: NodeFiles,
+    /// Example entry points or demo flows associated with the node.
+    #[serde(default)]
+    pub examples: Vec<NodeExample>,
     /// Configuration schema for node-level settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_schema: Option<serde_json::Value>,
-    /// dm.json schema version for future migration.
-    #[serde(default = "default_dm_version")]
-    pub dm_version: String,
     /// Runtime-computed absolute path to the node directory.
     /// Not stored in dm.json — populated when loading from disk.
     #[serde(skip_deserializing, default)]
     pub path: PathBuf,
 }
 
-fn default_dm_version() -> String {
-    "1".to_string()
+fn default_true() -> bool {
+    true
+}
+
+fn default_readme_path() -> String {
+    "README.md".to_string()
 }
 
 impl Node {
@@ -84,13 +189,16 @@ impl Node {
             },
             description: String::new(),
             executable: String::new(),
-            author: None,
-            category: String::new(),
-            inputs: Vec::new(),
-            outputs: Vec::new(),
-            avatar: None,
+            repository: None,
+            maintainers: Vec::new(),
+            license: None,
+            display: NodeDisplay::default(),
+            capabilities: Vec::new(),
+            runtime: NodeRuntime::default(),
+            ports: Vec::new(),
+            files: NodeFiles::default(),
+            examples: Vec::new(),
             config_schema: None,
-            dm_version: "1".to_string(),
             path,
         }
     }

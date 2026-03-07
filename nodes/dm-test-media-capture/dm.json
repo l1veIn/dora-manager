@@ -4,22 +4,72 @@
   "version": "0.1.0",
   "installed_at": "1772779524",
   "source": {
-    "build": "pip install -e .",
-    "github": null
+    "build": "pip install -e ."
   },
   "description": "Builtin DM test node for screenshot capture.",
   "executable": ".venv/bin/dm-test-media-capture",
-  "author": "Dora Manager",
-  "category": "Builtin/Test",
-  "inputs": [
-    "trigger"
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
   ],
-  "outputs": [
-    "image",
-    "video",
-    "meta"
+  "display": {
+    "category": "Builtin/Test",
+    "tags": [
+      "builtin",
+      "test"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    "media"
   ],
-  "avatar": null,
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "trigger",
+      "name": "trigger",
+      "direction": "input",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "image",
+      "name": "image",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "video",
+      "name": "video",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "meta",
+      "name": "meta",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_test_media_capture/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
   "config_schema": {
     "mode": {
       "env": "MODE",
@@ -37,7 +87,5 @@
       "env": "OUTPUT_FORMAT",
       "default": "png"
     }
-  },
-  "dm_version": "1",
-  "path": ""
+  }
 }

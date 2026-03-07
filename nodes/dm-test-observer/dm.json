@@ -4,30 +4,92 @@
   "version": "0.1.0",
   "installed_at": "1772783060",
   "source": {
-    "build": "pip install -e .",
-    "github": null
+    "build": "pip install -e ."
   },
   "description": "Builtin DM test node for aggregating multimodal test events.",
   "executable": ".venv/bin/dm-test-observer",
-  "author": "Dora Manager",
-  "category": "Builtin/Test",
-  "inputs": [
-    "audio_meta",
-    "screen_meta",
-    "timestamp_start",
-    "timestamp_end"
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
   ],
-  "outputs": [
-    "summary_text",
-    "summary_json"
+  "display": {
+    "category": "Builtin/Test",
+    "tags": [
+      "builtin",
+      "test"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    "media"
   ],
-  "avatar": null,
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "audio_meta",
+      "name": "audio_meta",
+      "direction": "input",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "screen_meta",
+      "name": "screen_meta",
+      "direction": "input",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "timestamp_start",
+      "name": "timestamp_start",
+      "direction": "input",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "timestamp_end",
+      "name": "timestamp_end",
+      "direction": "input",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "summary_text",
+      "name": "summary_text",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "summary_json",
+      "name": "summary_json",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_test_observer/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
   "config_schema": {
     "max_events": {
       "env": "MAX_EVENTS",
       "default": 1000
     }
-  },
-  "dm_version": "1",
-  "path": ""
+  }
 }

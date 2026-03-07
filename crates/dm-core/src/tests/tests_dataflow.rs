@@ -3,7 +3,7 @@ use std::fs;
 use tempfile::tempdir;
 
 use crate::dataflow::transpile_graph;
-use crate::node::{node_dir, Node, NodeSource};
+use crate::node::{node_dir, Node, NodeDisplay, NodeFiles, NodeRuntime, NodeSource};
 
 fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
     let dir = node_dir(home, id);
@@ -25,13 +25,16 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
         },
         description: String::new(),
         executable: executable.to_string(),
-        author: None,
-        category: String::new(),
-        inputs: Vec::new(),
-        outputs: Vec::new(),
-        avatar: None,
+        repository: None,
+        maintainers: Vec::new(),
+        license: None,
+        display: NodeDisplay::default(),
+        capabilities: Vec::new(),
+        runtime: NodeRuntime::default(),
+        ports: Vec::new(),
+        files: NodeFiles::default(),
+        examples: Vec::new(),
         config_schema: None,
-        dm_version: "1".to_string(),
         path: Default::default(),
     };
 
@@ -142,12 +145,18 @@ fn test_dataflow_crud() {
     // 3. List should now contain 1 item
     let list2 = crate::dataflow::list(home).unwrap();
     assert_eq!(list2.len(), 1);
-    assert_eq!(list2[0].name, "my_flow");
-    assert_eq!(list2[0].filename, "my_flow.yml");
+    assert_eq!(list2[0].file.name, "my_flow");
+    assert_eq!(list2[0].file.filename, "my_flow/dataflow.yml");
+    assert_eq!(list2[0].meta.name, "my_flow");
 
     // 4. Get the content
-    let stored_yaml = crate::dataflow::get(home, "my_flow").unwrap();
-    assert_eq!(stored_yaml, yaml_content);
+    let project = crate::dataflow::get(home, "my_flow").unwrap();
+    assert_eq!(project.yaml, yaml_content);
+    assert_eq!(project.name, "my_flow");
+
+    assert!(home.join("dataflows/my_flow/dataflow.yml").exists());
+    assert!(home.join("dataflows/my_flow/flow.json").exists());
+    assert!(home.join("dataflows/my_flow/config.json").exists());
 
     // 5. Delete it
     crate::dataflow::delete(home, "my_flow").unwrap();
@@ -161,4 +170,182 @@ fn test_dataflow_crud() {
         .unwrap_err()
         .to_string();
     assert!(err.contains("Failed to read dataflow"));
+}
+
+#[test]
+fn test_dataflow_save_creates_history_snapshot() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+
+    crate::dataflow::save(home, "history_flow", "nodes: []\n").unwrap();
+    crate::dataflow::save(home, "history_flow", "nodes:\n  - id: a\n").unwrap();
+
+    let history_dir = home.join("dataflows/history_flow/.history");
+    let entries: Vec<_> = std::fs::read_dir(history_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(entries.len(), 1);
+    let snapshot = std::fs::read_to_string(&entries[0]).unwrap();
+    assert_eq!(snapshot, "nodes: []\n");
+}
+
+#[test]
+fn test_migrate_legacy_dataflow_layout() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    std::fs::create_dir_all(home.join("dataflows")).unwrap();
+    std::fs::write(home.join("dataflows/demo.yml"), "nodes: []\n").unwrap();
+
+    let migrated = crate::dataflow::migrate_legacy_layout(home).unwrap();
+    assert_eq!(migrated, 1);
+    assert!(!home.join("dataflows/demo.yml").exists());
+    assert_eq!(
+        std::fs::read_to_string(home.join("dataflows/demo/dataflow.yml")).unwrap(),
+        "nodes: []\n"
+    );
+    assert!(home.join("dataflows/demo/flow.json").exists());
+    assert!(home.join("dataflows/demo/config.json").exists());
+}
+
+#[test]
+fn test_import_dataflow_from_local_yaml_file() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    let source = home.join("source.yml");
+    std::fs::write(&source, "nodes: []\n").unwrap();
+
+    crate::dataflow::import_local(home, "imported-flow", &source).unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(home.join("dataflows/imported-flow/dataflow.yml")).unwrap(),
+        "nodes: []\n"
+    );
+    assert!(home.join("dataflows/imported-flow/flow.json").exists());
+    assert!(home.join("dataflows/imported-flow/config.json").exists());
+}
+
+#[test]
+fn test_import_dataflow_from_local_directory() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    let source_dir = home.join("source-flow");
+    std::fs::create_dir_all(&source_dir).unwrap();
+    std::fs::write(source_dir.join("dataflow.yml"), "nodes:\n  - id: a\n").unwrap();
+    std::fs::write(source_dir.join("config.json"), "{\n  \"a\": 1\n}\n").unwrap();
+
+    crate::dataflow::import_local(home, "copied-flow", &source_dir).unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(home.join("dataflows/copied-flow/dataflow.yml")).unwrap(),
+        "nodes:\n  - id: a\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(home.join("dataflows/copied-flow/config.json")).unwrap(),
+        "{\n  \"a\": 1\n}\n"
+    );
+}
+
+#[test]
+fn test_infer_import_name_from_github_blob_url() {
+    let name = crate::dataflow::infer_import_name(
+        "https://github.com/l1veIn/dora-manager/blob/master/tests/dataflows/system-test-full.yml",
+    );
+    assert_eq!(name, "system-test-full");
+}
+
+#[test]
+fn test_inspect_config_aggregates_schema_and_effective_values() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+
+    let node_dir = crate::node::node_dir(home, "cfg-node");
+    std::fs::create_dir_all(&node_dir).unwrap();
+    let meta = crate::node::Node {
+        id: "cfg-node".to_string(),
+        name: "cfg-node".to_string(),
+        version: "1.0.0".to_string(),
+        installed_at: "123".to_string(),
+        source: crate::node::NodeSource {
+            build: "pip install -e .".to_string(),
+            github: None,
+        },
+        description: String::new(),
+        executable: String::new(),
+        repository: None,
+        maintainers: Vec::new(),
+        license: None,
+        display: crate::node::NodeDisplay::default(),
+        capabilities: Vec::new(),
+        runtime: crate::node::NodeRuntime::default(),
+        ports: Vec::new(),
+        files: crate::node::NodeFiles::default(),
+        examples: Vec::new(),
+        config_schema: Some(serde_json::json!({
+            "mode": {
+                "default": "default-mode",
+                "x-widget": {
+                    "type": "select",
+                    "options": ["default-mode", "node-mode", "flow-mode", "inline-mode"]
+                }
+            },
+            "threshold": {
+                "default": 0.2
+            }
+        })),
+        path: Default::default(),
+    };
+    std::fs::write(
+        node_dir.join("dm.json"),
+        serde_json::to_string_pretty(&meta).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        node_dir.join("config.json"),
+        serde_json::json!({
+            "mode": "node-mode",
+            "threshold": 0.5
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    crate::dataflow::save(
+        home,
+        "cfg-flow",
+        r#"
+nodes:
+  - id: first
+    node: cfg-node
+    config:
+      mode: inline-mode
+  - id: second
+    node: cfg-node
+"#,
+    )
+    .unwrap();
+    crate::dataflow::save_flow_config(
+        home,
+        "cfg-flow",
+        &serde_json::json!({
+            "second": {
+                "mode": "flow-mode"
+            }
+        }),
+    )
+    .unwrap();
+
+    let doc = crate::dataflow::inspect_config(home, "cfg-flow").unwrap();
+    assert_eq!(doc.nodes.len(), 2);
+    let first = &doc.nodes[0];
+    assert_eq!(first.yaml_id, "first");
+    assert_eq!(first.fields["mode"].effective_source, "inline");
+    assert_eq!(first.fields["mode"].effective_value, Some(serde_json::json!("inline-mode")));
+    assert_eq!(first.fields["threshold"].effective_source, "node");
+
+    let second = &doc.nodes[1];
+    assert_eq!(second.yaml_id, "second");
+    assert_eq!(second.fields["mode"].effective_source, "flow");
+    assert_eq!(second.fields["mode"].effective_value, Some(serde_json::json!("flow-mode")));
+    assert_eq!(second.fields["threshold"].effective_value, Some(serde_json::json!(0.5)));
 }

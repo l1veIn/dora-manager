@@ -51,13 +51,46 @@ async fn main() {
         .route("/api/nodes/import", post(handlers::import_node))
         .route("/api/nodes/{id}", get(handlers::node_status))
         .route("/api/nodes/{id}/readme", get(handlers::node_readme))
+        .route("/api/nodes/{id}/files", get(handlers::get_node_files))
+        .route(
+            "/api/nodes/{id}/files/{*path}",
+            get(handlers::get_node_file_content),
+        )
         .route("/api/nodes/{id}/config", get(handlers::get_node_config))
         .route("/api/nodes/{id}/config", post(handlers::save_node_config))
         .route("/api/nodes/uninstall", post(handlers::uninstall_node))
         // ─── Dataflow Management ───
         .route("/api/dataflows", get(handlers::list_dataflows))
+        .route("/api/dataflows/import", post(handlers::import_dataflows))
         .route("/api/dataflows/{name}", get(handlers::get_dataflow))
         .route("/api/dataflows/{name}", post(handlers::save_dataflow))
+        .route("/api/dataflows/{name}/inspect", get(handlers::inspect_dataflow))
+        .route("/api/dataflows/{name}/meta", get(handlers::get_dataflow_meta))
+        .route("/api/dataflows/{name}/meta", post(handlers::save_dataflow_meta))
+        .route(
+            "/api/dataflows/{name}/config",
+            get(handlers::get_dataflow_config),
+        )
+        .route(
+            "/api/dataflows/{name}/config-schema",
+            get(handlers::get_dataflow_config_schema),
+        )
+        .route(
+            "/api/dataflows/{name}/config",
+            post(handlers::save_dataflow_config),
+        )
+        .route(
+            "/api/dataflows/{name}/history",
+            get(handlers::list_dataflow_history),
+        )
+        .route(
+            "/api/dataflows/{name}/history/{version}",
+            get(handlers::get_dataflow_history_version),
+        )
+        .route(
+            "/api/dataflows/{name}/history/{version}/restore",
+            post(handlers::restore_dataflow_history_version),
+        )
         .route(
             "/api/dataflows/{name}/delete",
             post(handlers::delete_dataflow),

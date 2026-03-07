@@ -8,6 +8,8 @@
     import { get, getText } from "$lib/api";
     import CodeMirror from "svelte-codemirror-editor";
     import { yaml } from "@codemirror/lang-yaml";
+    import { mode } from "mode-watcher";
+    import { oneDark } from "@codemirror/theme-one-dark";
 
     let {
         run,
@@ -181,7 +183,21 @@
                     value={yamlContent}
                     lang={yaml()}
                     readonly={true}
-                    styles={{ "&": { height: "100%" } }}
+                    theme={mode && mode.current === "dark"
+                        ? oneDark
+                        : undefined}
+                    styles={{
+                        "&": {
+                            height: "100%",
+                            background: "transparent",
+                            color: "inherit",
+                        },
+                        ".cm-gutters": {
+                            background: "transparent",
+                            color: "inherit",
+                            borderRight: "1px solid var(--border)",
+                        },
+                    }}
                 />
             {/if}
         </div>
@@ -216,7 +232,21 @@
                     value={transpiledContent}
                     lang={yaml()}
                     readonly={true}
-                    styles={{ "&": { height: "100%" } }}
+                    theme={mode && mode.current === "dark"
+                        ? oneDark
+                        : undefined}
+                    styles={{
+                        "&": {
+                            height: "100%",
+                            background: "transparent",
+                            color: "inherit",
+                        },
+                        ".cm-gutters": {
+                            background: "transparent",
+                            color: "inherit",
+                            borderRight: "1px solid var(--border)",
+                        },
+                    }}
                 />
             {/if}
         </div>

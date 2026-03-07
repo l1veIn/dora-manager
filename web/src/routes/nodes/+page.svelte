@@ -9,7 +9,6 @@
     import { toast } from "svelte-sonner";
 
     import NodeCard from "./NodeCard.svelte";
-    import NodeDetails from "./NodeDetails.svelte";
     import CreateNodeDialog from "./CreateNodeDialog.svelte";
     import ImportNodeDialog from "./ImportNodeDialog.svelte";
 
@@ -22,10 +21,8 @@
         Record<string, "downloading" | "installing" | "uninstalling">
     >({});
 
-    // Dialog & Sheet state
     let isCreateDialogOpen = $state(false);
     let isImportDialogOpen = $state(false);
-    let isDetailsSheetOpen = $state(false);
     let isDeleteDialogOpen = $state(false);
     let nodeToDelete = $state<string | null>(null);
 
@@ -80,25 +77,12 @@
             await post("/nodes/uninstall", { id });
             toast.success(`${id} uninstalled`);
             await fetchInstalled();
-
-            // If the deleted node is currently open in details, close it if it was completely removed
-            if (selectedNode && selectedNode.id === id && isDetailsSheetOpen) {
-                // Determine if we should close the dialog or just refresh its state
-                // Since it's uninstalled, it might still exist in registry, but if we are on 'installed' tab we might want to close it.
-                // For safety, let's just close the details dialog upon deletion.
-                isDetailsSheetOpen = false;
-            }
         } catch (e: any) {
             toast.error(`Failed to uninstall ${id}: ${e.message}`);
         } finally {
             delete operations[id];
             nodeToDelete = null;
         }
-    }
-
-    function viewDetails(node: any) {
-        selectedNode = node;
-        isDetailsSheetOpen = true;
     }
 
     onMount(() => {
@@ -120,7 +104,7 @@
     let installedIds = $derived(new Set(installedNodes.map((n) => n.id)));
 </script>
 
-<div class="p-6 max-w-6xl mx-auto space-y-6 h-full flex flex-col">
+<div class="p-6 max-w-6xl mx-auto space-y-6">
     <div class="flex items-center justify-between">
         <h1 class="text-3xl font-bold tracking-tight">Nodes</h1>
         <div class="flex items-center gap-2">
@@ -138,7 +122,7 @@
         </div>
     </div>
 
-    <div class="flex-1 flex flex-col mt-4">
+    <div class="mt-8">
         <div class="flex items-center justify-between mb-4 gap-4">
             <h2 class="text-xl font-semibold">
                 Installed Nodes ({installedNodes.length})
@@ -157,7 +141,7 @@
             </div>
         </div>
 
-        <div class="flex-1 mt-0">
+        <div class="mt-4">
             {#if loadingInstalled}
                 <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {#each Array(3) as _}
@@ -186,7 +170,7 @@
                             {node}
                             operation={operations[node.id]}
                             onAction={handleAction}
-                            onViewDetails={() => viewDetails(node)}
+                            href={`/nodes/${node.id}`}
                         />
                     {/each}
                 </div>
@@ -204,16 +188,6 @@
 <ImportNodeDialog
     bind:open={isImportDialogOpen}
     onImported={() => fetchInstalled()}
-/>
-
-<NodeDetails
-    bind:open={isDetailsSheetOpen}
-    node={selectedNode}
-    operation={selectedNode ? operations[selectedNode.id] : null}
-    onAction={(action, id) => {
-        isDetailsSheetOpen = false;
-        handleAction(action, id);
-    }}
 />
 
 <AlertDialog.Root bind:open={isDeleteDialogOpen}>

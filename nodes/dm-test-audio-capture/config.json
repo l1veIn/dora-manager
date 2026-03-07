@@ -1,0 +1,9 @@
+{
+  "channels": 1,
+  "duration_sec": 3,
+  "enable_vad": true,
+  "mode": "once",
+  "output_dir": "/tmp/dora-audio",
+  "reference_audio": "",
+  "sample_rate": 16000
+}

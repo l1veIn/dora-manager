@@ -1,8 +1,9 @@
 //! Tests for the node module
 
 use crate::node::{
-    create_node, dm_json_path, get_node_config, get_node_readme, install_node, list_nodes,
-    node_dir, node_status, save_node_config, uninstall_node, Node, NodeSource,
+    create_node, dm_json_path, get_node_config, get_node_readme, git_like_file_tree, install_node,
+    list_nodes, node_dir, node_status, read_node_file, save_node_config, uninstall_node, Node,
+    NodeDisplay, NodeFiles, NodeRuntime, NodeSource,
 };
 use tempfile::tempdir;
 
@@ -67,13 +68,16 @@ fn test_node_struct() {
         },
         description: String::new(),
         executable: String::new(),
-        author: None,
-        category: String::new(),
-        inputs: Vec::new(),
-        outputs: Vec::new(),
-        avatar: None,
+        repository: None,
+        maintainers: Vec::new(),
+        license: None,
+        display: NodeDisplay::default(),
+        capabilities: Vec::new(),
+        runtime: NodeRuntime::default(),
+        ports: Vec::new(),
+        files: NodeFiles::default(),
+        examples: Vec::new(),
         config_schema: None,
-        dm_version: "1".to_string(),
         path: std::path::PathBuf::from("/test/path"),
     };
 
@@ -135,6 +139,7 @@ fn test_create_node_generates_scaffold() {
     let dm: Node =
         serde_json::from_str(&std::fs::read_to_string(node_path.join("dm.json")).unwrap()).unwrap();
     assert_eq!(dm.executable, "");
+    assert_eq!(dm.files.readme, "README.md");
     assert_eq!(dm.id, "my-processor");
 
     let pyproject = std::fs::read_to_string(node_path.join("pyproject.toml")).unwrap();
@@ -174,6 +179,51 @@ fn test_get_node_readme_returns_local_content() {
 }
 
 #[test]
+fn test_git_like_file_tree_lists_relative_files_and_skips_cache_dirs() {
+    let dir = tempdir().unwrap();
+    let home = dir.path();
+
+    create_node(home, "tree-node", "Tree").unwrap();
+    let node_path = node_dir(home, "tree-node");
+    std::fs::create_dir_all(node_path.join("nested")).unwrap();
+    std::fs::create_dir_all(node_path.join("__pycache__")).unwrap();
+    std::fs::create_dir_all(node_path.join("node_modules/pkg")).unwrap();
+    std::fs::create_dir_all(node_path.join("target/debug")).unwrap();
+    std::fs::write(node_path.join("nested/config.yaml"), "name: tree-node\n").unwrap();
+    std::fs::write(node_path.join("__pycache__/ignored.pyc"), "compiled").unwrap();
+    std::fs::write(node_path.join("node_modules/pkg/index.js"), "ignored").unwrap();
+    std::fs::write(node_path.join("target/debug/app"), "ignored").unwrap();
+
+    let files = git_like_file_tree(home, "tree-node").unwrap();
+    assert!(files.contains(&"README.md".to_string()));
+    assert!(files.contains(&"pyproject.toml".to_string()));
+    assert!(files.contains(&"nested/config.yaml".to_string()));
+    assert!(!files.iter().any(|path| path.contains("__pycache__")));
+    assert!(!files.iter().any(|path| path.contains("node_modules")));
+    assert!(!files.iter().any(|path| path.contains("target/")));
+}
+
+#[test]
+fn test_read_node_file_reads_text_content() {
+    let dir = tempdir().unwrap();
+    let home = dir.path();
+
+    create_node(home, "file-node", "Files").unwrap();
+    let content = read_node_file(home, "file-node", "pyproject.toml").unwrap();
+    assert!(content.contains("[project]"));
+}
+
+#[test]
+fn test_read_node_file_rejects_directory_traversal() {
+    let dir = tempdir().unwrap();
+    let home = dir.path();
+
+    create_node(home, "secure-node", "Secure").unwrap();
+    let err = read_node_file(home, "secure-node", "../outside.txt").unwrap_err();
+    assert!(err.to_string().contains("Invalid node file path"));
+}
+
+#[test]
 fn test_save_node_config_requires_existing_node() {
     let dir = tempdir().unwrap();
     let home = dir.path();
@@ -210,13 +260,16 @@ async fn test_install_node_errors_for_unsupported_build() {
         },
         description: String::new(),
         executable: String::new(),
-        author: None,
-        category: String::new(),
-        inputs: Vec::new(),
-        outputs: Vec::new(),
-        avatar: None,
+        repository: None,
+        maintainers: Vec::new(),
+        license: None,
+        display: NodeDisplay::default(),
+        capabilities: Vec::new(),
+        runtime: NodeRuntime::default(),
+        ports: Vec::new(),
+        files: NodeFiles::default(),
+        examples: Vec::new(),
         config_schema: None,
-        dm_version: "1".to_string(),
         path: Default::default(),
     };
     std::fs::write(

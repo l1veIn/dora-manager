@@ -96,6 +96,30 @@ pub async fn start_run_from_yaml_with_source_and_strategy(
     source: RunSource,
     strategy: StartConflictStrategy,
 ) -> Result<StartRunResult> {
+    let executable = crate::dataflow::inspect_yaml(home, yaml);
+    if !executable.summary.can_run {
+        if executable.summary.invalid_yaml {
+            bail!(
+                "Dataflow '{}' is not executable: invalid yaml{}",
+                dataflow_name,
+                executable
+                    .summary
+                    .error
+                    .as_deref()
+                    .map(|err| format!(": {}", err))
+                    .unwrap_or_default()
+            );
+        }
+        if !executable.summary.missing_nodes.is_empty() {
+            bail!(
+                "Dataflow '{}' is not executable: missing nodes: {}",
+                dataflow_name,
+                executable.summary.missing_nodes.join(", ")
+            );
+        }
+        bail!("Dataflow '{}' is not executable", dataflow_name);
+    }
+
     if let Some(active) = find_active_run_by_name(home, dataflow_name)? {
         match strategy {
             StartConflictStrategy::Fail => bail!(

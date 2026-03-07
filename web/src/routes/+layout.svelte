@@ -16,9 +16,13 @@
 
 <Sidebar.Provider>
 	<AppSidebar />
-	<main class="w-full h-screen overflow-hidden flex flex-col items-stretch">
+	<main
+		class="flex-1 w-full h-screen max-h-screen overflow-hidden flex flex-col min-w-0"
+	>
 		<AppHeader />
-		<div class="flex-1 overflow-auto bg-background text-foreground">
+		<div
+			class="flex-1 min-h-0 overflow-auto bg-background text-foreground relative"
+		>
 			{@render children()}
 		</div>
 	</main>
