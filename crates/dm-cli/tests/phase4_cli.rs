@@ -132,11 +132,11 @@ fn start_reports_parse_error_for_invalid_yaml() {
         ])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Failed to transpile"));
+        .stderr(predicate::str::contains("is not executable"));
 }
 
 #[test]
-fn start_requires_runtime_to_be_running() {
+fn start_fails_gracefully_when_no_dora_installed() {
     let home = tempdir().unwrap();
 
     dm_cmd()
@@ -148,7 +148,7 @@ fn start_requires_runtime_to_be_running() {
         ])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Dora runtime is not running"));
+        .stderr(predicate::str::contains("No active dora version"));
 }
 
 #[test]

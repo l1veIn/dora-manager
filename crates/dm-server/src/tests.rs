@@ -944,7 +944,7 @@ async fn query_events_returns_empty_list_when_no_match() {
 }
 
 #[tokio::test]
-async fn start_dataflow_returns_conflict_without_runtime() {
+async fn start_dataflow_returns_error_when_auto_up_fails() {
     let (_tmp, state) = test_state();
 
     let resp = handlers::start_dataflow(
@@ -959,10 +959,13 @@ async fn start_dataflow_returns_conflict_without_runtime() {
     .await
     .into_response();
 
-    // No dora binary configured, so runtime check fails → 409 Conflict
-    assert_eq!(resp.status(), axum::http::StatusCode::CONFLICT);
+    // No dora binary configured, so auto-up fails → 500
+    assert_eq!(
+        resp.status(),
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    );
     let body = body_text(resp).await;
-    assert!(body.contains("not running"));
+    assert!(body.contains("auto-start"));
 }
 
 #[tokio::test]

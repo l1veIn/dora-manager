@@ -16,15 +16,4 @@
       >{store.status?.active_version || "..."}</Badge
     >
   </div>
-  <div class="flex items-center gap-2">
-    <div
-      class="h-2 w-2 rounded-full {store.status?.runtime_running
-        ? 'bg-green-500'
-        : 'bg-slate-400'}"
-      title={store.status?.runtime_running ? "Dora Running" : "Dora Stopped"}
-    ></div>
-    <span class="text-sm text-muted-foreground mr-2 font-mono"
-      >{store.status?.runtime_running ? "Running" : "Stopped"}</span
-    >
-  </div>
 </header>

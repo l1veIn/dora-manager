@@ -1,17 +1,16 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
     import { get, post } from "$lib/api";
-    import { useStatus } from "$lib/stores/status.svelte";
+    import * as HoverCard from "$lib/components/ui/hover-card/index.js";
     import * as Card from "$lib/components/ui/card/index.js";
+    import { useStatus } from "$lib/stores/status.svelte";
     import { Button } from "$lib/components/ui/button/index.js";
     import { Badge } from "$lib/components/ui/badge/index.js";
     import {
         Play,
-        Square,
         RefreshCw,
         CheckCircle2,
         XCircle,
-        Loader2,
         Activity,
         History,
         ArrowRight,
@@ -21,34 +20,14 @@
     import { goto } from "$app/navigation";
 
     const store = useStatus();
-    let toggling = $state(false);
 
     let recentRuns = $state<any[]>([]);
     let activeRuns = $state<any[]>([]);
+    let frequentDataflows = $state<
+        { name: string; count: number; id: string }[]
+    >([]);
     let runsLoading = $state(false);
     let runsPolling: ReturnType<typeof setInterval> | null = null;
-
-    async function toggleStatus() {
-        if (!store.status || toggling) return;
-        toggling = true;
-        const isRunning = store.status.runtime_running;
-        const action = isRunning ? "Stop" : "Start";
-        try {
-            const res: any = isRunning
-                ? await post("/down")
-                : await post("/up");
-            if (res.success) {
-                toast.success(`${action} succeeded`);
-            } else {
-                toast.error(`${action} failed: ${res.message}`);
-            }
-        } catch (e: any) {
-            toast.error(`${action} failed: ${e.message}`);
-        } finally {
-            await store.refresh();
-            toggling = false;
-        }
-    }
 
     async function fetchRunsOverview() {
         if (runsLoading) return;
@@ -60,8 +39,38 @@
                 ? activeResult
                 : activeResult.runs || [];
 
-            const recentResult: any = await get(`/runs?limit=15`);
+            const recentResult: any = await get(`/runs?limit=100`);
             const runs = recentResult.runs || [];
+
+            // Calculate frequent dataflows
+            const counts: Record<
+                string,
+                { name: string; count: number; id: string }
+            > = {};
+            for (const r of runs) {
+                // The API /runs returns RunSummary where `name` is the dataflow id, and `id` is the Run ID.
+                const df_id = r.name;
+                if (df_id) {
+                    if (!counts[df_id]) {
+                        // make a friendly name from the dataflow id (e.g. my-flow from my-flow.yml)
+                        let friendly_name =
+                            df_id
+                                .split("/")
+                                .pop()
+                                ?.replace(".yml", "")
+                                ?.replace(".yaml", "") || df_id;
+                        counts[df_id] = {
+                            name: friendly_name,
+                            count: 0,
+                            id: df_id,
+                        };
+                    }
+                    counts[df_id].count++;
+                }
+            }
+            frequentDataflows = Object.values(counts)
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 4);
 
             recentRuns = runs
                 .filter((r: any) => r.status !== "running")
@@ -95,7 +104,7 @@
 </script>
 
 <div
-    class="p-6 max-w-7xl mx-auto space-y-8 flex flex-col min-h-[calc(100vh-4rem)]"
+    class="p-6 max-w-7xl mx-auto space-y-8 flex flex-col min-h-[calc(10vh-4rem)]"
 >
     <div class="flex items-center justify-between shrink-0">
         <div>
@@ -122,88 +131,44 @@
         </div>
     </div>
 
-    <!-- Runtime Health Summary -->
+    <!-- Frequent Dataflows -->
     <div class="shrink-0 space-y-4">
-        <h2 class="text-xl font-semibold flex items-center gap-2 border-b pb-2">
-            Runtime Health
-        </h2>
-
-        {#if store.loading && !store.status}
-            <div class="grid gap-4 md:grid-cols-4">
-                {#each Array(4) as _}
-                    <div
-                        class="h-32 rounded-lg bg-muted animate-pulse border"
-                    ></div>
-                {/each}
-            </div>
-        {:else}
-            <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <!-- Status Card -->
-                <Card.Root class="flex flex-col">
-                    <Card.Header
-                        class="pb-2 pt-4 px-4 flex flex-row items-center justify-between space-y-0 text-muted-foreground"
-                    >
-                        <span class="text-sm font-medium text-foreground"
-                            >Dora Status</span
-                        >
+        <div class="flex items-center justify-between border-b pb-2">
+            <h2 class="text-xl font-semibold flex items-center gap-2">
+                Frequent Dataflows
+            </h2>
+            {#if store.doctor}
+                <HoverCard.Root>
+                    <HoverCard.Trigger>
                         <div
-                            class="h-2.5 w-2.5 rounded-full {toggling
-                                ? 'bg-amber-400 animate-pulse'
-                                : store.status?.runtime_running
-                                  ? 'bg-green-500'
-                                  : 'bg-slate-400'}"
-                        ></div>
-                    </Card.Header>
-                    <Card.Content
-                        class="px-4 pb-4 flex-1 flex flex-col justify-between"
-                    >
-                        {#if store.status}
-                            <div class="flex flex-col gap-1 mb-4">
-                                <span class="text-xl font-bold">
-                                    {store.status.runtime_running
-                                        ? "Running"
-                                        : "Stopped"}
-                                </span>
-                            </div>
-                            <Button
-                                variant={store.status.runtime_running
-                                    ? "secondary"
-                                    : "default"}
-                                size="sm"
-                                class="w-full text-xs"
-                                onclick={toggleStatus}
-                                disabled={toggling}
+                            class="flex items-center gap-2 px-2 py-1 bg-muted/30 rounded-full text-xs border cursor-pointer hover:bg-muted/50 transition-colors"
+                        >
+                            <div
+                                class="size-2 rounded-full {store.doctor
+                                    .active_binary_ok &&
+                                store.doctor.python?.found &&
+                                store.doctor.uv?.found
+                                    ? 'bg-green-500'
+                                    : 'bg-amber-500'}"
+                            ></div>
+                            <span class="text-muted-foreground font-medium"
+                                >System {store.doctor.active_binary_ok &&
+                                store.doctor.python?.found &&
+                                store.doctor.uv?.found
+                                    ? "Healthy"
+                                    : "Needs Attention"}</span
                             >
-                                {#if toggling}
-                                    <Loader2
-                                        class="mr-1.5 size-3.5 animate-spin"
-                                    />
-                                    {store.status.runtime_running
-                                        ? "Stopping..."
-                                        : "Starting..."}
-                                {:else if store.status.runtime_running}
-                                    <Square class="mr-1.5 size-3.5" /> Stop Dora
-                                {:else}
-                                    <Play class="mr-1.5 size-3.5" /> Start Dora
-                                {/if}
-                            </Button>
-                        {:else}
-                            <p class="text-xs text-muted-foreground my-auto">
-                                Unable to fetch status.
+                        </div>
+                    </HoverCard.Trigger>
+                    <HoverCard.Content class="w-80">
+                        <div class="space-y-2">
+                            <h4 class="text-sm font-semibold">
+                                Environment Health
+                            </h4>
+                            <p class="text-xs text-muted-foreground mb-4">
+                                Diagnostic results for Dora Manager runtime.
                             </p>
-                        {/if}
-                    </Card.Content>
-                </Card.Root>
 
-                <!-- Health Check Card -->
-                <Card.Root class="lg:col-span-2 flex flex-col">
-                    <Card.Header class="pb-2 pt-4 px-4 text-sm font-medium"
-                        >Environment Health</Card.Header
-                    >
-                    <Card.Content
-                        class="px-4 pb-4 flex-1 flex flex-col justify-end"
-                    >
-                        {#if store.doctor}
                             <div
                                 class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs"
                             >
@@ -278,47 +243,48 @@
                                     >
                                 </div>
                             </div>
-                        {:else}
-                            <p class="text-xs text-muted-foreground">
-                                Unable to fetch health status.
-                            </p>
-                        {/if}
-                    </Card.Content>
-                </Card.Root>
-
-                <!-- Quick Stats / Versions -->
-                <Card.Root class="flex flex-col">
-                    <Card.Header
-                        class="pb-2 pt-4 px-4 text-sm font-medium flex justify-between flex-row items-center"
-                    >
-                        Quick Stats
-                    </Card.Header>
-                    <Card.Content
-                        class="px-4 pb-4 flex-1 flex flex-col justify-end"
-                    >
-                        <div class="space-y-3">
-                            <div
-                                class="flex items-center justify-between border-b pb-2"
-                            >
-                                <span class="text-xs text-muted-foreground"
-                                    >Installed Nodes</span
-                                >
-                                <span class="text-sm font-mono font-semibold"
-                                    >{store.nodes?.length || 0}</span
-                                >
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs text-muted-foreground"
-                                    >Dora Versions</span
-                                >
-                                <span class="text-sm font-mono"
-                                    >{store.doctor?.installed_versions
-                                        ?.length || 0}</span
-                                >
-                            </div>
                         </div>
-                    </Card.Content>
-                </Card.Root>
+                    </HoverCard.Content>
+                </HoverCard.Root>
+            {/if}
+        </div>
+
+        {#if frequentDataflows.length === 0 && !runsLoading}
+            <div
+                class="h-24 flex items-center justify-center border-2 border-dashed rounded-lg bg-muted/20 text-muted-foreground text-sm"
+            >
+                No history available to suggest frequent dataflows.
+            </div>
+        {:else}
+            <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {#each frequentDataflows as fd}
+                    <button
+                        type="button"
+                        class="text-left group flex items-start gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onclick={() => goto(`/dataflows/${fd.id}`)}
+                    >
+                        <div
+                            class="h-10 w-10 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform"
+                        >
+                            <Play class="size-5 ml-0.5" />
+                        </div>
+                        <div class="flex flex-col min-w-0 pr-2">
+                            <span class="font-medium truncate">{fd.name}</span>
+                            <span class="text-xs text-muted-foreground truncate"
+                                >Run {fd.count} time{fd.count === 1
+                                    ? ""
+                                    : "s"}</span
+                            >
+                        </div>
+                    </button>
+                {/each}
+                {#if runsLoading && frequentDataflows.length === 0}
+                    {#each Array(4) as _}
+                        <div
+                            class="h-20 rounded-xl bg-muted animate-pulse border"
+                        ></div>
+                    {/each}
+                {/if}
             </div>
         {/if}
     </div>

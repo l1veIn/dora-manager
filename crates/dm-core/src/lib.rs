@@ -14,6 +14,6 @@ pub mod util;
 mod tests;
 
 pub use api::{
-    doctor, down, is_runtime_running, passthrough, setup, status, uninstall, up, use_version,
-    versions,
+    auto_down_if_idle, doctor, down, ensure_runtime_up, is_runtime_running, passthrough, setup,
+    status, uninstall, up, use_version, versions,
 };

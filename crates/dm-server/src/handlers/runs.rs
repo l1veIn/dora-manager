@@ -128,11 +128,11 @@ pub async fn start_run(
     State(state): State<AppState>,
     Json(req): Json<StartRunRequest>,
 ) -> impl IntoResponse {
-    if !dm_core::is_runtime_running(&state.home, false).await {
+    if let Err(e) = dm_core::ensure_runtime_up(&state.home, false).await {
         return (
-            StatusCode::CONFLICT,
+            StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({
-                "error": "Dora runtime is not running. Call POST /api/up first."
+                "error": format!("Failed to auto-start dora runtime: {}", e)
             })),
         )
             .into_response();

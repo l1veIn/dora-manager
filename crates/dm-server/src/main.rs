@@ -139,7 +139,7 @@ async fn main() {
         )
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
-        .with_state(state)
+        .with_state(state.clone())
         // ─── Static Frontend Assets ───
         .fallback(axum::routing::get(handlers::serve_web));
 
@@ -149,6 +149,15 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("Failed to bind");
+
+    // Background idle monitor: auto-down dora when no active runs remain
+    let monitor_home = state.home.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            dm_core::auto_down_if_idle(&monitor_home, false).await;
+        }
+    });
 
     axum::serve(listener, app).await.expect("Server error");
 }

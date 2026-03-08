@@ -607,15 +607,11 @@ async fn main() -> Result<()> {
         },
 
         Commands::Start { file, force } => {
-            // Check if runtime is running first
+            // Auto-start runtime if not running
             if !dm_core::is_runtime_running(&home, cli.verbose).await {
-                eprintln!("{} Dora runtime is not running.", "✗".red());
-                eprintln!(
-                    "  Run {} first to start the coordinator and daemon.",
-                    "dm up".bold()
-                );
-                std::process::exit(1);
+                println!("{} Dora runtime not running, starting...", "→".cyan());
             }
+            dm_core::ensure_runtime_up(&home, cli.verbose).await?;
 
             let file_path = std::path::Path::new(&file);
             if !file_path.exists() {

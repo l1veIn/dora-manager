@@ -245,6 +245,31 @@ pub async fn is_runtime_running(home: &Path, verbose: bool) -> bool {
     }
 }
 
+/// Ensure dora runtime is running; auto-start if not.
+pub async fn ensure_runtime_up(home: &Path, verbose: bool) -> Result<()> {
+    if !is_runtime_running(home, verbose).await {
+        let result = up(home, verbose).await?;
+        if !result.success {
+            anyhow::bail!("Failed to start dora runtime: {}", result.message);
+        }
+    }
+    Ok(())
+}
+
+/// If no active runs remain, silently shut down the runtime.
+/// Refreshes run statuses first to detect naturally finished dataflows.
+pub async fn auto_down_if_idle(home: &Path, verbose: bool) {
+    if !is_runtime_running(home, verbose).await {
+        return;
+    }
+    let _ = crate::runs::refresh_run_statuses(home);
+    if let Ok(active) = crate::runs::list_active_runs(home) {
+        if active.is_empty() {
+            let _ = down(home, verbose).await;
+        }
+    }
+}
+
 /// Pass-through: execute any dora CLI command interactively
 pub async fn passthrough(home: &Path, args: &[String], verbose: bool) -> Result<i32> {
     let op = OperationEvent::new(home, EventSource::Core, "passthrough").attr("args", args);
