@@ -54,32 +54,8 @@
                     {run.id.substring(0, 8)}...
                 </div>
             </div>
-            <div class="flex flex-col items-end gap-1 shrink-0">
+            <div class="shrink-0">
                 <RunStatusBadge status={run.status} />
-                {#if run.metrics && (run.metrics.cpu != null || run.metrics.memory_mb != null)}
-                    <div class="flex items-center gap-1 mt-1">
-                        {#if run.metrics.cpu != null}
-                            <Badge
-                                variant="outline"
-                                class="font-mono text-[9px] px-1 py-0 bg-orange-50/50 border-orange-200 text-orange-600 dark:bg-orange-950/30 dark:border-orange-900/50 dark:text-orange-400 font-normal"
-                                title="CPU 占用"
-                            >
-                                {run.metrics.cpu.toFixed(1)}%
-                            </Badge>
-                        {/if}
-                        {#if run.metrics.memory_mb != null}
-                            <Badge
-                                variant="outline"
-                                class="font-mono text-[9px] px-1 py-0 bg-blue-50/50 border-blue-200 text-blue-600 dark:bg-blue-950/30 dark:border-blue-900/50 dark:text-blue-400 font-normal"
-                                title="Memory 占用"
-                            >
-                                {run.metrics.memory_mb >= 1024
-                                    ? `${(run.metrics.memory_mb / 1024).toFixed(1)}GB`
-                                    : `${Math.round(run.metrics.memory_mb)}MB`}
-                            </Badge>
-                        {/if}
-                    </div>
-                {/if}
             </div>
         </div>
     </Card.Header>
@@ -107,6 +83,45 @@
                     <span class="font-mono bg-muted px-1 rounded"
                         >{run.node_count}</span
                     > nodes
+                </div>
+            {/if}
+
+            {#if run.metrics && (run.metrics.cpu != null || run.metrics.memory_mb != null)}
+                <div
+                    class="flex items-center gap-3 border-l border-muted-foreground/20 pl-4 ml-auto md:ml-0"
+                >
+                    {#if run.metrics.cpu != null}
+                        <div
+                            class="flex items-center gap-1.5"
+                            title="CPU Usage"
+                        >
+                            <span
+                                class="text-[10px] font-semibold uppercase text-orange-600/70 dark:text-orange-400/70 tracking-wider"
+                                >CPU</span
+                            >
+                            <span
+                                class="font-mono text-orange-600 dark:text-orange-400"
+                                >{run.metrics.cpu.toFixed(1)}%</span
+                            >
+                        </div>
+                    {/if}
+                    {#if run.metrics.memory_mb != null}
+                        <div
+                            class="flex items-center gap-1.5"
+                            title="Memory Usage"
+                        >
+                            <span
+                                class="text-[10px] font-semibold uppercase text-blue-600/70 dark:text-blue-400/70 tracking-wider"
+                                >RAM</span
+                            >
+                            <span
+                                class="font-mono text-blue-600 dark:text-blue-400"
+                                >{run.metrics.memory_mb >= 1024
+                                    ? `${(run.metrics.memory_mb / 1024).toFixed(1)}GB`
+                                    : `${Math.round(run.metrics.memory_mb)}MB`}</span
+                            >
+                        </div>
+                    {/if}
                 </div>
             {/if}
             {#if run.has_panel}
