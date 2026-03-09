@@ -41,11 +41,7 @@
                 `/runs/${runId}/logs/${nodeId}/tail?offset=${currentOffset}`,
             );
             let newText = chunk.content ?? chunk.text ?? "";
-            let newOffset =
-                chunk.offset ??
-                chunk.new_size ??
-                chunk.byte_offset ??
-                currentOffset + newText.length;
+            let newOffset = chunk.next_offset ?? currentOffset + newText.length;
 
             if (newText && typeof newText === "string") {
                 logContent += newText;
