@@ -29,7 +29,9 @@ pub fn list_projects(home: &Path) -> Result<Vec<DataflowMeta>> {
         }
 
         let meta = entry.metadata()?;
-        let size = fs::metadata(&yaml_path).map(|value| value.len()).unwrap_or(0);
+        let size = fs::metadata(&yaml_path)
+            .map(|value| value.len())
+            .unwrap_or(0);
         let modified_at = match meta.modified() {
             Ok(t) => {
                 let dt: chrono::DateTime<chrono::Utc> = t.into();
@@ -350,8 +352,12 @@ fn write_history_snapshot(dir: &Path, content: &str) -> Result<()> {
     fs::create_dir_all(&history_dir)?;
     let version_id = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
     let history_path = history_dir.join(format!("{version_id}.yml"));
-    fs::write(&history_path, content)
-        .with_context(|| format!("Failed to write history snapshot '{}'", history_path.display()))
+    fs::write(&history_path, content).with_context(|| {
+        format!(
+            "Failed to write history snapshot '{}'",
+            history_path.display()
+        )
+    })
 }
 
 fn now_rfc3339() -> String {

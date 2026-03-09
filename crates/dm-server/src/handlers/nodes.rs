@@ -84,7 +84,7 @@ pub async fn import_node(
             // Relative paths resolve against dm home
             state.home.join(source_path)
         };
-        dm_core::node::import_local(&state.home, &inferred_id, &abs_path).map_err(|e| e.into())
+        dm_core::node::import_local(&state.home, &inferred_id, &abs_path)
     };
 
     match result {

@@ -18,8 +18,8 @@ pub use dataflow::{
 };
 pub use events::{count_events, export_events, ingest_event, query_events};
 pub use nodes::{
-    create_node, get_node_config, get_node_file_content, get_node_files, import_node,
-    install_node, list_nodes, node_readme, node_status, save_node_config, uninstall_node,
+    create_node, get_node_config, get_node_file_content, get_node_files, import_node, install_node,
+    list_nodes, node_readme, node_status, save_node_config, uninstall_node,
 };
 pub use panel::{query_assets, send_command, serve_asset_file};
 pub use runs::{

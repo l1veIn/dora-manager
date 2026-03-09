@@ -93,34 +93,13 @@ async fn clone_github_source(github_url: &str, dest_dir: &Path) -> Result<()> {
         .unwrap_or_default()
         .as_nanos();
     let temp_dir = std::env::temp_dir().join(format!("dm_clone_{nanos}"));
+    let clone_args = build_clone_args(&source, &temp_dir);
 
-    let status = Command::new("git")
-        .args([
-            "clone",
-            "--depth",
-            "1",
-            "--filter=blob:none",
-            "--sparse",
-            &source.repo_url,
-            &temp_dir.to_string_lossy(),
-        ])
-        .status()?;
+    let status = Command::new("git").args(&clone_args).status()?;
 
     if !status.success() {
         let _ = std::fs::remove_dir_all(&temp_dir);
         bail!("Failed to clone repository");
-    }
-
-    if let Some(git_ref) = source.git_ref.as_deref() {
-        let status = Command::new("git")
-            .current_dir(&temp_dir)
-            .args(["checkout", git_ref])
-            .status()?;
-
-        if !status.success() {
-            let _ = std::fs::remove_dir_all(&temp_dir);
-            bail!("Failed to checkout ref '{}'", git_ref);
-        }
     }
 
     if let Some(repo_path) = source.repo_path.as_deref() {
@@ -176,6 +155,26 @@ async fn clone_github_source(github_url: &str, dest_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+fn build_clone_args(source: &GitHubSource, clone_root: &Path) -> Vec<String> {
+    let mut args = vec![
+        "clone".to_string(),
+        "--depth".to_string(),
+        "1".to_string(),
+        "--filter=blob:none".to_string(),
+        "--sparse".to_string(),
+    ];
+
+    if let Some(git_ref) = source.git_ref.as_deref() {
+        args.push("--branch".to_string());
+        args.push(git_ref.to_string());
+        args.push("--single-branch".to_string());
+    }
+
+    args.push(source.repo_url.clone());
+    args.push(clone_root.to_string_lossy().to_string());
+    args
+}
+
 fn parse_github_source(github_url: &str) -> Result<GitHubSource> {
     if !github_url.starts_with("https://github.com/") {
         bail!("Invalid GitHub URL format: {}", github_url);
@@ -209,10 +208,13 @@ fn parse_github_source(github_url: &str) -> Result<GitHubSource> {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::path::Path;
 
     use tempfile::tempdir;
 
-    use super::{import_git, import_local, node_dir, parse_github_source, GitHubSource};
+    use super::{
+        build_clone_args, import_git, import_local, node_dir, parse_github_source, GitHubSource,
+    };
 
     #[test]
     fn parse_github_source_supports_repo_root_url() {
@@ -248,6 +250,32 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(err.contains("Invalid GitHub URL format"));
+    }
+
+    #[test]
+    fn build_clone_args_requests_explicit_ref_when_present() {
+        let source = GitHubSource {
+            repo_url: "https://github.com/acme/project.git".to_string(),
+            git_ref: Some("release-1".to_string()),
+            repo_path: Some("examples/demo".to_string()),
+        };
+
+        let args = build_clone_args(&source, Path::new("/tmp/repo"));
+        assert_eq!(
+            args,
+            vec![
+                "clone",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                "--sparse",
+                "--branch",
+                "release-1",
+                "--single-branch",
+                "https://github.com/acme/project.git",
+                "/tmp/repo",
+            ]
+        );
     }
 
     #[test]

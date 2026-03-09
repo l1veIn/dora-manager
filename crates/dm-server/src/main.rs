@@ -64,9 +64,18 @@ async fn main() {
         .route("/api/dataflows/import", post(handlers::import_dataflows))
         .route("/api/dataflows/{name}", get(handlers::get_dataflow))
         .route("/api/dataflows/{name}", post(handlers::save_dataflow))
-        .route("/api/dataflows/{name}/inspect", get(handlers::inspect_dataflow))
-        .route("/api/dataflows/{name}/meta", get(handlers::get_dataflow_meta))
-        .route("/api/dataflows/{name}/meta", post(handlers::save_dataflow_meta))
+        .route(
+            "/api/dataflows/{name}/inspect",
+            get(handlers::inspect_dataflow),
+        )
+        .route(
+            "/api/dataflows/{name}/meta",
+            get(handlers::get_dataflow_meta),
+        )
+        .route(
+            "/api/dataflows/{name}/meta",
+            post(handlers::save_dataflow_meta),
+        )
         .route(
             "/api/dataflows/{name}/config",
             get(handlers::get_dataflow_config),

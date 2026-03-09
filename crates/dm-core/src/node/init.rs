@@ -350,9 +350,7 @@ fn collect_named_files(node_path: &Path, names: &[&str]) -> Vec<String> {
             continue;
         }
 
-        if path.is_file() {
-            files.push(name.to_string());
-        } else if path.is_dir() {
+        if path.is_file() || path.is_dir() {
             files.push(name.to_string());
         }
     }

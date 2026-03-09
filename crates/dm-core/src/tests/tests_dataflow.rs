@@ -340,12 +340,21 @@ nodes:
     let first = &doc.nodes[0];
     assert_eq!(first.yaml_id, "first");
     assert_eq!(first.fields["mode"].effective_source, "inline");
-    assert_eq!(first.fields["mode"].effective_value, Some(serde_json::json!("inline-mode")));
+    assert_eq!(
+        first.fields["mode"].effective_value,
+        Some(serde_json::json!("inline-mode"))
+    );
     assert_eq!(first.fields["threshold"].effective_source, "node");
 
     let second = &doc.nodes[1];
     assert_eq!(second.yaml_id, "second");
     assert_eq!(second.fields["mode"].effective_source, "flow");
-    assert_eq!(second.fields["mode"].effective_value, Some(serde_json::json!("flow-mode")));
-    assert_eq!(second.fields["threshold"].effective_value, Some(serde_json::json!(0.5)));
+    assert_eq!(
+        second.fields["mode"].effective_value,
+        Some(serde_json::json!("flow-mode"))
+    );
+    assert_eq!(
+        second.fields["threshold"].effective_value,
+        Some(serde_json::json!(0.5))
+    );
 }

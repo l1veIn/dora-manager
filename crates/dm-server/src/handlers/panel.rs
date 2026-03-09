@@ -2,12 +2,23 @@ use std::path::{Component, PathBuf};
 
 use axum::extract::{Path, Query, State};
 use axum::http::{header::CONTENT_TYPE, StatusCode};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Deserialize;
 
 use crate::handlers::err;
 use crate::AppState;
+
+struct PanelGuardError {
+    status: StatusCode,
+    message: String,
+}
+
+impl IntoResponse for PanelGuardError {
+    fn into_response(self) -> Response {
+        (self.status, self.message).into_response()
+    }
+}
 
 #[derive(Deserialize)]
 pub struct AssetQuery {
@@ -23,9 +34,9 @@ pub async fn query_assets(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
     Query(params): Query<AssetQuery>,
-) -> impl IntoResponse {
+) -> Response {
     if let Err(response) = ensure_run_has_panel(&state.home, &run_id) {
-        return response;
+        return response.into_response();
     }
 
     match dm_core::runs::panel::PanelStore::open(&state.home, &run_id) {
@@ -86,9 +97,9 @@ pub async fn send_command(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
     Json(body): Json<CommandBody>,
-) -> impl IntoResponse {
+) -> Response {
     if let Err(response) = ensure_run_has_panel(&state.home, &run_id) {
-        return response;
+        return response.into_response();
     }
 
     match dm_core::runs::panel::PanelStore::open(&state.home, &run_id) {
@@ -111,24 +122,17 @@ pub async fn send_command(
     }
 }
 
-fn ensure_run_has_panel(
-    home: &std::path::Path,
-    run_id: &str,
-) -> Result<(), axum::response::Response> {
-    let run = dm_core::runs::load_run(home, run_id).map_err(|e| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("Run '{}' not found: {}", run_id, e),
-        )
-            .into_response()
+fn ensure_run_has_panel(home: &std::path::Path, run_id: &str) -> Result<(), PanelGuardError> {
+    let run = dm_core::runs::load_run(home, run_id).map_err(|e| PanelGuardError {
+        status: StatusCode::NOT_FOUND,
+        message: format!("Run '{}' not found: {}", run_id, e),
     })?;
 
     if !run.has_panel {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            format!("Run '{}' does not have a panel", run_id),
-        )
-            .into_response());
+        return Err(PanelGuardError {
+            status: StatusCode::BAD_REQUEST,
+            message: format!("Run '{}' does not have a panel", run_id),
+        });
     }
 
     Ok(())

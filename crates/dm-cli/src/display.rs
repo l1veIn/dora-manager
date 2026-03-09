@@ -124,8 +124,8 @@ pub fn print_status_report(report: &StatusReport) {
         println!("  (no active runs)");
     } else {
         println!(
-            "  {:<8}  {:<20}  {:<10}  {:<11}  {:<7}  {:<6}  {}",
-            "Run", "Dataflow", "Status", "Nodes", "Panel", "Dora", "Started"
+            "  {:<8}  {:<20}  {:<10}  {:<11}  {:<7}  {:<6}  Started",
+            "Run", "Dataflow", "Status", "Nodes", "Panel", "Dora"
         );
         for item in &report.active_runs {
             println!(
@@ -150,8 +150,8 @@ pub fn print_status_report(report: &StatusReport) {
         println!("  (no recent finished runs)");
     } else {
         println!(
-            "  {:<8}  {:<20}  {:<10}  {:<19}  {}",
-            "Run", "Dataflow", "Status", "Finished", "Summary"
+            "  {:<8}  {:<20}  {:<10}  {:<19}  Summary",
+            "Run", "Dataflow", "Status", "Finished"
         );
         for item in &report.recent_runs {
             println!(
@@ -172,8 +172,8 @@ pub fn print_status_report(report: &StatusReport) {
     if !report.dora_probe.is_empty() {
         print_header("Dora Probe");
         println!(
-            "  {:<36}  {:<20}  {:<10}  {:<7}  {:<6}  {}",
-            "UUID", "Runtime Name", "Status", "Nodes", "CPU", "Memory"
+            "  {:<36}  {:<20}  {:<10}  {:<7}  {:<6}  Memory",
+            "UUID", "Runtime Name", "Status", "Nodes", "CPU"
         );
         for item in &report.dora_probe {
             println!(

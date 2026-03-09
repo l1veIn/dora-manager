@@ -408,7 +408,7 @@ async fn main() -> Result<()> {
                         "dm node import <path|url>".bold()
                     );
                 } else {
-                    println!("{} Nodes ({})", "📦", nodes.len());
+                    println!("📦 Nodes ({})", nodes.len());
                     println!();
                     for node in &nodes {
                         let name = if node.name.is_empty() {
@@ -647,8 +647,8 @@ async fn main() -> Result<()> {
                         println!("No dataflow runs recorded yet.");
                     } else {
                         println!(
-                            "{:<40} {:<15} {:<22} {:<6} {}",
-                            "ID", "Name", "Started", "Exit", "Nodes"
+                            "{:<40} {:<15} {:<22} {:<6} Nodes",
+                            "ID", "Name", "Started", "Exit"
                         );
                         println!("{}", "─".repeat(90));
                         for run in &result.runs {
@@ -811,7 +811,7 @@ fn panel_serve(home: &std::path::Path, run_id: &str, _node_id: &str) -> Result<(
                 Event::Input { id, metadata, data } => {
                     let type_hint = extract_type_hint(&metadata, &data);
                     let bytes = arrow_to_bytes(&metadata, &data);
-                    if let Err(e) = store2.write_asset(&id.to_string(), &type_hint, &bytes) {
+                    if let Err(e) = store2.write_asset(id.as_ref(), &type_hint, &bytes) {
                         eprintln!("Panel write error: {e}");
                     }
                 }
@@ -994,7 +994,7 @@ fn encode_wav_mono_i16(sample_rate: u32, samples: &[i16]) -> Vec<u8> {
     let channels = 1u16;
     let block_align = channels * (bits_per_sample / 8);
     let byte_rate = sample_rate * block_align as u32;
-    let data_len = (samples.len() * std::mem::size_of::<i16>()) as u32;
+    let data_len = std::mem::size_of_val(samples) as u32;
     let riff_len = 36 + data_len;
 
     let mut out = Vec::with_capacity(44 + data_len as usize);

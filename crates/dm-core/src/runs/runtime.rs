@@ -8,6 +8,9 @@ use anyhow::{bail, Context, Result};
 use crate::dora;
 use crate::runs::model::RunStatus;
 
+type StartResult = (Option<String>, String);
+type BoxFutureResult<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
+
 #[derive(Debug, Clone)]
 pub struct RuntimeDataflow {
     pub id: String,
@@ -19,13 +22,9 @@ pub trait RuntimeBackend {
         &'a self,
         home: &'a Path,
         transpiled_path: &'a Path,
-    ) -> Pin<Box<dyn Future<Output = Result<(Option<String>, String)>> + Send + 'a>>;
+    ) -> BoxFutureResult<'a, StartResult>;
 
-    fn stop<'a>(
-        &'a self,
-        home: &'a Path,
-        dora_uuid: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+    fn stop<'a>(&'a self, home: &'a Path, dora_uuid: &'a str) -> BoxFutureResult<'a, ()>;
 
     fn list(&self, home: &Path) -> Result<Vec<RuntimeDataflow>>;
 }
@@ -42,7 +41,7 @@ impl RuntimeBackend for DoraCliBackend {
         &'a self,
         home: &'a Path,
         transpiled_path: &'a Path,
-    ) -> Pin<Box<dyn Future<Output = Result<(Option<String>, String)>> + Send + 'a>> {
+    ) -> BoxFutureResult<'a, StartResult> {
         Box::pin(async move {
             let dora_bin = dora::active_dora_bin(home)?;
             let output = tokio::process::Command::new(&dora_bin)
@@ -73,11 +72,7 @@ impl RuntimeBackend for DoraCliBackend {
         })
     }
 
-    fn stop<'a>(
-        &'a self,
-        home: &'a Path,
-        dora_uuid: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+    fn stop<'a>(&'a self, home: &'a Path, dora_uuid: &'a str) -> BoxFutureResult<'a, ()> {
         Box::pin(async move {
             let args = vec!["stop".to_string(), dora_uuid.to_string()];
             let (code, stdout, stderr) = dora::run_dora(home, &args, false).await?;

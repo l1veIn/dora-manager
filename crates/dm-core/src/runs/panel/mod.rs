@@ -92,12 +92,17 @@ nodes:
         )
         .unwrap();
 
-        let mut run = crate::runs::RunInstance::default();
-        run.run_id = "run-c".to_string();
-        run.dataflow_name = "demo".to_string();
-        run.started_at = "2026-03-06T00:00:00Z".to_string();
-        run.has_panel = true;
-        run.transpile.panel_node_ids = vec!["panel".to_string()];
+        let run = crate::runs::RunInstance {
+            run_id: "run-c".to_string(),
+            dataflow_name: "demo".to_string(),
+            started_at: "2026-03-06T00:00:00Z".to_string(),
+            has_panel: true,
+            transpile: crate::runs::RunTranspileMetadata {
+                panel_node_ids: vec!["panel".to_string()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         crate::runs::save_run(dir.path(), &run).unwrap();
 
         let store = PanelStore::open(dir.path(), "run-c").unwrap();

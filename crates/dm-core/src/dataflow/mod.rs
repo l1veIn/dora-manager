@@ -9,10 +9,9 @@ pub use import::infer_import_name;
 pub use inspect::{inspect, inspect_yaml};
 pub use model::{
     AggregatedConfigField, AggregatedConfigNode, DataflowConfigAggregation, DataflowConfigDocument,
-    DataflowExecutableDetail, DataflowExecutableStatus,
-    DataflowExecutableSummary, DataflowHistoryEntry, DataflowImportFailure,
-    DataflowImportReport, DataflowImportSuccess, DataflowListEntry, DataflowMeta,
-    DataflowNodeResolution, DataflowProject, FlowMeta,
+    DataflowExecutableDetail, DataflowExecutableStatus, DataflowExecutableSummary,
+    DataflowHistoryEntry, DataflowImportFailure, DataflowImportReport, DataflowImportSuccess,
+    DataflowListEntry, DataflowMeta, DataflowNodeResolution, DataflowProject, FlowMeta,
 };
 pub use service::{
     delete, get, get_flow_config, get_flow_meta, get_history_version, import_git, import_local,

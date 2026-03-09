@@ -5,6 +5,16 @@ use chrono::Utc;
 use super::model::{RunInstance, RunOutcome, RunStatus, TerminationReason};
 use super::repo;
 
+pub(crate) struct TerminalStateUpdate {
+    pub status: RunStatus,
+    pub termination_reason: Option<TerminationReason>,
+    pub exit_code: Option<i32>,
+    pub failure_reason: Option<String>,
+    pub failure_node: Option<String>,
+    pub failure_message: Option<String>,
+    pub observed_at: Option<String>,
+}
+
 pub(crate) fn parse_failure_details(message: &str) -> (Option<String>, String) {
     let trimmed = message.trim().to_string();
     let lower = trimmed.to_lowercase();
@@ -46,34 +56,25 @@ pub(crate) fn infer_failure_details(
     None
 }
 
-pub(crate) fn apply_terminal_state(
-    run: &mut RunInstance,
-    status: RunStatus,
-    termination_reason: Option<TerminationReason>,
-    exit_code: Option<i32>,
-    failure_reason: Option<String>,
-    failure_node: Option<String>,
-    failure_message: Option<String>,
-    observed_at: Option<String>,
-) {
+pub(crate) fn apply_terminal_state(run: &mut RunInstance, update: TerminalStateUpdate) {
     let summary = build_outcome(
-        status,
-        termination_reason,
-        failure_node.clone(),
-        failure_message.clone(),
+        update.status,
+        update.termination_reason,
+        update.failure_node.clone(),
+        update.failure_message.clone(),
     );
 
-    run.status = status;
-    run.termination_reason = termination_reason;
-    run.exit_code = exit_code;
-    run.failure_reason = failure_reason;
-    run.failure_node = failure_node;
-    run.failure_message = failure_message;
+    run.status = update.status;
+    run.termination_reason = update.termination_reason;
+    run.exit_code = update.exit_code;
+    run.failure_reason = update.failure_reason;
+    run.failure_node = update.failure_node;
+    run.failure_message = update.failure_message;
     if run.stopped_at.is_none() {
         run.stopped_at = Some(Utc::now().to_rfc3339());
     }
-    if observed_at.is_some() {
-        run.runtime_observed_at = observed_at;
+    if update.observed_at.is_some() {
+        run.runtime_observed_at = update.observed_at;
     }
     run.outcome = summary;
 }

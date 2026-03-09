@@ -1,5 +1,5 @@
-use std::path::Path;
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use anyhow::{Context, Result};
 
@@ -172,23 +172,28 @@ pub fn inspect_config(home: &Path, name: &str) -> Result<DataflowConfigAggregati
             let node_config = crate::node::get_node_config(home, node_id)
                 .unwrap_or_else(|_| serde_json::json!({}));
             let mut fields = BTreeMap::new();
-            if let Some(schema_obj) = meta.config_schema.as_ref().and_then(|value| value.as_object()) {
+            if let Some(schema_obj) = meta
+                .config_schema
+                .as_ref()
+                .and_then(|value| value.as_object())
+            {
                 for (field_name, field_schema) in schema_obj {
                     let inline_value = inline_config.get(field_name).cloned();
                     let flow_value = flow_node_config.get(field_name).cloned();
                     let node_value = node_config.get(field_name).cloned();
                     let default_value = field_schema.get("default").cloned();
-                    let (effective_value, effective_source) = if let Some(value) = inline_value.clone() {
-                        (Some(value), "inline".to_string())
-                    } else if let Some(value) = flow_value.clone() {
-                        (Some(value), "flow".to_string())
-                    } else if let Some(value) = node_value.clone() {
-                        (Some(value), "node".to_string())
-                    } else if let Some(value) = default_value.clone() {
-                        (Some(value), "default".to_string())
-                    } else {
-                        (None, "unset".to_string())
-                    };
+                    let (effective_value, effective_source) =
+                        if let Some(value) = inline_value.clone() {
+                            (Some(value), "inline".to_string())
+                        } else if let Some(value) = flow_value.clone() {
+                            (Some(value), "flow".to_string())
+                        } else if let Some(value) = node_value.clone() {
+                            (Some(value), "node".to_string())
+                        } else if let Some(value) = default_value.clone() {
+                            (Some(value), "default".to_string())
+                        } else {
+                            (None, "unset".to_string())
+                        };
 
                     fields.insert(
                         field_name.clone(),
@@ -271,11 +276,7 @@ pub async fn import_sources(home: &Path, sources: &[String]) -> DataflowImportRe
             import_git(home, &inferred_name, source).await
         } else {
             let source_path = Path::new(source);
-            let abs_path = if source_path.is_absolute() {
-                source_path.to_path_buf()
-            } else {
-                source_path.to_path_buf()
-            };
+            let abs_path = source_path.to_path_buf();
             import_local(home, &inferred_name, &abs_path)
         };
 
@@ -361,7 +362,11 @@ pub fn transpile_graph_for_run(
                         .and_then(|exe| {
                             let dir = exe.parent()?;
                             let dm_path = dir.join("dm");
-                            if dm_path.exists() { Some(dm_path) } else { None }
+                            if dm_path.exists() {
+                                Some(dm_path)
+                            } else {
+                                None
+                            }
                         })
                         .unwrap_or_else(|| std::path::PathBuf::from("dm"));
                     node_map.insert(
@@ -410,8 +415,11 @@ pub fn transpile_graph_for_run(
                                     .get(serde_yaml::Value::String("id".to_string()))
                                     .and_then(|value| value.as_str())
                                     .unwrap_or(&node_id);
-                                let flow_config_for_node =
-                                    repo::select_flow_node_config(&flow_config, yaml_node_id, &node_id);
+                                let flow_config_for_node = repo::select_flow_node_config(
+                                    &flow_config,
+                                    yaml_node_id,
+                                    &node_id,
+                                );
                                 let inline_config = node_map
                                     .get(serde_yaml::Value::String("config".to_string()))
                                     .and_then(|v| serde_json::to_value(v).ok())
