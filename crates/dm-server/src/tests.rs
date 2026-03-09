@@ -1278,7 +1278,10 @@ async fn get_active_run_returns_active_run_summaries() {
     .into_response();
     assert_eq!(started.status(), axum::http::StatusCode::OK);
 
-    let active = handlers::get_active_run(State(state)).await.into_response();
+    let active = handlers::get_active_run(
+        State(state),
+        Query(serde_json::from_value(serde_json::json!({})).unwrap()),
+    ).await.into_response();
     assert_eq!(active.status(), axum::http::StatusCode::OK);
 
     let body = body_text(active).await;

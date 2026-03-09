@@ -31,6 +31,7 @@
     let loadingHistory = $state(false);
     let showScrollBottom = $state(false);
     let stoppingRun = $state(false);
+    let metrics = $state<any>(null);
 
     let isRunActive = $derived(run?.status === "running");
 
@@ -48,6 +49,15 @@
             error = e.message || "Run not found";
         } finally {
             loading = false;
+        }
+    }
+
+    async function fetchMetrics() {
+        if (!runId || !isRunActive) return;
+        try {
+            metrics = await get(`/runs/${runId}/metrics`);
+        } catch (e) {
+            console.error("Metrics fetch failed", e);
         }
     }
 
@@ -230,14 +240,17 @@
     onMount(() => {
         fetchRunDetail().then(() => {
             if (run?.has_panel) fetchPanelAssets();
+            fetchMetrics();
         });
 
         mainPolling = setInterval(() => {
             if (isRunActive) {
                 fetchRunDetail();
+                fetchMetrics();
                 if (run?.has_panel) pollNewPanelAssets();
-            } else if (mainPolling) {
-                clearInterval(mainPolling);
+            } else {
+                metrics = null;
+                if (mainPolling) clearInterval(mainPolling);
             }
         }, 3000);
     });
@@ -280,8 +293,12 @@
             <aside
                 class="w-[300px] shrink-0 border-r bg-muted/10 flex flex-col overflow-y-auto"
             >
-                <RunSummaryCard {run} />
-                <RunNodeList nodes={run.nodes || []} bind:selectedNodeId />
+                <RunSummaryCard {run} {metrics} />
+                <RunNodeList
+                    nodes={run.nodes || []}
+                    {metrics}
+                    bind:selectedNodeId
+                />
             </aside>
 
             <!-- Middle and Right Resizable Panes -->

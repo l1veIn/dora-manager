@@ -203,6 +203,24 @@ pub struct RunSummary {
     pub termination_reason: Option<String>,
     pub outcome_summary: String,
     pub dora_uuid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metrics: Option<RunMetrics>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RunMetrics {
+    pub cpu: Option<f64>,
+    pub memory_mb: Option<f64>,
+    pub nodes: Vec<NodeMetrics>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeMetrics {
+    pub id: String,
+    pub status: String,
+    pub pid: Option<String>,
+    pub cpu: Option<String>,
+    pub memory: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

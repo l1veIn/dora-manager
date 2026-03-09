@@ -6,6 +6,8 @@ mod service_query;
 mod service_runtime;
 #[path = "service_start.rs"]
 mod service_start;
+#[path = "service_metrics.rs"]
+pub(crate) mod service_metrics;
 #[path = "service_tests.rs"]
 mod service_tests;
 
@@ -21,6 +23,7 @@ pub use self::service_query::{
     get_active_run, get_run, list_active_runs, list_runs, list_runs_filtered, read_run_log,
     read_run_log_chunk, read_run_transpiled,
 };
+pub use self::service_metrics::{collect_all_active_metrics, get_run_metrics};
 pub use self::service_runtime::{refresh_run_statuses, stop_run, sync_run_outputs};
 pub use self::service_start::{
     start_run_from_file, start_run_from_file_with_source_and_strategy,

@@ -2,7 +2,7 @@
     import RunStatusBadge from "./RunStatusBadge.svelte";
     import { Badge } from "$lib/components/ui/badge/index.js";
 
-    let { run } = $props<{ run: any }>();
+    let { run, metrics = null } = $props<{ run: any; metrics?: any }>();
 
     function formatTime(ts: string) {
         if (!ts) return "-";
@@ -115,6 +115,39 @@
                     </dd>
                 </div>
             </dl>
+
+            <!-- Runtime Metrics -->
+            {#if metrics && (metrics.cpu != null || metrics.memory_mb != null)}
+                <dl
+                    class="grid grid-cols-1 gap-y-4 text-sm mt-4 pt-4 border-t border-dashed"
+                >
+                    <div class="flex items-center justify-between">
+                        <dt class="text-xs text-muted-foreground font-medium">
+                            CPU Usage
+                        </dt>
+                        <dd class="font-mono text-xs text-foreground">
+                            {metrics.cpu != null
+                                ? `${metrics.cpu.toFixed(1)}%`
+                                : "-"}
+                        </dd>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <dt class="text-xs text-muted-foreground font-medium">
+                            Memory
+                        </dt>
+                        <dd class="font-mono text-xs text-foreground">
+                            {#if metrics.memory_mb != null}
+                                {metrics.memory_mb >= 1024
+                                    ? `${(metrics.memory_mb / 1024).toFixed(2)} GB`
+                                    : `${Math.round(metrics.memory_mb)} MB`}
+                            {:else}
+                                -
+                            {/if}
+                        </dd>
+                    </div>
+                </dl>
+            {/if}
         {/if}
     </div>
 

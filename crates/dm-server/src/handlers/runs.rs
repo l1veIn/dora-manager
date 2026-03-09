@@ -33,6 +33,11 @@ pub struct DeleteRunsRequest {
     pub run_ids: Vec<String>,
 }
 
+#[derive(Deserialize)]
+pub struct ActiveRunParams {
+    pub metrics: Option<bool>,
+}
+
 /// GET /api/runs?limit=20&offset=0
 pub async fn list_runs(
     State(state): State<AppState>,
@@ -53,7 +58,10 @@ pub async fn list_runs(
 }
 
 /// GET /api/runs/active
-pub async fn get_active_run(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn get_active_run(
+    State(state): State<AppState>,
+    Query(params): Query<ActiveRunParams>,
+) -> impl IntoResponse {
     match dm_core::runs::list_runs_filtered(
         &state.home,
         10_000,
@@ -64,7 +72,32 @@ pub async fn get_active_run(State(state): State<AppState>) -> impl IntoResponse 
             has_panel: None,
         },
     ) {
-        Ok(result) => Json(result.runs).into_response(),
+        Ok(mut result) => {
+            if params.metrics.unwrap_or(false) {
+                if let Ok(metrics_map) =
+                    dm_core::runs::collect_all_active_metrics(&state.home)
+                {
+                    for run in &mut result.runs {
+                        if let Some(uuid) = run.dora_uuid.as_deref() {
+                            run.metrics = metrics_map.get(uuid).cloned();
+                        }
+                    }
+                }
+            }
+            Json(result.runs).into_response()
+        }
+        Err(e) => err(e).into_response(),
+    }
+}
+
+/// GET /api/runs/:id/metrics
+pub async fn get_run_metrics(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match dm_core::runs::get_run_metrics(&state.home, &id) {
+        Ok(Some(metrics)) => Json(metrics).into_response(),
+        Ok(None) => Json(dm_core::runs::RunMetrics::default()).into_response(),
         Err(e) => err(e).into_response(),
     }
 }

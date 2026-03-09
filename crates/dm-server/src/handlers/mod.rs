@@ -23,8 +23,8 @@ pub use nodes::{
 };
 pub use panel::{query_assets, send_command, serve_asset_file};
 pub use runs::{
-    delete_runs, get_active_run, get_run, get_run_dataflow, get_run_logs, get_run_transpiled,
-    list_runs, start_run, stop_run, tail_run_logs,
+    delete_runs, get_active_run, get_run, get_run_dataflow, get_run_logs, get_run_metrics,
+    get_run_transpiled, list_runs, start_run, stop_run, tail_run_logs,
 };
 pub use runtime::{down, install, uninstall, up, use_version};
 pub use system::{doctor, get_config, status, update_config, versions};

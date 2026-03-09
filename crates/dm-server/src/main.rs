@@ -112,6 +112,7 @@ async fn main() {
         .route("/api/runs/start", post(handlers::start_run))
         .route("/api/runs/active", get(handlers::get_active_run))
         .route("/api/runs/{id}", get(handlers::get_run))
+        .route("/api/runs/{id}/metrics", get(handlers::get_run_metrics))
         .route("/api/runs/{id}/stop", post(handlers::stop_run))
         .route("/api/runs/{id}/dataflow", get(handlers::get_run_dataflow))
         .route(

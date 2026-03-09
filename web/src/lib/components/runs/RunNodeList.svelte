@@ -1,8 +1,13 @@
 <script lang="ts">
     import { FileText } from "lucide-svelte";
 
-    let { nodes = [], selectedNodeId = $bindable() } = $props<{
+    let {
+        nodes = [],
+        metrics = null,
+        selectedNodeId = $bindable(),
+    } = $props<{
         nodes: any[];
+        metrics?: any;
         selectedNodeId: string;
     }>();
 
@@ -10,6 +15,11 @@
         if (!bytes) return "(empty)";
         if (bytes < 1024) return `${bytes} B`;
         return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+
+    function getNodeMetrics(nodeId: string) {
+        if (!metrics?.nodes) return null;
+        return metrics.nodes.find((n: any) => n.id === nodeId) || null;
     }
 </script>
 
@@ -28,6 +38,7 @@
         {:else}
             <ul class="flex flex-col gap-0.5">
                 {#each nodes as node}
+                    {@const nm = getNodeMetrics(node.id)}
                     <li>
                         <button
                             class="w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm transition-colors text-left border {selectedNodeId ===
@@ -51,14 +62,37 @@
                                     >{node.id}</span
                                 >
                             </div>
-                            <span
-                                class="text-[10px] ml-2 shrink-0 font-mono {selectedNodeId ===
-                                node.id
-                                    ? 'text-primary/70'
-                                    : 'text-muted-foreground/50'}"
-                            >
-                                {formatSize(node.log_size)}
-                            </span>
+                            <div class="flex items-center gap-2 ml-2 shrink-0">
+                                {#if nm}
+                                    <span
+                                        class="text-[9px] font-mono px-1 py-0.5 rounded bg-muted/50 {selectedNodeId ===
+                                        node.id
+                                            ? 'text-primary/70'
+                                            : 'text-muted-foreground/60'}"
+                                        title="CPU"
+                                    >
+                                        {nm.cpu || "-"}
+                                    </span>
+                                    <span
+                                        class="text-[9px] font-mono px-1 py-0.5 rounded bg-muted/50 {selectedNodeId ===
+                                        node.id
+                                            ? 'text-primary/70'
+                                            : 'text-muted-foreground/60'}"
+                                        title="Memory"
+                                    >
+                                        {nm.memory || "-"}
+                                    </span>
+                                {:else}
+                                    <span
+                                        class="text-[10px] font-mono {selectedNodeId ===
+                                        node.id
+                                            ? 'text-primary/70'
+                                            : 'text-muted-foreground/50'}"
+                                    >
+                                        {formatSize(node.log_size)}
+                                    </span>
+                                {/if}
+                            </div>
                         </button>
                     </li>
                 {/each}
