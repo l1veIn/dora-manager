@@ -72,6 +72,7 @@
             isRunConflictDialogOpen = false;
             const res: any = await post("/runs/start", {
                 name: dataflowName,
+                yaml: dataflow.yaml,
                 force,
             });
             toast.success("Started dataflow");
