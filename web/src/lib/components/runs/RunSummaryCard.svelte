@@ -36,7 +36,7 @@
                 <Badge
                     variant="outline"
                     class="font-mono text-[9px] px-1.5 py-0 bg-orange-50/50 border-orange-200 text-orange-600 dark:bg-orange-950/30 dark:border-orange-900/50 dark:text-orange-400 font-normal"
-                    title="CPU 占用"
+                    title="CPU usage"
                 >
                     {metrics.cpu.toFixed(1)}%
                 </Badge>
@@ -45,7 +45,7 @@
                 <Badge
                     variant="outline"
                     class="font-mono text-[9px] px-1.5 py-0 bg-blue-50/50 border-blue-200 text-blue-600 dark:bg-blue-950/30 dark:border-blue-900/50 dark:text-blue-400 font-normal"
-                    title="Memory 占用"
+                    title="Memory usage"
                 >
                     {metrics.memory_mb >= 1024
                         ? `${(metrics.memory_mb / 1024).toFixed(2)} GB`

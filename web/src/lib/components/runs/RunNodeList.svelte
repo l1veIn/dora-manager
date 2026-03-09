@@ -73,7 +73,7 @@
                                         node.id
                                             ? 'border-orange-300 text-orange-700 bg-orange-50 dark:border-orange-800/60 dark:text-orange-300 dark:bg-orange-950/30'
                                             : 'border-orange-200/50 text-orange-600/70 bg-transparent dark:border-orange-900/30 dark:text-orange-500/70'}"
-                                        title="CPU 占用"
+                                        title="CPU usage"
                                     >
                                         {nm.cpu || "-"}
                                     </Badge>
@@ -83,7 +83,7 @@
                                         node.id
                                             ? 'border-blue-300 text-blue-700 bg-blue-50 dark:border-blue-800/60 dark:text-blue-300 dark:bg-blue-950/30'
                                             : 'border-blue-200/50 text-blue-600/70 bg-transparent dark:border-blue-900/30 dark:text-blue-500/70'}"
-                                        title="Memory 占用"
+                                        title="Memory usage"
                                     >
                                         {nm.memory || "-"}
                                     </Badge>

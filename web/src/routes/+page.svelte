@@ -34,7 +34,7 @@
         if (recentRuns.length === 0 && activeRuns.length === 0)
             runsLoading = true;
         try {
-            const activeResult: any = await get(`/runs/active`);
+            const activeResult: any = await get(`/runs/active?metrics=true`);
             activeRuns = Array.isArray(activeResult)
                 ? activeResult
                 : activeResult.runs || [];
