@@ -91,6 +91,35 @@ All endpoints return JSON.
 cargo test -p dm-core    # 56 tests
 ```
 
+## Profiling
+
+`cargo flamegraph` is supported as a local development tool for CPU profiling. It is not part of CI and does not need to be added to workspace dependencies.
+
+Install it once:
+
+```bash
+cargo install flamegraph
+```
+
+Then use the helper script in this repo:
+
+```bash
+# Profile the CLI binary
+./scripts/flamegraph.sh -p dm-cli -- --help
+
+# Profile the server binary
+./scripts/flamegraph.sh -p dm-server
+
+# Profile a benchmark-style test target
+./scripts/flamegraph.sh --unit-test some_module::some_test
+```
+
+Notes:
+
+- Linux usually requires `perf` to be installed and available in `PATH`.
+- macOS may require elevated privileges or additional system tracing permissions.
+- Pass everything after `--` through to the profiled binary unchanged.
+
 ## Config
 
 - **Home directory**: `~/.dm` (override with `--home` flag or `DM_HOME` env var)
