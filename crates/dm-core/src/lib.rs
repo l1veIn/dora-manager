@@ -11,6 +11,8 @@ pub mod types;
 pub mod util;
 
 #[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod tests;
 
 pub use api::{

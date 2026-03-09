@@ -30,7 +30,8 @@ fn setup_fake_dora_home(home: &std::path::Path, active_version: &str) {
     let bin = version_dir.join("dora");
     std::fs::write(
         &bin,
-        r#"#!/bin/sh
+        format!(
+            r#"#!/bin/sh
 cmd="$1"
 case "$cmd" in
   --version)
@@ -51,7 +52,7 @@ case "$cmd" in
     echo "stopped"
     ;;
   start)
-    echo "dataflow started"
+    echo "dataflow started: {fake_uuid}"
     ;;
   stop)
     echo "dataflow stopped"
@@ -62,6 +63,8 @@ case "$cmd" in
     ;;
 esac
 "#,
+            fake_uuid = FAKE_DORA_UUID,
+        ),
     )
     .unwrap();
 
@@ -186,6 +189,18 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         serde_json::to_string_pretty(&meta).unwrap(),
     )
     .unwrap();
+}
+
+fn setup_panel_run(home: &std::path::Path, run_id: &str) {
+    dm_core::runs::create_layout(home, run_id).unwrap();
+    let run = dm_core::runs::RunInstance {
+        run_id: run_id.to_string(),
+        dataflow_name: "panel-demo".to_string(),
+        started_at: "2026-03-06T00:00:00Z".to_string(),
+        has_panel: true,
+        ..Default::default()
+    };
+    dm_core::runs::save_run(home, &run).unwrap();
 }
 
 async fn body_text(resp: axum::response::Response) -> String {
@@ -580,18 +595,21 @@ async fn get_dataflow_config_schema_returns_aggregated_fields() {
     .await
     .into_response();
 
-    let resp = handlers::get_dataflow_config_schema(
-        State(state),
-        Path("cfg-flow".to_string()),
-    )
-    .await
-    .into_response();
+    let resp = handlers::get_dataflow_config_schema(State(state), Path("cfg-flow".to_string()))
+        .await
+        .into_response();
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
     let body = body_text(resp).await;
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["nodes"][0]["yaml_id"], "worker");
-    assert_eq!(json["nodes"][0]["fields"]["mode"]["effective_source"], "flow");
-    assert_eq!(json["nodes"][0]["fields"]["mode"]["effective_value"], "flow-mode");
+    assert_eq!(
+        json["nodes"][0]["fields"]["mode"]["effective_source"],
+        "flow"
+    );
+    assert_eq!(
+        json["nodes"][0]["fields"]["mode"]["effective_value"],
+        "flow-mode"
+    );
     assert_eq!(json["executable"]["can_run"], true);
 }
 
@@ -793,6 +811,129 @@ async fn install_node_returns_bad_request_for_unsupported_build() {
 }
 
 #[tokio::test]
+async fn import_node_imports_local_directory_with_inferred_id() {
+    let (_tmp, state) = test_state();
+    let source_dir = state.home.join("imports/relative-node");
+    std::fs::create_dir_all(source_dir.join("pkg")).unwrap();
+    std::fs::write(source_dir.join("README.md"), "# Relative Node\n").unwrap();
+    std::fs::write(
+        source_dir.join("pyproject.toml"),
+        "[project]\nname = \"relative-node\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    std::fs::write(source_dir.join("pkg/__init__.py"), "").unwrap();
+
+    let resp = handlers::import_node(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "source": "imports/relative-node"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["id"], "relative-node");
+    assert!(dm_core::node::node_dir(&state.home, "relative-node").exists());
+}
+
+#[tokio::test]
+async fn import_node_returns_bad_request_for_missing_source() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::import_node(
+        State(state),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "source": "imports/missing-node"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    assert!(body.contains("not found"));
+}
+
+#[tokio::test]
+async fn node_readme_returns_local_content_and_fallback_message() {
+    let (_tmp, state) = test_state();
+    dm_core::node::create_node(&state.home, "docs-node", "Readable").unwrap();
+
+    let ok_resp = handlers::node_readme(State(state.clone()), Path("docs-node".to_string()))
+        .await
+        .into_response();
+    assert_eq!(ok_resp.status(), axum::http::StatusCode::OK);
+    let ok_body = body_text(ok_resp).await;
+    assert!(ok_body.contains("# docs-node"));
+
+    let missing_resp = handlers::node_readme(State(state), Path("missing-node".to_string()))
+        .await
+        .into_response();
+    assert_eq!(missing_resp.status(), axum::http::StatusCode::OK);
+    let missing_body = body_text(missing_resp).await;
+    assert!(missing_body.contains("No README found locally"));
+}
+
+#[tokio::test]
+async fn node_file_handlers_return_tree_and_file_content() {
+    let (_tmp, state) = test_state();
+    dm_core::node::create_node(&state.home, "file-node", "Files").unwrap();
+    let node_dir = dm_core::node::node_dir(&state.home, "file-node");
+    std::fs::create_dir_all(node_dir.join("nested")).unwrap();
+    std::fs::write(node_dir.join("nested/config.yaml"), "name: file-node\n").unwrap();
+
+    let files_resp = handlers::get_node_files(State(state.clone()), Path("file-node".to_string()))
+        .await
+        .into_response();
+    assert_eq!(files_resp.status(), axum::http::StatusCode::OK);
+    let files_body = body_text(files_resp).await;
+    let files: Vec<String> = serde_json::from_str(&files_body).unwrap();
+    assert!(files.iter().any(|path| path == "README.md"));
+    assert!(files.iter().any(|path| path == "nested/config.yaml"));
+
+    let content_resp = handlers::get_node_file_content(
+        State(state),
+        Path(("file-node".to_string(), "nested/config.yaml".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(content_resp.status(), axum::http::StatusCode::OK);
+    let content_body = body_text(content_resp).await;
+    assert_eq!(content_body, "name: file-node\n");
+}
+
+#[tokio::test]
+async fn node_file_handlers_map_traversal_and_missing_paths() {
+    let (_tmp, state) = test_state();
+    dm_core::node::create_node(&state.home, "file-node", "Files").unwrap();
+
+    let bad_resp = handlers::get_node_file_content(
+        State(state.clone()),
+        Path(("file-node".to_string(), "../secret.txt".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(bad_resp.status(), axum::http::StatusCode::BAD_REQUEST);
+
+    let missing_resp = handlers::get_node_file_content(
+        State(state),
+        Path(("missing-node".to_string(), "README.md".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(missing_resp.status(), axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn stop_dataflow_returns_404_without_active_run() {
     let (_tmp, state) = test_state();
 
@@ -960,10 +1101,7 @@ async fn start_dataflow_returns_error_when_auto_up_fails() {
     .into_response();
 
     // No dora binary configured, so auto-up fails → 500
-    assert_eq!(
-        resp.status(),
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR
-    );
+    assert_eq!(resp.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
     let body = body_text(resp).await;
     assert!(body.contains("auto-start"));
 }
@@ -1156,10 +1294,12 @@ async fn delete_runs_deletes_multiple_runs_via_post() {
 
     for run_id in ["run-a", "run-b"] {
         dm_core::runs::create_layout(&state.home, run_id).unwrap();
-        let mut run = dm_core::runs::RunInstance::default();
-        run.run_id = run_id.to_string();
-        run.dataflow_name = run_id.to_string();
-        run.started_at = "2026-03-06T00:00:00Z".to_string();
+        let run = dm_core::runs::RunInstance {
+            run_id: run_id.to_string(),
+            dataflow_name: run_id.to_string(),
+            started_at: "2026-03-06T00:00:00Z".to_string(),
+            ..Default::default()
+        };
         dm_core::runs::save_run(&state.home, &run).unwrap();
     }
 
@@ -1338,17 +1478,87 @@ async fn query_panel_assets_rejects_run_without_panel() {
 }
 
 #[tokio::test]
+async fn query_panel_assets_returns_results_for_panel_run() {
+    let (_tmp, state) = test_state();
+    let run_id = "panel-assets";
+    setup_panel_run(&state.home, run_id);
+
+    let store = dm_core::runs::panel::PanelStore::open(&state.home, run_id).unwrap();
+    store
+        .write_asset("camera", "text/plain", b"first asset")
+        .unwrap();
+
+    let resp = handlers::query_assets(
+        State(state),
+        Path(run_id.to_string()),
+        Query(serde_json::from_value(serde_json::json!({ "limit": 5 })).unwrap()),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["assets"].as_array().unwrap().len(), 1);
+    assert_eq!(json["assets"][0]["input_id"], "camera");
+}
+
+#[tokio::test]
+async fn serve_asset_file_rejects_traversal_and_serves_existing_files() {
+    let (_tmp, state) = test_state();
+    let run_id = "panel-files";
+    setup_panel_run(&state.home, run_id);
+    let panel_dir = dm_core::runs::run_panel_dir(&state.home, run_id);
+    std::fs::create_dir_all(panel_dir.join("nested")).unwrap();
+    std::fs::write(panel_dir.join("nested/result.json"), "{\"ok\":true}").unwrap();
+
+    let bad_resp = handlers::serve_asset_file(
+        State(state.clone()),
+        Path((run_id.to_string(), "../secret.txt".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(bad_resp.status(), axum::http::StatusCode::BAD_REQUEST);
+
+    let ok_resp = handlers::serve_asset_file(
+        State(state),
+        Path((run_id.to_string(), "nested/result.json".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(ok_resp.status(), axum::http::StatusCode::OK);
+    assert_eq!(
+        ok_resp
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .unwrap(),
+        "application/json"
+    );
+    let body = body_text(ok_resp).await;
+    assert_eq!(body, "{\"ok\":true}");
+}
+
+#[tokio::test]
+async fn serve_asset_file_returns_not_found_for_missing_file() {
+    let (_tmp, state) = test_state();
+    let run_id = "panel-missing";
+    setup_panel_run(&state.home, run_id);
+
+    let resp = handlers::serve_asset_file(
+        State(state),
+        Path((run_id.to_string(), "nested/missing.txt".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn send_panel_command_accepts_command_shorthand() {
     let (_tmp, state) = test_state();
 
     let run_id = "panel-run";
-    dm_core::runs::create_layout(&state.home, run_id).unwrap();
-    let mut run = dm_core::runs::RunInstance::default();
-    run.run_id = run_id.to_string();
-    run.dataflow_name = "panel-demo".to_string();
-    run.started_at = "2026-03-06T00:00:00Z".to_string();
-    run.has_panel = true;
-    dm_core::runs::save_run(&state.home, &run).unwrap();
+    setup_panel_run(&state.home, run_id);
 
     let resp = handlers::send_command(
         State(state.clone()),
@@ -1370,6 +1580,30 @@ async fn send_panel_command_accepts_command_shorthand() {
     assert_eq!(commands.len(), 1);
     assert_eq!(commands[0].output_id, "input");
     assert_eq!(commands[0].value, "{\"text\":\"hello\"}");
+}
+
+#[tokio::test]
+async fn send_panel_command_requires_payload() {
+    let (_tmp, state) = test_state();
+    let run_id = "panel-run-empty";
+    setup_panel_run(&state.home, run_id);
+
+    let resp = handlers::send_command(
+        State(state),
+        Path(run_id.to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "output_id": "input"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    assert!(body.contains("Missing command payload"));
 }
 
 #[tokio::test]

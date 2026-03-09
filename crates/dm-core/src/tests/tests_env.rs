@@ -1,8 +1,11 @@
 use crate::env;
+use crate::test_support::env_lock;
 
-#[tokio::test]
-async fn check_python_returns_env_item() {
-    let item = env::check_python().await;
+#[test]
+fn check_python_returns_env_item() {
+    let _guard = env_lock();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let item = rt.block_on(env::check_python());
     assert_eq!(item.name, "Python");
     // On this machine Python should be found
     if item.found {
@@ -16,9 +19,11 @@ async fn check_python_returns_env_item() {
     }
 }
 
-#[tokio::test]
-async fn check_uv_returns_env_item() {
-    let item = env::check_uv().await;
+#[test]
+fn check_uv_returns_env_item() {
+    let _guard = env_lock();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let item = rt.block_on(env::check_uv());
     assert_eq!(item.name, "uv");
     if item.found {
         assert!(item.path.is_some());
@@ -28,9 +33,11 @@ async fn check_uv_returns_env_item() {
     }
 }
 
-#[tokio::test]
-async fn check_rust_returns_env_item() {
-    let item = env::check_rust().await;
+#[test]
+fn check_rust_returns_env_item() {
+    let _guard = env_lock();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let item = rt.block_on(env::check_rust());
     assert_eq!(item.name, "Rust");
     if item.found {
         assert!(item.path.is_some());
@@ -42,24 +49,28 @@ async fn check_rust_returns_env_item() {
     }
 }
 
-#[tokio::test]
-async fn env_items_have_correct_names() {
-    let python = env::check_python().await;
-    let uv = env::check_uv().await;
-    let rust = env::check_rust().await;
+#[test]
+fn env_items_have_correct_names() {
+    let _guard = env_lock();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let python = rt.block_on(env::check_python());
+    let uv = rt.block_on(env::check_uv());
+    let rust = rt.block_on(env::check_rust());
 
     assert_eq!(python.name, "Python");
     assert_eq!(uv.name, "uv");
     assert_eq!(rust.name, "Rust");
 }
 
-#[tokio::test]
-async fn env_item_found_implies_path() {
+#[test]
+fn env_item_found_implies_path() {
+    let _guard = env_lock();
+    let rt = tokio::runtime::Runtime::new().unwrap();
     // If an item is found, it must have a path
     let items = vec![
-        env::check_python().await,
-        env::check_uv().await,
-        env::check_rust().await,
+        rt.block_on(env::check_python()),
+        rt.block_on(env::check_uv()),
+        rt.block_on(env::check_rust()),
     ];
     for item in items {
         if item.found {

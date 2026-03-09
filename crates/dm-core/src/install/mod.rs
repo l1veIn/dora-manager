@@ -93,10 +93,11 @@ pub async fn install(
 mod tests {
     use std::fs;
     use std::io::{Read, Write};
-    use std::sync::{Mutex, OnceLock};
 
     use tempfile::tempdir;
     use tokio::sync::mpsc;
+
+    use crate::test_support::{clear_path, env_lock};
 
     use super::*;
 
@@ -132,6 +133,7 @@ mod tests {
 
     #[test]
     fn extract_tar_rejects_invalid_data() {
+        let _guard = env_lock();
         let dir = tempdir().unwrap();
 
         let err = archive::extract_tar(b"not-a-tar", dir.path())
@@ -206,21 +208,12 @@ mod tests {
 
     #[test]
     fn install_from_source_errors_when_cargo_is_unavailable() {
-        static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        let _guard = ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
-
+        let _guard = env_lock();
         let dir = tempdir().unwrap();
-        let original_path = std::env::var_os("PATH");
-        std::env::set_var("PATH", "");
+        let _path = clear_path();
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let result = rt.block_on(source::install_from_source("v0.4.1", dir.path(), false));
-
-        if let Some(path) = original_path {
-            std::env::set_var("PATH", path);
-        } else {
-            std::env::remove_var("PATH");
-        }
 
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Rust is not installed"));

@@ -1,3 +1,4 @@
+use crate::test_support::env_lock;
 use crate::util;
 
 #[test]
@@ -24,6 +25,7 @@ fn human_size_mib() {
 
 #[test]
 fn check_command_found() {
+    let _guard = env_lock();
     // `sh` should exist on all unix systems
     let result = util::check_command("sh");
     assert!(result.is_some());
@@ -57,10 +59,12 @@ fn is_valid_dora_binary_file() {
     assert!(util::is_valid_dora_binary(&file));
 }
 
-#[tokio::test]
-async fn get_command_version_works() {
+#[test]
+fn get_command_version_works() {
+    let _guard = env_lock();
     // Test with `echo` which should return its argument
-    let result = util::get_command_version("echo", &["test-version-1.0"]).await;
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let result = rt.block_on(util::get_command_version("echo", &["test-version-1.0"]));
     assert!(result.is_some());
     assert!(result.unwrap().contains("test-version-1.0"));
 }
