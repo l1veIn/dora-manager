@@ -31,12 +31,34 @@
             class="text-[11px] font-semibold tracking-wider uppercase text-muted-foreground"
             >Run Summary</span
         >
-        <Badge
-            variant="secondary"
-            class="font-mono text-[9px] uppercase px-1.5 py-0"
-        >
-            {run?.source || "unknown"}
-        </Badge>
+        <div class="flex items-center gap-1.5">
+            {#if metrics && metrics.cpu != null}
+                <Badge
+                    variant="outline"
+                    class="font-mono text-[9px] px-1.5 py-0 bg-orange-50/50 border-orange-200 text-orange-600 dark:bg-orange-950/30 dark:border-orange-900/50 dark:text-orange-400 font-normal"
+                    title="CPU 占用"
+                >
+                    {metrics.cpu.toFixed(1)}%
+                </Badge>
+            {/if}
+            {#if metrics && metrics.memory_mb != null}
+                <Badge
+                    variant="outline"
+                    class="font-mono text-[9px] px-1.5 py-0 bg-blue-50/50 border-blue-200 text-blue-600 dark:bg-blue-950/30 dark:border-blue-900/50 dark:text-blue-400 font-normal"
+                    title="Memory 占用"
+                >
+                    {metrics.memory_mb >= 1024
+                        ? `${(metrics.memory_mb / 1024).toFixed(2)} GB`
+                        : `${Math.round(metrics.memory_mb)} MB`}
+                </Badge>
+            {/if}
+            <Badge
+                variant="secondary"
+                class="font-mono text-[9px] uppercase px-1.5 py-0"
+            >
+                {run?.source || "unknown"}
+            </Badge>
+        </div>
     </div>
 
     <div class="p-4 border-b">
@@ -115,39 +137,6 @@
                     </dd>
                 </div>
             </dl>
-
-            <!-- Runtime Metrics -->
-            {#if metrics && (metrics.cpu != null || metrics.memory_mb != null)}
-                <dl
-                    class="grid grid-cols-1 gap-y-4 text-sm mt-4 pt-4 border-t border-dashed"
-                >
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs text-muted-foreground font-medium">
-                            CPU Usage
-                        </dt>
-                        <dd class="font-mono text-xs text-foreground">
-                            {metrics.cpu != null
-                                ? `${metrics.cpu.toFixed(1)}%`
-                                : "-"}
-                        </dd>
-                    </div>
-
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs text-muted-foreground font-medium">
-                            Memory
-                        </dt>
-                        <dd class="font-mono text-xs text-foreground">
-                            {#if metrics.memory_mb != null}
-                                {metrics.memory_mb >= 1024
-                                    ? `${(metrics.memory_mb / 1024).toFixed(2)} GB`
-                                    : `${Math.round(metrics.memory_mb)} MB`}
-                            {:else}
-                                -
-                            {/if}
-                        </dd>
-                    </div>
-                </dl>
-            {/if}
         {/if}
     </div>
 
