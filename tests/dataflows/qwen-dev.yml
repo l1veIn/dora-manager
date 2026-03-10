@@ -64,6 +64,24 @@ nodes:
       video_clip_meta: screen-video/meta
       text_qwen: dora-qwen/text
       text_whisper: dora-distil-whisper/text
+    outputs:
+      - prompt
+      - system_prompt
+    widgets:
+      prompt:
+        default: "hello"
+        x-widget:
+          span: 6 
+          type: input
+          label: "User Prompt"
+          placeholder: "Enter your message..."
+      system_prompt:
+        default: "You are a helpful assistant."
+        x-widget:
+          span: 6 
+          type: input
+          label: "System Prompt"
+          placeholder: "Set system prompt..."
 
   - id: dora-kokoro-tts
     node: dora-kokoro-tts

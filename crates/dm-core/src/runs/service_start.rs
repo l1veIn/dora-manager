@@ -120,18 +120,42 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
         .with_context(|| format!("Failed to write snapshot {}", snapshot_path.display()))?;
 
     let dataflow_hash = format!("sha256:{:x}", Sha256::digest(yaml.as_bytes()));
-    let transpiled = crate::dataflow::transpile_graph_for_run(home, &snapshot_path, &run_id)
+    let transpile_result = crate::dataflow::transpile_graph_for_run(home, &snapshot_path, &run_id)
         .with_context(|| format!("Failed to transpile '{}'", dataflow_name))?;
     let transpiled_path = repo::run_transpiled_path(home, &run_id);
-    fs::write(&transpiled_path, serde_yaml::to_string(&transpiled)?).with_context(|| {
+    fs::write(&transpiled_path, serde_yaml::to_string(&transpile_result.yaml)?).with_context(|| {
         format!(
             "Failed to write transpiled graph {}",
             transpiled_path.display()
         )
     })?;
 
+    // Write panel widgets config and pre-seed default commands
+    if let Some(ref widgets) = transpile_result.widgets {
+        let panel_dir = repo::run_panel_dir(home, &run_id);
+        fs::create_dir_all(&panel_dir)
+            .with_context(|| format!("Failed to create panel dir {}", panel_dir.display()))?;
+        let widgets_path = panel_dir.join("widgets.json");
+        fs::write(&widgets_path, serde_json::to_string_pretty(widgets)?)
+            .with_context(|| format!("Failed to write widgets config {}", widgets_path.display()))?;
+
+        // Pre-seed default values as commands so panel_serve emits them on startup
+        if let Some(obj) = widgets.as_object() {
+            let store = crate::runs::panel::PanelStore::open(home, &run_id)?;
+            for (output_id, widget_def) in obj {
+                if let Some(default_val) = widget_def.get("default") {
+                    let raw = match default_val {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    store.write_command(output_id, &raw)?;
+                }
+            }
+        }
+    }
+
     let nodes_expected = extract_node_ids_from_yaml(yaml)?;
-    let transpile = build_transpile_metadata(&transpiled);
+    let transpile = build_transpile_metadata(&transpile_result.yaml);
     let has_panel = !transpile.panel_node_ids.is_empty();
     let mut run = RunInstance {
         schema_version: 1,

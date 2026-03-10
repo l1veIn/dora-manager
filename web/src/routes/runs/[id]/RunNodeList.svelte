@@ -6,10 +6,12 @@
         nodes = [],
         metrics = null,
         selectedNodeId = $bindable(),
+        onNodeSelect,
     } = $props<{
         nodes: any[];
         metrics?: any;
         selectedNodeId: string;
+        onNodeSelect?: (id: string) => void;
     }>();
 
     function formatSize(bytes: number) {
@@ -48,6 +50,7 @@
                                 : 'bg-transparent border-transparent hover:bg-muted/50 text-muted-foreground hover:text-foreground'}"
                             onclick={() => {
                                 selectedNodeId = node.id;
+                                onNodeSelect?.(node.id);
                             }}
                         >
                             <div

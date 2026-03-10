@@ -124,10 +124,26 @@ pub async fn get_run_transpiled(
     }
 }
 
-/// GET /api/runs/:id
-pub async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+#[derive(Deserialize)]
+pub struct RunDetailParams {
+    pub include_metrics: Option<bool>,
+}
+
+/// GET /api/runs/:id?include_metrics=true
+pub async fn get_run(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<RunDetailParams>,
+) -> impl IntoResponse {
     match dm_core::runs::get_run(&state.home, &id) {
-        Ok(detail) => Json(detail).into_response(),
+        Ok(mut detail) => {
+            if params.include_metrics.unwrap_or(false) {
+                if let Ok(Some(m)) = dm_core::runs::get_run_metrics(&state.home, &id) {
+                    detail.summary.metrics = Some(m);
+                }
+            }
+            Json(detail).into_response()
+        }
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
 }

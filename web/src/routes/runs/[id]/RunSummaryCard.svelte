@@ -1,5 +1,5 @@
 <script lang="ts">
-    import RunStatusBadge from "./RunStatusBadge.svelte";
+    import RunStatusBadge from "$lib/components/runs/RunStatusBadge.svelte";
     import { Badge } from "$lib/components/ui/badge/index.js";
 
     let { run, metrics = null } = $props<{ run: any; metrics?: any }>();

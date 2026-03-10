@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Button } from "$lib/components/ui/button/index.js";
     import * as Dialog from "$lib/components/ui/dialog/index.js";
-    import RunStatusBadge from "./RunStatusBadge.svelte";
+    import RunStatusBadge from "$lib/components/runs/RunStatusBadge.svelte";
     import { StopCircle, FileText, Loader2, ChevronLeft } from "lucide-svelte";
     import { Badge } from "$lib/components/ui/badge/index.js";
     import { goto } from "$app/navigation";

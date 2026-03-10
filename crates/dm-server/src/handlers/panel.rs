@@ -114,11 +114,50 @@ pub async fn send_command(
                     .into_response();
             };
             match store.write_command(output_id, value) {
-                Ok(_) => Json(serde_json::json!({ "status": "ok" })).into_response(),
+                Ok(_) => {
+                    // Persist the sent value as the new default in widgets.json
+                    if body.output_id.is_some() {
+                        let widgets_path =
+                            dm_core::runs::run_panel_dir(&state.home, &run_id)
+                                .join("widgets.json");
+                        if let Ok(content) = std::fs::read_to_string(&widgets_path) {
+                            if let Ok(mut json) =
+                                serde_json::from_str::<serde_json::Value>(&content)
+                            {
+                                if let Some(widget) = json.get_mut(output_id) {
+                                    widget["default"] =
+                                        serde_json::Value::String(value.to_string());
+                                    if let Ok(updated) = serde_json::to_string_pretty(&json) {
+                                        let _ = std::fs::write(&widgets_path, updated);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Json(serde_json::json!({ "status": "ok" })).into_response()
+                }
                 Err(e) => err(e).into_response(),
             }
         }
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    }
+}
+
+pub async fn get_widgets(
+    State(state): State<AppState>,
+    Path(run_id): Path<String>,
+) -> Response {
+    let widgets_path = dm_core::runs::run_panel_dir(&state.home, &run_id).join("widgets.json");
+    match tokio::fs::read_to_string(&widgets_path).await {
+        Ok(content) => {
+            let json: serde_json::Value =
+                serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+            Json(json).into_response()
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Json(serde_json::json!({})).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 

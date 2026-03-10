@@ -29,6 +29,7 @@
     let dataflow = $state<any>(null);
     let loading = $state(true);
     let isRunConflictDialogOpen = $state(false);
+    let activeTab = $state("yaml");
 
     async function loadDataflow() {
         loading = true;
@@ -154,7 +155,7 @@
         </div>
     {:else if dataflow}
         <!-- Workspace Main Content -->
-        <Tabs.Root value="yaml" class="flex-1 flex flex-col min-h-0">
+        <Tabs.Root value="yaml" onValueChange={(v) => { activeTab = v; }} class="flex-1 flex flex-col min-h-0">
             <Tabs.List class="w-fit mb-4">
                 <Tabs.Trigger value="yaml" class="gap-2">
                     <Code class="size-4" />
@@ -178,7 +179,7 @@
                 value="yaml"
                 class="flex-1 flex flex-col min-h-0 overflow-hidden mt-0"
             >
-                {#if dataflow?.yaml !== undefined}
+                {#if activeTab === "yaml" && dataflow?.yaml !== undefined}
                     <YamlEditorTab
                         {dataflowName}
                         initialYaml={dataflow.yaml || ""}
@@ -193,14 +194,16 @@
                 value="config"
                 class="flex-1 border rounded-md bg-card shadow-sm flex flex-col min-h-0 overflow-hidden mt-0"
             >
-                <ConfigOverridesTab {dataflowName} />
+                {#if activeTab === "config"}
+                    <ConfigOverridesTab {dataflowName} />
+                {/if}
             </Tabs.Content>
 
             <Tabs.Content
                 value="meta"
                 class="flex-1 border rounded-md bg-card shadow-sm flex flex-col min-h-0 overflow-hidden mt-0"
             >
-                {#if dataflow?.meta !== undefined}
+                {#if activeTab === "meta" && dataflow?.meta !== undefined}
                     <MetaTab
                         {dataflowName}
                         meta={dataflow.meta}
@@ -215,7 +218,9 @@
                 value="history"
                 class="flex-1 flex flex-col min-h-0 overflow-hidden mt-0"
             >
-                <HistoryTab {dataflowName} />
+                {#if activeTab === "history"}
+                    <HistoryTab {dataflowName} onRestored={loadDataflow} />
+                {/if}
             </Tabs.Content>
         </Tabs.Root>
     {/if}

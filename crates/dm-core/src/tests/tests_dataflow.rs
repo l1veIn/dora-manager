@@ -62,7 +62,7 @@ nodes:
     )
     .unwrap();
 
-    let out = transpile_graph(home, &yaml_path).unwrap();
+    let out = transpile_graph(home, &yaml_path).unwrap().yaml;
     let nodes = out["nodes"].as_sequence().unwrap();
     let node = nodes[0].as_mapping().unwrap();
 
@@ -101,7 +101,7 @@ nodes:
     )
     .unwrap();
 
-    let out = transpile_graph(home, &yaml_path).unwrap();
+    let out = transpile_graph(home, &yaml_path).unwrap().yaml;
     // Unknown node: `node:` stays as-is (no path resolution)
     assert_eq!(out["nodes"][0]["node"].as_str(), Some("unknown-node"));
     assert!(out["nodes"][0]["path"].is_null());

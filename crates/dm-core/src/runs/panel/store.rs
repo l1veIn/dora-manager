@@ -216,6 +216,15 @@ impl PanelStore {
             "INSERT INTO commands (output_id, value, timestamp) VALUES (?1, ?2, ?3)",
             params![output_id, value, now],
         )?;
+
+        // Dual-write: echo command as an asset so it appears in the panel message feed
+        let asset_input_id = format!("command/{}", output_id);
+        conn.execute(
+            "INSERT INTO assets (input_id, producer_id, output_field, timestamp, type, storage, path, data)
+             VALUES (?1, 'panel', ?2, ?3, 'command/text', 'inline', NULL, ?4)",
+            params![asset_input_id, output_id, now, value],
+        )?;
+
         Ok(conn.last_insert_rowid())
     }
 

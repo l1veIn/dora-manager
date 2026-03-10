@@ -2,13 +2,14 @@
     import { onMount, onDestroy } from "svelte";
     import { get, getText } from "$lib/api";
     import { Button } from "$lib/components/ui/button/index.js";
-    import { RefreshCw, Play, Square, Download } from "lucide-svelte";
+    import { RefreshCw, Play, Square, Download, X } from "lucide-svelte";
 
     let {
         runId = "",
         nodeId = "",
         isRunActive = false,
-    } = $props<{ runId: string; nodeId: string; isRunActive: boolean }>();
+        onClose,
+    } = $props<{ runId: string; nodeId: string; isRunActive: boolean; onClose?: () => void }>();
 
     let logContent = $state<string>("");
     let loading = $state(false);
@@ -175,6 +176,18 @@
             >
                 <Download class="size-3.5" />
             </Button>
+            {#if onClose}
+                <div class="w-px h-4 bg-border mx-0.5"></div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    class="h-7 w-7 rounded hover:bg-muted hover:text-foreground"
+                    onclick={onClose}
+                    title="Close terminal"
+                >
+                    <X class="size-3.5" />
+                </Button>
+            {/if}
         </div>
     </div>
 
