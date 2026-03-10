@@ -63,7 +63,7 @@
 
     <!-- Editor Container -->
     <div
-        class="flex-1 min-h-0 relative border rounded-md shadow-sm overflow-hidden group"
+        class="flex-1 min-h-0 relative border rounded-md shadow-sm overflow-scroll group"
     >
         <div
             class="absolute inset-0 [&_.cm-editor]:h-full [&_.cm-scroller]:font-mono [&_.cm-scroller]:text-[13.5px]"

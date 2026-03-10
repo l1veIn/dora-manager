@@ -10,13 +10,8 @@
     import { Slider } from "$lib/components/ui/slider/index.js";
     import * as Select from "$lib/components/ui/select/index.js";
     import * as RadioGroup from "$lib/components/ui/radio-group/index.js";
-    import {
-        Save,
-        RefreshCw,
-        Settings,
-        FileText,
-        FolderOpen,
-    } from "lucide-svelte";
+    import { Save, RefreshCw, Settings } from "lucide-svelte";
+    import { PathPicker } from "$lib/components/ui/path-picker/index.js";
 
     let { dataflowName } = $props<{
         dataflowName: string;
@@ -301,44 +296,60 @@
                                                         </div>
                                                     {/each}
                                                 </RadioGroup.Root>
+                                            {:else if s?.["x-widget"]?.type === "checkbox"}
+                                                <div class="flex flex-wrap gap-x-4 gap-y-2 mt-1">
+                                                    {#each s?.["x-widget"].options as opt}
+                                                        <div
+                                                            class="flex items-center space-x-2"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                id="{node.yaml_id}-{key}-{opt}"
+                                                                checked={(configData[node.yaml_id][key] || []).includes(String(opt))}
+                                                                onchange={(e: Event) => {
+                                                                    const checked = (e.currentTarget as HTMLInputElement).checked;
+                                                                    const current = Array.isArray(configData[node.yaml_id][key]) ? [...configData[node.yaml_id][key]] : [];
+                                                                    const val = String(opt);
+                                                                    if (checked && !current.includes(val)) {
+                                                                        current.push(val);
+                                                                    } else if (!checked) {
+                                                                        const idx = current.indexOf(val);
+                                                                        if (idx >= 0) current.splice(idx, 1);
+                                                                    }
+                                                                    configData[node.yaml_id][key] = current;
+                                                                }}
+                                                                class="size-4 rounded"
+                                                            />
+                                                            <Label
+                                                                for="{node.yaml_id}-{key}-{opt}"
+                                                                class="text-sm font-normal"
+                                                                >{opt}</Label
+                                                            >
+                                                        </div>
+                                                    {/each}
+                                                </div>
                                             {:else if s?.["x-widget"]?.type === "file"}
-                                                <div
-                                                    class="flex items-center gap-2"
-                                                >
-                                                    <FileText
-                                                        class="size-4 text-muted-foreground shrink-0"
-                                                    />
-                                                    <Input
-                                                        id="{node.yaml_id}-{key}"
-                                                        bind:value={
-                                                            configData[
-                                                                node.yaml_id
-                                                            ][key]
-                                                        }
-                                                        placeholder={s?.default ||
-                                                            "Enter file path..."}
-                                                        class="flex-1 font-mono text-xs"
-                                                    />
-                                                </div>
+                                                <PathPicker
+                                                    mode="file"
+                                                    id="{node.yaml_id}-{key}"
+                                                    bind:value={
+                                                        configData[
+                                                            node.yaml_id
+                                                        ][key]
+                                                    }
+                                                    placeholder={s?.default || undefined}
+                                                />
                                             {:else if s?.["x-widget"]?.type === "directory"}
-                                                <div
-                                                    class="flex items-center gap-2"
-                                                >
-                                                    <FolderOpen
-                                                        class="size-4 text-muted-foreground shrink-0"
-                                                    />
-                                                    <Input
-                                                        id="{node.yaml_id}-{key}"
-                                                        bind:value={
-                                                            configData[
-                                                                node.yaml_id
-                                                            ][key]
-                                                        }
-                                                        placeholder={s?.default ||
-                                                            "Enter directory path..."}
-                                                        class="flex-1 font-mono text-xs"
-                                                    />
-                                                </div>
+                                                <PathPicker
+                                                    mode="directory"
+                                                    id="{node.yaml_id}-{key}"
+                                                    bind:value={
+                                                        configData[
+                                                            node.yaml_id
+                                                        ][key]
+                                                    }
+                                                    placeholder={s?.default || undefined}
+                                                />
                                             {:else if s?.type === "string"}
                                                 <Input
                                                     id="{node.yaml_id}-{key}"

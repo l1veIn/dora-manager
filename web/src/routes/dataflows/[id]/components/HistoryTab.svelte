@@ -178,7 +178,7 @@
             </Dialog.Header>
 
             <div
-                class="flex-1 min-h-[400px] border rounded-md overflow-hidden relative my-4"
+                class="flex-1 min-h-[400px] border rounded-md overflow-scroll relative my-4"
             >
                 {#if loadingVersion}
                     <div

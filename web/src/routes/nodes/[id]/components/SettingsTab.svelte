@@ -1,12 +1,7 @@
 <script lang="ts">
-    import {
-        Save,
-        RefreshCw,
-        Settings,
-        FileText,
-        FolderOpen,
-    } from "lucide-svelte";
+    import { Save, RefreshCw, Settings } from "lucide-svelte";
     import { Button } from "$lib/components/ui/button/index.js";
+    import { PathPicker } from "$lib/components/ui/path-picker/index.js";
     import { Label } from "$lib/components/ui/label/index.js";
     import { Input } from "$lib/components/ui/input/index.js";
     import { Textarea } from "$lib/components/ui/textarea/index.js";
@@ -149,32 +144,48 @@
                                     </div>
                                 {/each}
                             </RadioGroup.Root>
+                        {:else if s?.["x-widget"]?.type === "checkbox"}
+                            <div class="flex flex-wrap gap-x-4 gap-y-2 mt-1">
+                                {#each s?.["x-widget"].options as opt}
+                                    <div class="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            id={`${key}-${opt}`}
+                                            checked={(formData[key] || []).includes(String(opt))}
+                                            onchange={(e: Event) => {
+                                                const checked = (e.currentTarget as HTMLInputElement).checked;
+                                                const current = Array.isArray(formData[key]) ? [...formData[key]] : [];
+                                                const val = String(opt);
+                                                if (checked && !current.includes(val)) {
+                                                    current.push(val);
+                                                } else if (!checked) {
+                                                    const idx = current.indexOf(val);
+                                                    if (idx >= 0) current.splice(idx, 1);
+                                                }
+                                                formData[key] = current;
+                                            }}
+                                            class="size-4 rounded"
+                                        />
+                                        <Label for={`${key}-${opt}`}
+                                            >{opt}</Label
+                                        >
+                                    </div>
+                                {/each}
+                            </div>
                         {:else if s?.["x-widget"]?.type === "file"}
-                            <div class="flex items-center gap-2">
-                                <FileText
-                                    class="size-4 text-muted-foreground shrink-0"
-                                />
-                                <Input
-                                    id={key}
-                                    bind:value={formData[key]}
-                                    placeholder={s?.default ||
-                                        "Enter file path..."}
-                                    class="flex-1 font-mono text-xs"
-                                />
-                            </div>
+                            <PathPicker
+                                mode="file"
+                                id={key}
+                                bind:value={formData[key]}
+                                placeholder={s?.default || undefined}
+                            />
                         {:else if s?.["x-widget"]?.type === "directory"}
-                            <div class="flex items-center gap-2">
-                                <FolderOpen
-                                    class="size-4 text-muted-foreground shrink-0"
-                                />
-                                <Input
-                                    id={key}
-                                    bind:value={formData[key]}
-                                    placeholder={s?.default ||
-                                        "Enter directory path..."}
-                                    class="flex-1 font-mono text-xs"
-                                />
-                            </div>
+                            <PathPicker
+                                mode="directory"
+                                id={key}
+                                bind:value={formData[key]}
+                                placeholder={s?.default || undefined}
+                            />
                         {:else if s?.type === "string"}
                             <Input
                                 id={key}

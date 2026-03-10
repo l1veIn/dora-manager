@@ -163,7 +163,11 @@
         ws.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data);
-                if (msg.type === "assets" && Array.isArray(msg.data) && msg.data.length > 0) {
+                if (
+                    msg.type === "assets" &&
+                    Array.isArray(msg.data) &&
+                    msg.data.length > 0
+                ) {
                     appendPanelAssets(msg.data);
                 }
             } catch (e) {
@@ -288,18 +292,25 @@
     });
 </script>
 
-<div
-    class="bg-muted/30 px-4 border-b flex items-center shrink-0 h-11"
->
+<div class="bg-muted/30 px-4 border-b flex items-center shrink-0 h-11">
     <span
         class="text-[11px] font-semibold tracking-wider uppercase text-muted-foreground"
         >Panel Interface</span
     >
 </div>
 
-<PaneGroup direction="vertical" autoSaveId="dora-panel-vertical-split" class="flex-1 min-h-0 relative flex flex-col">
+<PaneGroup
+    direction="vertical"
+    autoSaveId="dora-panel-vertical-split"
+    class="flex-1 min-h-0 relative flex flex-col"
+>
     <!-- Top: Messages Feed -->
-    <Pane id="messages" defaultSize={70} minSize={20} class="flex flex-col relative overflow-hidden bg-background">
+    <Pane
+        id="messages"
+        defaultSize={70}
+        minSize={20}
+        class="flex flex-col relative overflow-hidden bg-background"
+    >
         <div
             class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 relative"
             bind:this={panelMessagesDiv}
@@ -315,13 +326,19 @@
                 </div>
             {:else}
                 {#if hasMoreHistory}
-                    <div class="py-2 text-center text-xs text-muted-foreground flex items-center justify-center shrink-0 min-h-[32px]">
+                    <div
+                        class="py-2 text-center text-xs text-muted-foreground flex items-center justify-center shrink-0 min-h-[32px]"
+                    >
                         {#if loadingHistory}
-                            <div class="animate-pulse">Loading older messages...</div>
+                            <div class="animate-pulse">
+                                Loading older messages...
+                            </div>
                         {/if}
                     </div>
                 {:else}
-                    <div class="py-4 text-center text-xs text-muted-foreground opacity-50 shrink-0">
+                    <div
+                        class="py-4 text-center text-xs text-muted-foreground opacity-50 shrink-0"
+                    >
                         -- Start of conversation --
                     </div>
                 {/if}
@@ -348,10 +365,18 @@
         {/if}
     </Pane>
 
-    <PaneResizer class="h-px relative bg-border hover:bg-primary/50 active:bg-primary/80 transition-all cursor-row-resize z-20 after:absolute after:inset-x-0 after:-inset-y-2" />
+    <PaneResizer
+        class="h-px relative hover:bg-primary/50 active:bg-primary/80 transition-all cursor-row-resize z-20 after:absolute after:inset-x-0 after:-inset-y-2"
+    />
 
     <!-- Bottom: Command / Widgets Area -->
-    <Pane id="controls" defaultSize={30} minSize={15} maxSize={50} class="flex flex-col overflow-hidden bg-background/95 backdrop-blur shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.05)] border-t z-10 relative">
+    <Pane
+        id="controls"
+        defaultSize={30}
+        minSize={15}
+        maxSize={50}
+        class="flex flex-col overflow-hidden bg-background/95 backdrop-blur shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.05)] border-t z-10 relative rounded-t-lg"
+    >
         <div class="flex-1 overflow-y-auto p-4 flex flex-col">
             {#if panelWidgets}
                 <PanelWidgets
@@ -380,10 +405,26 @@
                             size="icon"
                             variant="ghost"
                             class="absolute right-1 top-1 bottom-1 h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
-                            disabled={sendingCommand || !panelInput.trim() || !isRunActive}
+                            disabled={sendingCommand ||
+                                !panelInput.trim() ||
+                                !isRunActive}
                             title="Send command (Enter)"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                class="lucide lucide-send"
+                                ><path d="m22 2-7 20-4-9-9-4Z" /><path
+                                    d="M22 2 11 13"
+                                /></svg
+                            >
                         </Button>
                     </div>
                 </form>
