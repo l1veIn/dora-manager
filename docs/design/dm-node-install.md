@@ -1,4 +1,4 @@
-# dm node install 分发策略
+# dm node install 分发策略思考
 
 ## 现状
 

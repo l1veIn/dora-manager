@@ -1,0 +1,98 @@
+{
+  "id": "dm-mjpeg",
+  "name": "dm-mjpeg",
+  "version": "unknown",
+  "installed_at": "1773224840",
+  "source": {
+    "build": "cargo install --path .",
+    "github": null
+  },
+  "description": "Expose Dora video frames as an MJPEG-over-HTTP preview endpoint.",
+  "executable": "bin/dora-dm-mjpeg",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Media",
+    "tags": [
+      "builtin",
+      "rust",
+      "video"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    "media"
+  ],
+  "runtime": {
+    "language": "rust",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "frame",
+      "name": "frame",
+      "direction": "input",
+      "description": "",
+      "required": true,
+      "multiple": false
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "src/main.rs",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "allow_origin": {
+      "default": "",
+      "env": "ALLOW_ORIGIN"
+    },
+    "drop_if_no_client": {
+      "default": true,
+      "env": "DROP_IF_NO_CLIENT"
+    },
+    "height": {
+      "default": 0,
+      "env": "HEIGHT"
+    },
+    "host": {
+      "default": "127.0.0.1",
+      "env": "HOST"
+    },
+    "input_format": {
+      "default": "jpeg",
+      "env": "INPUT_FORMAT",
+      "x-widget": {
+        "options": [
+          "jpeg",
+          "rgb8",
+          "rgba8",
+          "yuv420p"
+        ],
+        "type": "select"
+      }
+    },
+    "max_fps": {
+      "default": 30,
+      "env": "MAX_FPS"
+    },
+    "port": {
+      "default": 4567,
+      "env": "PORT"
+    },
+    "quality": {
+      "default": 80,
+      "env": "QUALITY"
+    },
+    "width": {
+      "default": 0,
+      "env": "WIDTH"
+    }
+  },
+  "path": ""
+}

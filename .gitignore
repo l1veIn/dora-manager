@@ -1,4 +1,9 @@
 /target
+/nodes/*/target/
+/nodes/*/Cargo.lock
+/nodes/*/bin/
+/nodes/*/.crates.toml
+/nodes/*/.crates2.json
 /dora-hub
 out/
 node_modules

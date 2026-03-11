@@ -1,0 +1,18 @@
+[package]
+name = "dora-dm-queue"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "FIFO buffering and flush control node for Dora Manager"
+
+[dependencies]
+anyhow = "1"
+dora-node-api = "0.4.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+
+[dev-dependencies]
+tempfile = "3"
+
+[workspace]

@@ -244,13 +244,21 @@ async fn install_cargo_node(node: &Node, node_path: &Path) -> Result<String> {
     }
 
     let package_name = format!("dora-{}", node.id);
-    let status = Command::new("cargo")
-        .args([
-            "install",
-            "--root",
-            &node_path.to_string_lossy(),
-            &package_name,
-        ])
+    let build_tokens = node.source.build.split_whitespace().collect::<Vec<_>>();
+    let mut command = Command::new("cargo");
+    command
+        .arg("install")
+        .arg("--root")
+        .arg(node_path.as_os_str());
+
+    if build_tokens.windows(2).any(|pair| pair == ["--path", "."]) {
+        command.arg("--path").arg(".");
+        command.current_dir(node_path);
+    } else {
+        command.arg(&package_name);
+    }
+
+    let status = command
         .status()
         .with_context(|| "Failed to run cargo install")?;
 
@@ -452,6 +460,39 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(node_path.join("dm.json")).unwrap()).unwrap();
         assert_eq!(persisted.version, "0.1.0");
         assert_eq!(persisted.executable, ".venv/bin/demo");
+    }
+
+    #[test]
+    fn install_node_supports_local_cargo_path_builds() {
+        let _guard = env_lock();
+        let dir = tempdir().unwrap();
+        let home = dir.path();
+        let bin_dir = home.join("bin");
+        let node_path = node_dir(home, "demo");
+        fs::create_dir_all(&bin_dir).unwrap();
+        fs::create_dir_all(&node_path).unwrap();
+
+        write_executable(
+            &bin_dir.join("cargo"),
+            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo cargo 1.0; exit 0; fi\nROOT=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = \"--root\" ]; then ROOT=\"$2\"; shift 2; continue; fi\n  shift\ndone\n/bin/mkdir -p \"$ROOT/bin\"\nprintf '#!/bin/sh\\necho demo\\n' > \"$ROOT/bin/dora-demo\"\n/bin/chmod +x \"$ROOT/bin/dora-demo\"\nexit 0\n",
+        );
+
+        fs::write(
+            node_path.join("dm.json"),
+            serde_json::to_string_pretty(&sample_node("demo", "cargo install --path .")).unwrap(),
+        )
+        .unwrap();
+
+        let _path = set_path(bin_dir.clone());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let node = rt.block_on(install_node(home, "demo")).unwrap();
+
+        assert_eq!(node.executable, "bin/dora-demo");
+        assert!(node_path.join("bin/dora-demo").exists());
+
+        let persisted: Node =
+            serde_json::from_str(&fs::read_to_string(node_path.join("dm.json")).unwrap()).unwrap();
+        assert_eq!(persisted.executable, "bin/dora-demo");
     }
 
     #[tokio::test]

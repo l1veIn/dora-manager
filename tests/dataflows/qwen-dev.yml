@@ -36,6 +36,16 @@ nodes:
       clip_duration_sec: 5
       output_format: mp4
 
+  # Live screen capture for MJPEG preview (1 fps)
+  - id: screen-live
+    node: dm-test-media-capture
+    outputs:
+      - image
+    config:
+      mode: repeat_screenshot
+      output_format: png
+      interval_sec: 1
+
   - id: dora-distil-whisper
     node: dora-distil-whisper
     inputs:
@@ -53,11 +63,44 @@ nodes:
     outputs:
       - text
 
+  - id: dora-kokoro-tts
+    node: dora-kokoro-tts
+    inputs:
+      text: dora-qwen/text
+    outputs:
+      - audio
+    env:
+      ACTIVATION_WORDS: you
+
+  # Aggregate TTS audio chunks into a complete asset before Panel
+  - id: tts-queue
+    node: dm-queue
+    inputs:
+      data: dora-kokoro-tts/audio
+      tick: dora/timer/millis/500
+    outputs:
+      - flushed
+    config:
+      max_size_bytes: 52428800
+      max_size_time: 0
+      flush_on: signal
+      flush_timeout: 2000000000
+
+  # MJPEG live preview endpoint at http://localhost:4567/stream
+  - id: preview
+    node: dm-mjpeg
+    inputs:
+      frame: screen-live/image
+    config:
+      port: 4567
+      quality: 75
+      max_fps: 1
+
   - id: panel
     node: dm-panel
     inputs:
       audio_vad: dora-vad/audio
-      audio_tts: dora-kokoro-tts/audio
+      audio_tts: tts-queue/flushed
       screenshot: screen/image
       screenshot_meta: screen/meta
       video_clip: screen-video/video
@@ -160,12 +203,3 @@ nodes:
           span: 6
           type: directory
           label: "Working Dir"
-
-  - id: dora-kokoro-tts
-    node: dora-kokoro-tts
-    inputs:
-      text: dora-qwen/text
-    outputs:
-      - audio
-    env:
-      ACTIVATION_WORDS: you

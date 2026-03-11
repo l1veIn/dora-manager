@@ -1,0 +1,148 @@
+{
+  "id": "dm-queue",
+  "name": "dm-queue",
+  "version": "unknown",
+  "installed_at": "1773229825",
+  "source": {
+    "build": "cargo install --path .",
+    "github": null
+  },
+  "description": "FIFO buffer and flush-control node for Dora Manager streams.",
+  "executable": "bin/dora-dm-queue",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Flow Control",
+    "tags": [
+      "builtin",
+      "rust",
+      "queue"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    "streaming"
+  ],
+  "runtime": {
+    "language": "rust",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "data",
+      "name": "data",
+      "direction": "input",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "control",
+      "name": "control",
+      "direction": "input",
+      "description": "",
+      "required": false,
+      "multiple": false
+    },
+    {
+      "id": "tick",
+      "name": "tick",
+      "direction": "input",
+      "description": "",
+      "required": false,
+      "multiple": false
+    },
+    {
+      "id": "flushed",
+      "name": "flushed",
+      "direction": "output",
+      "description": "",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "buffering",
+      "name": "buffering",
+      "direction": "output",
+      "description": "",
+      "required": false,
+      "multiple": false
+    },
+    {
+      "id": "error",
+      "name": "error",
+      "direction": "output",
+      "description": "",
+      "required": false,
+      "multiple": false
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "src/main.rs",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "flush_on": {
+      "default": "signal",
+      "env": "FLUSH_ON",
+      "x-widget": {
+        "options": [
+          "signal",
+          "full"
+        ],
+        "type": "select"
+      }
+    },
+    "flush_timeout": {
+      "default": 0,
+      "env": "FLUSH_TIMEOUT"
+    },
+    "high_watermark": {
+      "default": 0.99,
+      "env": "HIGH_WATERMARK"
+    },
+    "low_watermark": {
+      "default": 0.01,
+      "env": "LOW_WATERMARK"
+    },
+    "max_block_time": {
+      "default": 10000000000,
+      "env": "MAX_BLOCK_TIME"
+    },
+    "max_size_buffers": {
+      "default": 100,
+      "env": "MAX_SIZE_BUFFERS"
+    },
+    "max_size_bytes": {
+      "default": 2097152,
+      "env": "MAX_SIZE_BYTES"
+    },
+    "max_size_time": {
+      "default": 2000000000,
+      "env": "MAX_SIZE_TIME"
+    },
+    "ring_buffer_max_size": {
+      "default": 0,
+      "env": "RING_BUFFER_MAX_SIZE"
+    },
+    "temp_remove": {
+      "default": true,
+      "env": "TEMP_REMOVE"
+    },
+    "temp_template": {
+      "default": "",
+      "env": "TEMP_TEMPLATE"
+    },
+    "use_buffering": {
+      "default": false,
+      "env": "USE_BUFFERING"
+    }
+  },
+  "path": ""
+}

@@ -4,8 +4,13 @@ use tempfile::tempdir;
 
 use super::*;
 
-fn builtin_test_node_ids() -> [&'static str; 2] {
-    ["dm-test-audio-capture", "dm-test-media-capture"]
+fn builtin_test_node_ids() -> [&'static str; 4] {
+    [
+        "dm-mjpeg",
+        "dm-queue",
+        "dm-test-audio-capture",
+        "dm-test-media-capture",
+    ]
 }
 
 #[test]
