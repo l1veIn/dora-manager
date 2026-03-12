@@ -2,7 +2,7 @@
   "id": "dm-queue",
   "name": "dm-queue",
   "version": "unknown",
-  "installed_at": "1773229825",
+  "installed_at": "1773317709",
   "source": {
     "build": "cargo install --path .",
     "github": null

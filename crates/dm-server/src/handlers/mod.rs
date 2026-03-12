@@ -22,7 +22,7 @@ pub use nodes::{
     create_node, get_node_config, get_node_file_content, get_node_files, import_node, install_node,
     list_nodes, node_readme, node_status, save_node_config, uninstall_node,
 };
-pub use panel::{get_widgets, query_assets, send_command, serve_asset_file};
+pub use panel::{get_latest_option, get_widgets, query_assets, send_command, serve_asset_file};
 pub use panel_ws::panel_ws;
 pub use runs::{
     delete_runs, get_active_run, get_run, get_run_dataflow, get_run_logs, get_run_metrics,

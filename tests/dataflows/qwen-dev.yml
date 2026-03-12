@@ -1,15 +1,18 @@
 nodes:
-  - id: dora-microphone
-    node: dora-microphone
+  - id: dm-microphone
+    node: dm-microphone
     inputs:
       tick: dora/timer/millis/2000
+      device_id: panel/device_id
+      enabled: panel/mic_enabled
     outputs:
       - audio
+      - devices
 
   - id: dora-vad
     node: dora-vad
     inputs:
-      audio: dora-microphone/audio
+      audio: dm-microphone/audio
     outputs:
       - audio
 
@@ -107,6 +110,7 @@ nodes:
       video_clip_meta: screen-video/meta
       text_qwen: dora-qwen/text
       text_whisper: dora-distil-whisper/text
+      mic_devices: dm-microphone/devices
     outputs:
       - prompt
       - system_prompt
@@ -119,6 +123,8 @@ nodes:
       - tools
       - generate
       - clear_history
+      - device_id
+      - mic_enabled
     widgets:
       generate:
         x-widget:
@@ -159,6 +165,22 @@ nodes:
             - qwen-turbo
             - qwen-plus
             - qwen-max
+      device_id:
+        default: "default"
+        x-widget:
+          span: 4
+          type: select
+          label: "Microphone"
+          bind: mic_devices
+          valueKey: id
+          labelKey: name
+      mic_enabled:
+        default: false
+        x-widget:
+          span: 4
+          type: switch
+          label: "Microphone"
+          switchLabel: "Enable Recording"
       temperature:
         default: 0.7
         x-widget:

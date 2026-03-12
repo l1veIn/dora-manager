@@ -161,6 +161,25 @@ pub async fn get_widgets(
     }
 }
 
+/// Return the latest asset data for a given input_id (used by dynamic widget options).
+pub async fn get_latest_option(
+    State(state): State<AppState>,
+    Path((run_id, input_id)): Path<(String, String)>,
+) -> Response {
+    if let Err(response) = ensure_run_has_panel(&state.home, &run_id) {
+        return response.into_response();
+    }
+
+    match dm_core::runs::panel::PanelStore::open(&state.home, &run_id) {
+        Ok(store) => match store.latest_asset_by_input(&input_id) {
+            Ok(Some(asset)) => Json(asset).into_response(),
+            Ok(None) => (StatusCode::NOT_FOUND, "No data for this input").into_response(),
+            Err(e) => err(e).into_response(),
+        },
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    }
+}
+
 fn ensure_run_has_panel(home: &std::path::Path, run_id: &str) -> Result<(), PanelGuardError> {
     let run = dm_core::runs::load_run(home, run_id).map_err(|e| PanelGuardError {
         status: StatusCode::NOT_FOUND,

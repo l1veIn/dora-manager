@@ -5,7 +5,7 @@
     import { Button } from "$lib/components/ui/button/index.js";
     import { PaneGroup, Pane, PaneResizer } from "paneforge";
     import PanelMessage from "./PanelMessage.svelte";
-    import PanelWidgets from "./PanelWidgets.svelte";
+    import PanelControls from "./PanelControls.svelte";
 
     interface Props {
         runId: string;
@@ -23,6 +23,7 @@
     let loadingHistory = $state(false);
     let showScrollBottom = $state(false);
     let panelWidgets = $state<Record<string, any> | null>(null);
+    let latestAssets = $state<Record<string, any>>({});
 
     let panelWs: WebSocket | null = null;
     let wsRetryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -62,10 +63,33 @@
             );
             if (result && Object.keys(result).length > 0) {
                 panelWidgets = result;
+                // Fetch initial data for dynamic option sources
+                const dynamicIds = collectBindInputIds(result);
+                for (const inputId of dynamicIds) {
+                    try {
+                        const asset = await get<any>(
+                            `/runs/${runId}/panel/options/${encodeURIComponent(inputId)}`,
+                        );
+                        if (asset) {
+                            latestAssets = { ...latestAssets, [inputId]: asset };
+                        }
+                    } catch {}
+                }
             }
         } catch (e) {
             console.error("Panel widgets fetch failed", e);
         }
+    }
+
+    function collectBindInputIds(widgets: Record<string, any>): string[] {
+        const ids: string[] = [];
+        for (const def of Object.values(widgets)) {
+            const bind = def?.["x-widget"]?.bind;
+            if (typeof bind === "string" && !ids.includes(bind)) {
+                ids.push(bind);
+            }
+        }
+        return ids;
     }
 
     async function pollNewPanelAssets() {
@@ -211,6 +235,16 @@
         if (filtered.length === 0) return;
 
         panelAssets = [...panelAssets, ...filtered];
+
+        // Track latest asset per input_id for dynamic widget options
+        if (panelWidgets) {
+            const dynamicIds = collectBindInputIds(panelWidgets);
+            for (const asset of filtered) {
+                if (dynamicIds.includes(asset.input_id)) {
+                    latestAssets = { ...latestAssets, [asset.input_id]: asset };
+                }
+            }
+        }
 
         if (isAtBottom) {
             tick().then(() => {
@@ -379,10 +413,11 @@
     >
         <div class="flex-1 overflow-y-auto p-4 flex flex-col">
             {#if panelWidgets}
-                <PanelWidgets
+                <PanelControls
                     {runId}
                     widgets={panelWidgets}
                     disabled={!isRunActive}
+                    {latestAssets}
                 />
             {:else}
                 <form

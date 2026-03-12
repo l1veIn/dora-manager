@@ -1,10 +1,10 @@
 <script lang="ts">
-    import TextWidget from "./widgets/TextWidget.svelte";
-    import JsonWidget from "./widgets/JsonWidget.svelte";
-    import ImageWidget from "./widgets/ImageWidget.svelte";
-    import AudioWidget from "./widgets/AudioWidget.svelte";
-    import VideoWidget from "./widgets/VideoWidget.svelte";
-    import FileWidget from "./widgets/FileWidget.svelte";
+    import TextWidget from "./panel/display/TextWidget.svelte";
+    import JsonWidget from "./panel/display/JsonWidget.svelte";
+    import ImageWidget from "./panel/display/ImageWidget.svelte";
+    import AudioWidget from "./panel/display/AudioWidget.svelte";
+    import VideoWidget from "./panel/display/VideoWidget.svelte";
+    import FileWidget from "./panel/display/FileWidget.svelte";
 
     let { asset, runId } = $props<{
         asset: any;

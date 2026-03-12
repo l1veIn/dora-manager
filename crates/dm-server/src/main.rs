@@ -155,6 +155,10 @@ async fn main() {
             "/api/runs/{run_id}/panel/ws",
             get(handlers::panel_ws),
         )
+        .route(
+            "/api/runs/{run_id}/panel/options/{input_id}",
+            get(handlers::get_latest_option),
+        )
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
         .with_state(state.clone())

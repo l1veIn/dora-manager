@@ -1,0 +1,97 @@
+{
+  "id": "dm-microphone",
+  "name": "dm-microphone",
+  "version": "0.1.0",
+  "installed_at": "1773318598",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Microphone input with device selection. Publishes available devices for dynamic widget binding.",
+  "executable": ".venv/bin/dm-microphone",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Audio/Input",
+    "tags": [
+      "audio",
+      "microphone",
+      "input"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    "media"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "audio",
+      "name": "audio",
+      "direction": "output",
+      "description": "Continuous audio stream (Float32 PCM)",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "devices",
+      "name": "devices",
+      "direction": "output",
+      "description": "JSON array of available input devices (for dynamic widget options)",
+      "required": false,
+      "multiple": false
+    },
+    {
+      "id": "device_id",
+      "name": "device_id",
+      "direction": "input",
+      "description": "Select microphone by device ID",
+      "required": false,
+      "multiple": false
+    },
+    {
+      "id": "tick",
+      "name": "tick",
+      "direction": "input",
+      "description": "Heartbeat timer to keep the node running",
+      "required": false,
+      "multiple": false
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_microphone/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "max_duration": {
+      "default": 0.1,
+      "description": "Buffer duration in seconds before sending audio chunk",
+      "env": "MAX_DURATION"
+    },
+    "sample_rate": {
+      "default": 16000,
+      "env": "SAMPLE_RATE",
+      "x-widget": {
+        "options": [
+          8000,
+          16000,
+          24000,
+          44100,
+          48000
+        ],
+        "type": "select"
+      }
+    }
+  },
+  "path": ""
+}

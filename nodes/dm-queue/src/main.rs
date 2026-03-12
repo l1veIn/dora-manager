@@ -51,7 +51,7 @@ fn main() -> Result<()> {
                     }
                 };
 
-                eprintln!("[dm-queue] outputs: {} items", outputs.len());
+                // eprintln!("[dm-queue] outputs: {} items", outputs.len());
                 for output in outputs {
                     match output {
                         QueueOutput::Data { port, bytes, metadata: meta, upstream_params } => {

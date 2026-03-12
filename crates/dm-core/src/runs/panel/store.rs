@@ -205,6 +205,35 @@ impl PanelStore {
         Ok(PaginatedAssets { assets, total })
     }
 
+    /// Return the most recent asset for a given `input_id`, if any.
+    pub fn latest_asset_by_input(&self, input_id: &str) -> Result<Option<Asset>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let mut stmt = conn.prepare(
+            "SELECT seq, input_id, producer_id, output_field, timestamp, type, storage, path, data
+             FROM assets WHERE input_id = ?1 ORDER BY seq DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query_map(params![input_id], |row| {
+            Ok(Asset {
+                seq: row.get(0)?,
+                input_id: row.get(1)?,
+                producer_id: row.get(2)?,
+                output_field: row.get(3)?,
+                timestamp: row.get(4)?,
+                type_: row.get(5)?,
+                storage: row.get(6)?,
+                path: row.get(7)?,
+                data: row.get(8)?,
+            })
+        })?;
+        match rows.next() {
+            Some(row) => Ok(Some(row?)),
+            None => Ok(None),
+        }
+    }
+
     pub fn write_command(&self, output_id: &str, value: &str) -> Result<i64> {
         let now = Utc::now().to_rfc3339();
         let conn = self
