@@ -12,7 +12,7 @@ use super::repo;
 
 /// Node IDs reserved for DM built-in nodes.
 /// Managed nodes with these names are treated specially by transpile.
-const RESERVED_NODE_IDS: &[&str] = &["dm-panel"];
+const RESERVED_NODE_IDS: &[&str] = &["dm-panel", "dm-test-harness"];
 
 fn is_reserved_node_id(id: &str) -> bool {
     RESERVED_NODE_IDS.contains(&id)
@@ -332,6 +332,11 @@ pub(crate) fn inject_panel(ctx: &TranspileContext, graph: &mut DmGraph) {
             continue;
         };
 
+        // Skip test harness nodes — they are handled by inject_test_harness
+        if yaml_id == "dm-test-harness" {
+            continue;
+        }
+
         extra_fields.insert(
             serde_yaml::Value::String("path".to_string()),
             serde_yaml::Value::String(dm_exe.display().to_string()),
@@ -342,6 +347,77 @@ pub(crate) fn inject_panel(ctx: &TranspileContext, graph: &mut DmGraph) {
                 "panel serve --run-id {} --node-id {}",
                 ctx.run_id, yaml_id
             )),
+        );
+    }
+}
+
+/// Transform test harness nodes: set `path` to the current `dm` binary and inject
+/// `test harness-serve` with auto-trigger and output-ports args from env.
+pub(crate) fn inject_test_harness(graph: &mut DmGraph) {
+    let dm_exe = resolve_dm_exe();
+
+    for node in &mut graph.nodes {
+        let DmNode::Panel {
+            yaml_id,
+            extra_fields,
+            ..
+        } = node
+        else {
+            continue;
+        };
+
+        // Only match nodes that were parsed from `node: dm-test-harness`
+        // The parser sees them as Panel because dm-test-harness is reserved.
+        // We identify them by checking the env for DM_TEST_AUTO_TRIGGER.
+        let is_harness = extra_fields
+            .get(&serde_yaml::Value::String("env".to_string()))
+            .and_then(|v| v.as_mapping())
+            .and_then(|m| m.get(&serde_yaml::Value::String("DM_TEST_AUTO_TRIGGER".to_string())))
+            .is_some();
+
+        if !is_harness {
+            continue;
+        }
+
+        let env_map = extra_fields
+            .get(&serde_yaml::Value::String("env".to_string()))
+            .and_then(|v| v.as_mapping())
+            .cloned()
+            .unwrap_or_default();
+
+        let auto_trigger = env_map
+            .get(&serde_yaml::Value::String("DM_TEST_AUTO_TRIGGER".to_string()))
+            .and_then(|v| v.as_str())
+            .unwrap_or("false") == "true";
+
+        let output_ports = env_map
+            .get(&serde_yaml::Value::String("DM_TEST_OUTPUT_PORTS".to_string()))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let mut args = format!("test harness-serve");
+        if auto_trigger {
+            args.push_str(" --auto-trigger");
+        }
+        if !output_ports.is_empty() {
+            args.push_str(&format!(" --output-ports {}", output_ports));
+        }
+
+        extra_fields.insert(
+            serde_yaml::Value::String("path".to_string()),
+            serde_yaml::Value::String(dm_exe.display().to_string()),
+        );
+        extra_fields.insert(
+            serde_yaml::Value::String("args".to_string()),
+            serde_yaml::Value::String(args),
+        );
+        // Remove env block — harness gets config via args, not env
+        extra_fields.remove(&serde_yaml::Value::String("env".to_string()));
+
+        eprintln!(
+            "[dm-core] injected test harness for node '{}'",
+            yaml_id
         );
     }
 }

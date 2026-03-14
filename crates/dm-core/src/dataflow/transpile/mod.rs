@@ -75,6 +75,7 @@ pub fn transpile_graph_for_run(
         passes::resolve_paths(&ctx, &mut graph, &mut diags);
         passes::merge_config(&ctx, &mut graph, &mut diags);
         passes::inject_panel(&ctx, &mut graph);
+        passes::inject_test_harness(&mut graph);
 
         // Extract DM-specific metadata
         let widgets = passes::extract_widgets(&graph);

@@ -49,14 +49,15 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                 .unwrap_or_default()
                 .to_string();
             if let Some(node_id) = entry.get("node").and_then(|value| value.as_str()) {
-                if node_id == "dm-panel" {
+                // Builtin reserved nodes (compiled into the dm binary)
+                if node_id == "dm-panel" || node_id == "dm-test-harness" {
                     resolved_node_count += 1;
                     nodes.push(DataflowNodeResolution {
                         yaml_id,
                         node_id: node_id.to_string(),
                         resolved: true,
                         configurable: false,
-                        source: "builtin_panel".to_string(),
+                        source: "builtin".to_string(),
                     });
                     continue;
                 }
