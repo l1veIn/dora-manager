@@ -1,0 +1,29 @@
+nodes:
+  # Test dm-downloader with a small public file
+  - id: dl-test
+    node: dm-downloader
+    inputs:
+      download: panel/dl_test
+      tick: dora/timer/millis/2000
+    outputs:
+      - path
+      - ui
+    config:
+      url: "https://raw.githubusercontent.com/dora-rs/dora/main/README.md"
+      hash: ""
+      extract: false
+      dest: "test/dora-readme.md"
+
+  - id: panel
+    node: dm-panel
+    inputs:
+      dl_ui: dl-test/ui
+    outputs:
+      - dl_test
+    widgets:
+      dl_test:
+        x-widget:
+          type: button
+          label: "Download Test File"
+          bind: dl_ui
+          span: 6

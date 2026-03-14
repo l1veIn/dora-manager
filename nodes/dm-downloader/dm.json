@@ -1,0 +1,96 @@
+{
+  "id": "dm-downloader",
+  "name": "dm-downloader",
+  "version": "0.1.0",
+  "installed_at": "",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Model weight downloader with hash verification, extraction, and Panel UI lifecycle.",
+  "executable": ".venv/bin/dm-downloader",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Utility",
+    "tags": [
+      "builtin",
+      "download",
+      "model"
+    ]
+  },
+  "capabilities": [
+    "configurable"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "download",
+      "name": "download",
+      "direction": "input",
+      "description": "Trigger download (any event on this port starts download)",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "tick",
+      "name": "tick",
+      "direction": "input",
+      "description": "Heartbeat timer to keep the node running",
+      "required": false,
+      "multiple": false
+    },
+    {
+      "id": "path",
+      "name": "path",
+      "direction": "output",
+      "description": "Verified file/directory path, emitted once on Ready",
+      "required": true,
+      "multiple": false
+    },
+    {
+      "id": "ui",
+      "name": "ui",
+      "direction": "output",
+      "description": "Widget state for Panel bind",
+      "required": false,
+      "multiple": false
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_downloader/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "url": {
+      "description": "Download URL",
+      "env": "URL"
+    },
+    "hash": {
+      "default": "",
+      "description": "Verification hash (algorithm:hex), empty to skip verify",
+      "env": "HASH"
+    },
+    "extract": {
+      "default": false,
+      "description": "Auto-extract after download (tar.gz, tar.bz2, tar.xz, zip)",
+      "env": "EXTRACT"
+    },
+    "dest": {
+      "default": "",
+      "description": "Destination path (relative to DM data dir, or absolute). Empty = derive from URL filename",
+      "env": "DEST"
+    }
+  },
+  "path": ""
+}
