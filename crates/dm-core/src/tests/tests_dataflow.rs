@@ -35,6 +35,7 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
         files: NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
+        dynamic_ports: false,
         path: Default::default(),
     };
 
@@ -293,6 +294,7 @@ fn test_inspect_config_aggregates_schema_and_effective_values() {
                 "default": 0.2
             }
         })),
+        dynamic_ports: false,
         path: Default::default(),
     };
     std::fs::write(

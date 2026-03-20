@@ -57,14 +57,15 @@ pub struct NodePort {
     pub name: String,
     #[serde(default)]
     pub direction: NodePortDirection,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub data_type: Option<String>,
     #[serde(default)]
     pub description: String,
     #[serde(default = "default_true")]
     pub required: bool,
     #[serde(default)]
     pub multiple: bool,
+    /// Port data schema — inline DM Port Schema object or { "$ref": "path" }.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -155,6 +156,11 @@ pub struct Node {
     /// Configuration schema for node-level settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_schema: Option<serde_json::Value>,
+    /// When true, this node accepts ports defined at YAML authoring time
+    /// that are not pre-declared in `ports`. Schema validation is skipped
+    /// for ports not found in `ports`.
+    #[serde(default)]
+    pub dynamic_ports: bool,
     /// Runtime-computed absolute path to the node directory.
     /// Not stored in dm.json — populated when loading from disk.
     #[serde(skip_deserializing, default)]
@@ -199,6 +205,7 @@ impl Node {
             files: NodeFiles::default(),
             examples: Vec::new(),
             config_schema: None,
+            dynamic_ports: false,
             path,
         }
     }

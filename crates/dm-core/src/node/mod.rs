@@ -8,6 +8,7 @@ mod install;
 mod local;
 mod model;
 mod paths;
+pub mod schema;
 
 #[cfg(test)]
 mod tests;

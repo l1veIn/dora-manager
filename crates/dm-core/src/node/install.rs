@@ -321,6 +321,7 @@ mod tests {
             files: NodeFiles::default(),
             examples: Vec::new(),
             config_schema: None,
+            dynamic_ports: false,
             path: Default::default(),
         }
     }

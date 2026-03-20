@@ -100,6 +100,7 @@ pub fn init_dm_json(id: &str, node_path: &Path, hints: InitHints) -> Result<Node
         files,
         examples: Vec::new(),
         config_schema: None,
+        dynamic_ports: false,
         path: Default::default(),
     };
 

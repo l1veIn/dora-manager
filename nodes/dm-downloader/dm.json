@@ -37,7 +37,8 @@
       "direction": "input",
       "description": "Trigger download (any event on this port starts download)",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "null" }, "description": "Trigger signal, payload is ignored" }
     },
     {
       "id": "tick",
@@ -45,7 +46,8 @@
       "direction": "input",
       "description": "Heartbeat timer to keep the node running",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "null" } }
     },
     {
       "id": "path",
@@ -53,7 +55,8 @@
       "direction": "output",
       "description": "Verified file/directory path, emitted once on Ready",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "Absolute file path" }
     },
     {
       "id": "ui",
@@ -61,7 +64,8 @@
       "direction": "output",
       "description": "Widget state for Panel bind",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "JSON-encoded widget overrides" }
     }
   ],
   "files": {

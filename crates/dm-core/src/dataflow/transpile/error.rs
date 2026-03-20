@@ -22,6 +22,14 @@ pub enum DiagnosticKind {
     MissingExecutable,
     /// A managed node ID conflicts with a reserved built-in name.
     ReservedNodeId,
+    /// A port schema could not be parsed.
+    InvalidPortSchema { port_id: String, reason: String },
+    /// An output→input connection has incompatible port schemas.
+    IncompatiblePortSchema {
+        output_port: String,
+        input_port: String,
+        reason: String,
+    },
 }
 
 impl fmt::Display for TranspileDiagnostic {
@@ -38,6 +46,19 @@ impl fmt::Display for TranspileDiagnostic {
             }
             DiagnosticKind::ReservedNodeId => {
                 "conflicts with a reserved built-in node name".to_string()
+            }
+            DiagnosticKind::InvalidPortSchema { port_id, reason } => {
+                format!("port '{}' has an invalid schema: {}", port_id, reason)
+            }
+            DiagnosticKind::IncompatiblePortSchema {
+                output_port,
+                input_port,
+                reason,
+            } => {
+                format!(
+                    "incompatible connection {} → {}: {}",
+                    output_port, input_port, reason
+                )
             }
         };
         write!(

@@ -38,7 +38,12 @@
       "direction": "output",
       "description": "Continuous audio stream (Float32 PCM)",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": {
+        "title": "PCM Audio Chunk",
+        "description": "Float32 PCM audio samples",
+        "type": { "name": "floatingpoint", "precision": "SINGLE" }
+      }
     },
     {
       "id": "devices",
@@ -46,7 +51,8 @@
       "direction": "output",
       "description": "JSON array of available input devices (for dynamic widget options)",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "JSON-encoded device list" }
     },
     {
       "id": "device_id",
@@ -54,7 +60,8 @@
       "direction": "input",
       "description": "Select microphone by device ID",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" } }
     },
     {
       "id": "tick",
@@ -62,7 +69,8 @@
       "direction": "input",
       "description": "Heartbeat timer to keep the node running",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "null" } }
     }
   ],
   "files": {

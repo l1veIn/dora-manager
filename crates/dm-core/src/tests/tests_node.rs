@@ -78,6 +78,7 @@ fn test_node_struct() {
         files: NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
+        dynamic_ports: false,
         path: std::path::PathBuf::from("/test/path"),
     };
 
@@ -270,6 +271,7 @@ async fn test_install_node_errors_for_unsupported_build() {
         files: NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
+        dynamic_ports: false,
         path: Default::default(),
     };
     std::fs::write(

@@ -35,49 +35,55 @@
       "id": "data",
       "name": "data",
       "direction": "input",
-      "description": "",
+      "description": "Opaque data passthrough",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "binary" }, "description": "Arbitrary binary data" }
     },
     {
       "id": "control",
       "name": "control",
       "direction": "input",
-      "description": "",
+      "description": "Control commands (flush/reset)",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" } }
     },
     {
       "id": "tick",
       "name": "tick",
       "direction": "input",
-      "description": "",
+      "description": "Timer tick",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "null" } }
     },
     {
       "id": "flushed",
       "name": "flushed",
       "direction": "output",
-      "description": "",
+      "description": "Flushed data output",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "binary" }, "description": "Flushed binary data" }
     },
     {
       "id": "buffering",
       "name": "buffering",
       "direction": "output",
-      "description": "",
+      "description": "Buffer status",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "JSON-encoded buffer state" }
     },
     {
       "id": "error",
       "name": "error",
       "direction": "output",
-      "description": "",
+      "description": "Error messages",
       "required": false,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "Error description string" }
     }
   ],
   "files": {

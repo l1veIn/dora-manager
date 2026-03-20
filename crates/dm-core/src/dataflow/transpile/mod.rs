@@ -1,13 +1,14 @@
 /// Transpile module — transforms DM-flavoured YAML into standard dora-rs YAML.
 ///
 /// The pipeline:
-/// 1. **parse**              — YAML text  →  typed `DmGraph` IR
-/// 2. **validate_reserved**  — check for reserved node ID conflicts
-/// 3. **resolve_paths**      — `node:` → absolute `path:` via `dm.json`
-/// 4. **merge_config**       — four-layer config merge → `env:`
-/// 5. **inject_panel**       — `dm-panel` → current `dm` binary + args
-/// 6. **extract_widgets**    — collect panel widget definitions → JSON
-/// 7. **emit**               — `DmGraph` → `serde_yaml::Value`
+/// 1. **parse**                  — YAML text  →  typed `DmGraph` IR
+/// 2. **validate_reserved**      — check for reserved node ID conflicts
+/// 3. **resolve_paths**          — `node:` → absolute `path:` via `dm.json`
+/// 4. **validate_port_schemas**  — check port schema compatibility
+/// 5. **merge_config**           — four-layer config merge → `env:`
+/// 6. **inject_panel**           — `dm-panel` → current `dm` binary + args
+/// 7. **extract_widgets**        — collect panel widget definitions → JSON
+/// 8. **emit**                   — `DmGraph` → `serde_yaml::Value`
 
 mod context;
 mod error;
@@ -73,6 +74,7 @@ pub fn transpile_graph_for_run(
 
         // Transform
         passes::resolve_paths(&ctx, &mut graph, &mut diags);
+        passes::validate_port_schemas(&ctx, &graph, &mut diags);
         passes::merge_config(&ctx, &mut graph, &mut diags);
         passes::inject_panel(&ctx, &mut graph);
         passes::inject_test_harness(&mut graph);

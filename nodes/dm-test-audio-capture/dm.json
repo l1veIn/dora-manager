@@ -34,25 +34,34 @@
       "id": "audio",
       "name": "audio",
       "direction": "output",
-      "description": "",
+      "description": "Complete captured audio (after recording finishes)",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": {
+        "type": { "name": "floatingpoint", "precision": "SINGLE" },
+        "description": "Float32 PCM audio samples"
+      }
     },
     {
       "id": "audio_stream",
       "name": "audio_stream",
       "direction": "output",
-      "description": "",
+      "description": "Streaming audio chunks during recording",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": {
+        "type": { "name": "floatingpoint", "precision": "SINGLE" },
+        "description": "Float32 PCM audio samples (streaming)"
+      }
     },
     {
       "id": "meta",
       "name": "meta",
       "direction": "output",
-      "description": "",
+      "description": "Audio capture metadata",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "JSON-encoded capture metadata" }
     }
   ],
   "files": {

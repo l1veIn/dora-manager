@@ -35,9 +35,13 @@
       "id": "frame",
       "name": "frame",
       "direction": "input",
-      "description": "",
+      "description": "Image frame (raw bytes or encoded)",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": {
+        "type": { "name": "int", "bitWidth": 8, "isSigned": false },
+        "description": "Raw image bytes (RGB8, RGBA8, JPEG, or YUV420P)"
+      }
     }
   ],
   "files": {

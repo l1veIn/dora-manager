@@ -34,33 +34,43 @@
       "id": "trigger",
       "name": "trigger",
       "direction": "input",
-      "description": "",
+      "description": "Capture trigger signal",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "null" }, "description": "Trigger event, payload is ignored" }
     },
     {
       "id": "image",
       "name": "image",
       "direction": "output",
-      "description": "",
+      "description": "Captured screenshot",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": {
+        "type": { "name": "int", "bitWidth": 8, "isSigned": false },
+        "description": "PNG/JPEG encoded image bytes"
+      }
     },
     {
       "id": "video",
       "name": "video",
       "direction": "output",
-      "description": "",
+      "description": "Captured video clip",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": {
+        "type": { "name": "int", "bitWidth": 8, "isSigned": false },
+        "description": "Encoded video bytes"
+      }
     },
     {
       "id": "meta",
       "name": "meta",
       "direction": "output",
-      "description": "",
+      "description": "Capture metadata",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "JSON-encoded capture metadata" }
     }
   ],
   "files": {

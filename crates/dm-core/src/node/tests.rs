@@ -72,6 +72,7 @@ fn test_install_and_list_and_uninstall() {
         files: NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
+        dynamic_ports: false,
         path: Default::default(),
     };
 
@@ -166,6 +167,7 @@ async fn test_install_node_errors_for_unsupported_build() {
         files: NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
+        dynamic_ports: false,
         path: Default::default(),
     };
     std::fs::write(

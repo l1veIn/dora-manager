@@ -161,6 +161,166 @@ pub(crate) fn validate_reserved(
 }
 
 // ---------------------------------------------------------------------------
+// Pass 1.6: Validate Port Schemas — check connection type compatibility
+// ---------------------------------------------------------------------------
+
+/// Validate that every wired connection between managed nodes has compatible
+/// port schemas.
+///
+/// For each managed node's `inputs:` mapping, parse entries of the form
+/// `input_port: source_node/source_output` and check that the source node's
+/// output port schema is a subtype of this node's input port schema.
+pub(crate) fn validate_port_schemas(
+    ctx: &TranspileContext,
+    graph: &DmGraph,
+    diags: &mut Vec<TranspileDiagnostic>,
+) {
+    // Build a lookup: yaml_id → node_id (for managed nodes only)
+    let mut yaml_to_node: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    for node in &graph.nodes {
+        if let DmNode::Managed(managed) = node {
+            yaml_to_node.insert(&managed.yaml_id, &managed.node_id);
+        }
+    }
+
+    for node in &graph.nodes {
+        let DmNode::Managed(managed) = node else {
+            continue;
+        };
+
+        // Extract `inputs:` from extra_fields
+        let Some(inputs_val) = managed
+            .extra_fields
+            .get(&serde_yaml::Value::String("inputs".to_string()))
+        else {
+            continue;
+        };
+        let Some(inputs_map) = inputs_val.as_mapping() else {
+            continue;
+        };
+
+        // Load this node's metadata (for input port schemas)
+        let Some(this_meta) = load_node_meta(ctx, &managed.node_id) else {
+            continue;
+        };
+
+        for (input_key, source_val) in inputs_map {
+            let Some(input_port_id) = input_key.as_str() else {
+                continue;
+            };
+            let Some(source_str) = source_val.as_str() else {
+                continue;
+            };
+
+            // Parse "source_node/source_output" format
+            let Some((source_yaml_id, source_output_id)) = source_str.split_once('/') else {
+                continue; // dora built-in like "dora/timer/..." — skip
+            };
+
+            // Skip dora built-in sources
+            if source_yaml_id == "dora" {
+                continue;
+            }
+
+            // Find source node's node_id
+            let Some(source_node_id) = yaml_to_node.get(source_yaml_id) else {
+                continue; // External or Panel node — skip
+            };
+
+            // Load source node metadata
+            let Some(source_meta) = load_node_meta(ctx, source_node_id) else {
+                continue;
+            };
+
+            // Find port declarations in dm.json
+            let source_port = source_meta
+                .ports
+                .iter()
+                .find(|p| p.id == source_output_id);
+            let input_port = this_meta.ports.iter().find(|p| p.id == input_port_id);
+
+            // dynamic_ports: if port isn't declared in dm.json, skip silently
+            if source_port.is_none() && source_meta.dynamic_ports {
+                continue;
+            }
+            if input_port.is_none() && this_meta.dynamic_ports {
+                continue;
+            }
+
+            let (Some(source_port), Some(input_port)) = (source_port, input_port) else {
+                continue; // Port not declared in dm.json — skip
+            };
+
+            // If either side lacks a schema, skip validation silently.
+            // Schema validation only triggers when BOTH sides declare schemas.
+            let (Some(out_schema_val), Some(in_schema_val)) =
+                (&source_port.schema, &input_port.schema)
+            else {
+                continue;
+            };
+
+            // Resolve schemas (handles $ref)
+            let source_node_dir =
+                node::resolve_node_dir(ctx.home, source_node_id).unwrap_or_default();
+            let input_node_dir =
+                node::resolve_node_dir(ctx.home, &managed.node_id).unwrap_or_default();
+
+            let out_schema =
+                match crate::node::schema::parse_schema(out_schema_val, &source_node_dir) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        diags.push(TranspileDiagnostic {
+                            yaml_id: source_yaml_id.to_string(),
+                            node_id: source_node_id.to_string(),
+                            kind: DiagnosticKind::InvalidPortSchema {
+                                port_id: source_output_id.to_string(),
+                                reason: e.to_string(),
+                            },
+                        });
+                        continue;
+                    }
+                };
+
+            let in_schema =
+                match crate::node::schema::parse_schema(in_schema_val, &input_node_dir) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        diags.push(TranspileDiagnostic {
+                            yaml_id: managed.yaml_id.clone(),
+                            node_id: managed.node_id.clone(),
+                            kind: DiagnosticKind::InvalidPortSchema {
+                                port_id: input_port_id.to_string(),
+                                reason: e.to_string(),
+                            },
+                        });
+                        continue;
+                    }
+                };
+
+            // Check compatibility
+            if let Err(e) = crate::node::schema::check_compatibility(&out_schema, &in_schema) {
+                diags.push(TranspileDiagnostic {
+                    yaml_id: managed.yaml_id.clone(),
+                    node_id: managed.node_id.clone(),
+                    kind: DiagnosticKind::IncompatiblePortSchema {
+                        output_port: format!("{}/{}", source_yaml_id, source_output_id),
+                        input_port: input_port_id.to_string(),
+                        reason: e.to_string(),
+                    },
+                });
+            }
+        }
+    }
+}
+
+/// Helper: load a node's metadata from dm.json.
+fn load_node_meta(ctx: &TranspileContext, node_id: &str) -> Option<Node> {
+    let meta_path = node::resolve_dm_json_path(ctx.home, node_id)?;
+    let content = std::fs::read_to_string(&meta_path).ok()?;
+    serde_json::from_str::<Node>(&content).ok()
+}
+
+// ---------------------------------------------------------------------------
 // Pass 2: Resolve Paths — node: → path: (absolute)
 // ---------------------------------------------------------------------------
 

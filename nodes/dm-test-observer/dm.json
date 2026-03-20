@@ -34,49 +34,55 @@
       "id": "audio_meta",
       "name": "audio_meta",
       "direction": "input",
-      "description": "",
+      "description": "Audio capture metadata",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "JSON-encoded audio metadata" }
     },
     {
       "id": "screen_meta",
       "name": "screen_meta",
       "direction": "input",
-      "description": "",
+      "description": "Screen capture metadata",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "JSON-encoded screen metadata" }
     },
     {
       "id": "timestamp_start",
       "name": "timestamp_start",
       "direction": "input",
-      "description": "",
+      "description": "Test start timestamp",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" } }
     },
     {
       "id": "timestamp_end",
       "name": "timestamp_end",
       "direction": "input",
-      "description": "",
+      "description": "Test end timestamp",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" } }
     },
     {
       "id": "summary_text",
       "name": "summary_text",
       "direction": "output",
-      "description": "",
+      "description": "Human-readable test summary",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" } }
     },
     {
       "id": "summary_json",
       "name": "summary_json",
       "direction": "output",
-      "description": "",
+      "description": "Machine-readable test summary",
       "required": true,
-      "multiple": false
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" }, "description": "JSON-encoded summary object" }
     }
   ],
   "files": {
