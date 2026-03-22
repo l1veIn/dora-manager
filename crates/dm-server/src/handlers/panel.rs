@@ -118,8 +118,7 @@ pub async fn send_command(
                     // Persist the sent value as the new default in widgets.json
                     if body.output_id.is_some() {
                         let widgets_path =
-                            dm_core::runs::run_panel_dir(&state.home, &run_id)
-                                .join("widgets.json");
+                            dm_core::runs::run_panel_dir(&state.home, &run_id).join("widgets.json");
                         if let Ok(content) = std::fs::read_to_string(&widgets_path) {
                             if let Ok(mut json) =
                                 serde_json::from_str::<serde_json::Value>(&content)
@@ -143,10 +142,7 @@ pub async fn send_command(
     }
 }
 
-pub async fn get_widgets(
-    State(state): State<AppState>,
-    Path(run_id): Path<String>,
-) -> Response {
+pub async fn get_widgets(State(state): State<AppState>, Path(run_id): Path<String>) -> Response {
     let widgets_path = dm_core::runs::run_panel_dir(&state.home, &run_id).join("widgets.json");
     match tokio::fs::read_to_string(&widgets_path).await {
         Ok(content) => {

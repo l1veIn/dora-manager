@@ -179,6 +179,7 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         capabilities: Vec::new(),
         runtime: dm_core::node::NodeRuntime::default(),
         ports: Vec::new(),
+        dynamic_ports: false,
         files: dm_core::node::NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
@@ -1281,7 +1282,9 @@ async fn get_active_run_returns_active_run_summaries() {
     let active = handlers::get_active_run(
         State(state),
         Query(serde_json::from_value(serde_json::json!({})).unwrap()),
-    ).await.into_response();
+    )
+    .await
+    .into_response();
     assert_eq!(active.status(), axum::http::StatusCode::OK);
 
     let body = body_text(active).await;

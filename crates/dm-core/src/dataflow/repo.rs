@@ -99,10 +99,9 @@ pub fn read_view(home: &Path, name: &str) -> Result<serde_json::Value> {
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
-    let content = fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read view for '{}'", name))?;
-    serde_json::from_str(&content)
-        .with_context(|| format!("Failed to parse view for '{}'", name))
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read view for '{}'", name))?;
+    serde_json::from_str(&content).with_context(|| format!("Failed to parse view for '{}'", name))
 }
 
 pub fn write_view(home: &Path, name: &str, view: &serde_json::Value) -> Result<()> {

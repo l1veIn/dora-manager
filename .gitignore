@@ -9,3 +9,5 @@ out/
 node_modules
 .agency/*
 !.agency/setup.sh
+docs/
+!docs/blog/

@@ -7,7 +7,6 @@
 /// Dual-thread architecture (same pattern as panel_serve):
 ///   Thread 1 (spawned): dora event reader → format + print
 ///   Thread 2 (main):    stdin reader → parse + send_output
-
 use anyhow::{Context, Result};
 use colored::Colorize;
 
@@ -16,8 +15,8 @@ use dora_node_api::{DoraNode, Event};
 
 /// Entry point called by transpiler via `dm test harness-serve`.
 pub fn harness_serve(auto_trigger: bool, output_ports: &[String]) -> Result<()> {
-    let (mut node, mut events) =
-        DoraNode::init_from_env().map_err(|e| anyhow::anyhow!("Failed to init harness node: {e}"))?;
+    let (mut node, mut events) = DoraNode::init_from_env()
+        .map_err(|e| anyhow::anyhow!("Failed to init harness node: {e}"))?;
 
     let should_stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 
@@ -55,11 +54,7 @@ pub fn harness_serve(auto_trigger: bool, output_ports: &[String]) -> Result<()> 
     // -- Auto-trigger: send one empty event to each output port --
     if auto_trigger {
         for port in output_ports {
-            eprintln!(
-                "{} Auto-triggering port: {}",
-                "→".cyan(),
-                port.bold()
-            );
+            eprintln!("{} Auto-triggering port: {}", "→".cyan(), port.bold());
             node.send_output(
                 port.clone().into(),
                 Default::default(),

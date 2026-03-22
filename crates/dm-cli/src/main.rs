@@ -278,7 +278,6 @@ async fn main() -> Result<()> {
         }
 
         // --- Delegated command groups ---
-
         Commands::Node { command } => match command {
             NodeCommands::Install { ids } => cmd::node::install(&home, ids).await?,
             NodeCommands::List => cmd::node::list(&home)?,
@@ -296,9 +295,11 @@ async fn main() -> Result<()> {
             None => cmd::runs::list(&home).await?,
             Some(RunsCommands::Stop { run_id }) => cmd::runs::stop(&home, run_id).await?,
             Some(RunsCommands::Delete { run_ids }) => cmd::runs::delete(&home, run_ids)?,
-            Some(RunsCommands::Logs { run_id, node_id, follow }) => {
-                cmd::runs::logs(&home, run_id, node_id, follow).await?
-            }
+            Some(RunsCommands::Logs {
+                run_id,
+                node_id,
+                follow,
+            }) => cmd::runs::logs(&home, run_id, node_id, follow).await?,
             Some(RunsCommands::Clean { keep }) => cmd::runs::clean(&home, keep)?,
         },
 
@@ -306,17 +307,37 @@ async fn main() -> Result<()> {
             PanelCommands::Serve { run_id, node_id } => {
                 builtin::panel::panel_serve(&home, &run_id, &node_id)?;
             }
-            PanelCommands::Send { output_id, value, run } => {
+            PanelCommands::Send {
+                output_id,
+                value,
+                run,
+            } => {
                 builtin::panel::panel_send(&home, &output_id, &value, run)?;
             }
         },
 
         Commands::Test(command) => match command {
-            TestCommands::HarnessServe { auto_trigger, output_ports } => {
+            TestCommands::HarnessServe {
+                auto_trigger,
+                output_ports,
+            } => {
                 cmd::test::harness_serve(auto_trigger, &output_ports)?;
             }
-            TestCommands::Run { node_id, config_overrides, auto_trigger, timeout } => {
-                cmd::test::run(&home, cli.verbose, &node_id, &config_overrides, auto_trigger, timeout).await?;
+            TestCommands::Run {
+                node_id,
+                config_overrides,
+                auto_trigger,
+                timeout,
+            } => {
+                cmd::test::run(
+                    &home,
+                    cli.verbose,
+                    &node_id,
+                    &config_overrides,
+                    auto_trigger,
+                    timeout,
+                )
+                .await?;
             }
         },
 
@@ -359,9 +380,8 @@ async fn cmd_setup(home: &std::path::Path, verbose: bool) -> Result<()> {
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let home_clone = home.to_path_buf();
-    let handle = tokio::spawn(async move {
-        dm_core::setup(&home_clone, verbose, Some(progress_tx)).await
-    });
+    let handle =
+        tokio::spawn(async move { dm_core::setup(&home_clone, verbose, Some(progress_tx)).await });
 
     while let Some(progress) = progress_rx.recv().await {
         match &progress.phase {
@@ -378,11 +398,7 @@ async fn cmd_setup(home: &std::path::Path, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-async fn cmd_install(
-    home: &std::path::Path,
-    verbose: bool,
-    version: Option<String>,
-) -> Result<()> {
+async fn cmd_install(home: &std::path::Path, verbose: bool, version: Option<String>) -> Result<()> {
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let home_clone = home.to_path_buf();
@@ -431,12 +447,7 @@ async fn cmd_install(
     Ok(())
 }
 
-async fn cmd_start(
-    home: &std::path::Path,
-    verbose: bool,
-    file: &str,
-    force: bool,
-) -> Result<()> {
+async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: bool) -> Result<()> {
     if !dm_core::is_runtime_running(home, verbose).await {
         println!("{} Dora runtime not running, starting...", "→".cyan());
     }

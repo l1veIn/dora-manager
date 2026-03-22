@@ -2,11 +2,7 @@
 mod tests {
     use serde_json::json;
 
-    use crate::node::schema::{
-        check_compatibility,
-        parse_schema,
-        ArrowType, FloatPrecision,
-    };
+    use crate::node::schema::{check_compatibility, parse_schema, ArrowType, FloatPrecision};
 
     fn parse(value: serde_json::Value) -> super::super::model::PortSchema {
         parse_schema(&value, std::path::Path::new(".")).unwrap()
@@ -140,7 +136,10 @@ mod tests {
 
     #[test]
     fn parse_missing_type_fails() {
-        let result = parse_schema(&json!({ "description": "no type" }), std::path::Path::new("."));
+        let result = parse_schema(
+            &json!({ "description": "no type" }),
+            std::path::Path::new("."),
+        );
         assert!(result.is_err());
     }
 

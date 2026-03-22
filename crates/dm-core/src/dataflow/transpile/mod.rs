@@ -9,7 +9,6 @@
 /// 6. **inject_panel**           — `dm-panel` → current `dm` binary + args
 /// 7. **extract_widgets**        — collect panel widget definitions → JSON
 /// 8. **emit**                   — `DmGraph` → `serde_yaml::Value`
-
 mod context;
 mod error;
 mod model;
@@ -22,7 +21,6 @@ use anyhow::{Context, Result};
 use crate::events::{EventSource, OperationEvent};
 
 use context::TranspileContext;
-
 
 use super::repo;
 

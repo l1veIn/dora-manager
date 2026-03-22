@@ -2,6 +2,8 @@
 
 基于 Rust 构建的 CLI 工具、HTTP API 与可视化管理面板，用于管理 [dora-rs](https://github.com/dora-rs/dora) 运行环境。`dm` 在 dora-rs 之上提供了数据流转译器（Transpiler）、可扩展的 UI 组件系统以及完整的运行时编排能力。
 
+[我用 AI 从零构建了一个 dora-rs 可视化编排引擎](docs/blog/building-dora-manager-with-ai.md)
+
 ---
 
 ## 🎨 可视化图编辑器

@@ -72,7 +72,10 @@ fn parse_schema_inner(value: &serde_json::Value) -> Result<PortSchema> {
     };
 
     Ok(PortSchema {
-        id: obj.get("$id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        id: obj
+            .get("$id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
         title: obj
             .get("title")
             .and_then(|v| v.as_str())
@@ -146,11 +149,10 @@ fn parse_arrow_type(value: &serde_json::Value) -> Result<ArrowType> {
         "largebinary" => Ok(ArrowType::LargeBinary),
 
         "fixedsizebinary" => {
-            let byte_width = obj
-                .get("byteWidth")
-                .and_then(|v| v.as_u64())
-                .context("fixedsizebinary type requires 'byteWidth'")?
-                as usize;
+            let byte_width =
+                obj.get("byteWidth")
+                    .and_then(|v| v.as_u64())
+                    .context("fixedsizebinary type requires 'byteWidth'")? as usize;
             Ok(ArrowType::FixedSizeBinary { byte_width })
         }
 
@@ -176,8 +178,7 @@ fn parse_arrow_type(value: &serde_json::Value) -> Result<ArrowType> {
             let bit_width = obj
                 .get("bitWidth")
                 .and_then(|v| v.as_u64())
-                .context("time type requires 'bitWidth'")?
-                as u16;
+                .context("time type requires 'bitWidth'")? as u16;
             Ok(ArrowType::Time { unit, bit_width })
         }
 
@@ -207,11 +208,10 @@ fn parse_arrow_type(value: &serde_json::Value) -> Result<ArrowType> {
         "largelist" => Ok(ArrowType::LargeList),
 
         "fixedsizelist" => {
-            let list_size = obj
-                .get("listSize")
-                .and_then(|v| v.as_u64())
-                .context("fixedsizelist type requires 'listSize'")?
-                as usize;
+            let list_size =
+                obj.get("listSize")
+                    .and_then(|v| v.as_u64())
+                    .context("fixedsizelist type requires 'listSize'")? as usize;
             Ok(ArrowType::FixedSizeList { list_size })
         }
 

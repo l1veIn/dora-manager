@@ -35,15 +35,11 @@ pub enum DiagnosticKind {
 impl fmt::Display for TranspileDiagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let detail = match &self.kind {
-            DiagnosticKind::NodeNotInstalled => {
-                "not installed".to_string()
-            }
+            DiagnosticKind::NodeNotInstalled => "not installed".to_string(),
             DiagnosticKind::MetadataUnreadable { path } => {
                 format!("metadata unreadable at {}", path.display())
             }
-            DiagnosticKind::MissingExecutable => {
-                "dm.json has empty executable field".to_string()
-            }
+            DiagnosticKind::MissingExecutable => "dm.json has empty executable field".to_string(),
             DiagnosticKind::ReservedNodeId => {
                 "conflicts with a reserved built-in node name".to_string()
             }

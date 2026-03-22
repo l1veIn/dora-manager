@@ -189,6 +189,8 @@ curl -X POST http://127.0.0.1:3210/api/down
 
 This project has a high [VibeCoding](https://en.wikipedia.org/wiki/Vibe_coding) content. The majority of the codebase was built with significant assistance from AI coding agents, primarily **Antigravity** (Google DeepMind) and **Codex** (OpenAI). Human effort was focused on architecture decisions, product design, and quality review.
 
+📖 **Read the development story**: [Building a dora-rs visual orchestrator from scratch with AI](docs/blog/building-dora-manager-with-ai.md)
+
 ## 📄 License
 
 Apache-2.0

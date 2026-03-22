@@ -21,24 +21,38 @@ pub async fn run(
     use dm_core::node::{resolve_dm_json_path, NodePortDirection};
 
     // 1. Read dm.json
-    let meta_path = resolve_dm_json_path(home, node_id)
-        .with_context(|| format!("Node '{}' not found. Only nodes with dm.json can be tested.", node_id))?;
+    let meta_path = resolve_dm_json_path(home, node_id).with_context(|| {
+        format!(
+            "Node '{}' not found. Only nodes with dm.json can be tested.",
+            node_id
+        )
+    })?;
     let meta_content = std::fs::read_to_string(&meta_path)
         .with_context(|| format!("Failed to read {}", meta_path.display()))?;
     let meta: dm_core::node::Node = serde_json::from_str(&meta_content)
         .with_context(|| format!("Invalid dm.json for '{}'", node_id))?;
 
     // 2. Classify ports
-    let input_ports: Vec<_> = meta.ports.iter()
+    let input_ports: Vec<_> = meta
+        .ports
+        .iter()
         .filter(|p| p.direction == NodePortDirection::Input)
         .collect();
-    let output_ports: Vec<_> = meta.ports.iter()
+    let output_ports: Vec<_> = meta
+        .ports
+        .iter()
         .filter(|p| p.direction == NodePortDirection::Output)
         .collect();
 
     // 3. Print header
-    let inputs_str: Vec<_> = input_ports.iter().map(|p| format!("{}(in)", p.id)).collect();
-    let outputs_str: Vec<_> = output_ports.iter().map(|p| format!("{}(out)", p.id)).collect();
+    let inputs_str: Vec<_> = input_ports
+        .iter()
+        .map(|p| format!("{}(in)", p.id))
+        .collect();
+    let outputs_str: Vec<_> = output_ports
+        .iter()
+        .map(|p| format!("{}(out)", p.id))
+        .collect();
     eprintln!(
         "\n{} {} v{}",
         "🧪 Testing:".bold(),
@@ -72,7 +86,8 @@ pub async fn run(
     }
 
     // 5. Generate YAML
-    let harness_input_ports: Vec<_> = input_ports.iter()
+    let harness_input_ports: Vec<_> = input_ports
+        .iter()
         .filter(|p| p.id != "tick")
         .map(|p| p.id.as_str())
         .collect();
@@ -197,17 +212,10 @@ pub async fn run(
 
     // 9. Wait for timeout or Ctrl+C
     if timeout > 0 {
-        eprintln!(
-            "{} Auto-exit in {}s...",
-            "⏱".dimmed(),
-            timeout
-        );
+        eprintln!("{} Auto-exit in {}s...", "⏱".dimmed(), timeout);
         tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
     } else {
-        eprintln!(
-            "{} Interactive mode. Press Ctrl+C to stop.\n",
-            "ℹ".cyan()
-        );
+        eprintln!("{} Interactive mode. Press Ctrl+C to stop.\n", "ℹ".cyan());
         // Wait for ctrl+c
         tokio::signal::ctrl_c().await.ok();
         eprintln!();

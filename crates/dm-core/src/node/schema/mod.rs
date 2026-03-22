@@ -4,7 +4,6 @@
 /// - `PortSchema` / `ArrowType` — the data model
 /// - `parse_schema` — JSON parser with `$ref` resolution
 /// - `check_compatibility` — transpile-time type compatibility checker
-
 mod compat;
 mod model;
 mod parse;

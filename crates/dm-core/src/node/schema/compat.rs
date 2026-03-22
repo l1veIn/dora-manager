@@ -10,44 +10,36 @@ use super::model::*;
 #[derive(Debug, Clone)]
 pub enum SchemaError {
     /// Top-level Arrow type family mismatch (e.g. utf8 vs int).
-    TypeMismatch {
-        output: String,
-        input: String,
-    },
+    TypeMismatch { output: String, input: String },
     /// Integer/float bit width cannot be safely widened.
-    UnsafeWidening {
-        output: String,
-        input: String,
-    },
+    UnsafeWidening { output: String, input: String },
     /// Fixed-size list sizes differ.
     ListSizeMismatch {
         output_size: usize,
         input_size: usize,
     },
     /// Element types of list/fixedsizelist are incompatible.
-    IncompatibleItems {
-        reason: Box<SchemaError>,
-    },
+    IncompatibleItems { reason: Box<SchemaError> },
     /// Input struct requires a field not present in output struct.
-    MissingStructField {
-        field_name: String,
-    },
+    MissingStructField { field_name: String },
     /// A struct field's schema is incompatible between output and input.
     IncompatibleStructField {
         field_name: String,
         reason: Box<SchemaError>,
     },
     /// Input requires items/properties but output schema lacks them.
-    MissingNestedSchema {
-        detail: String,
-    },
+    MissingNestedSchema { detail: String },
 }
 
 impl fmt::Display for SchemaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SchemaError::TypeMismatch { output, input } => {
-                write!(f, "type mismatch: output is '{}', input expects '{}'", output, input)
+                write!(
+                    f,
+                    "type mismatch: output is '{}', input expects '{}'",
+                    output, input
+                )
             }
             SchemaError::UnsafeWidening { output, input } => {
                 write!(
@@ -163,9 +155,7 @@ fn check_type_compat(
             ArrowType::FloatingPoint {
                 precision: out_prec,
             },
-            ArrowType::FloatingPoint {
-                precision: in_prec,
-            },
+            ArrowType::FloatingPoint { precision: in_prec },
         ) => {
             if out_prec.bit_width() <= in_prec.bit_width() {
                 Ok(())

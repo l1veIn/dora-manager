@@ -159,10 +159,7 @@ async fn main() {
             "/api/runs/{run_id}/panel/widgets",
             get(handlers::get_widgets),
         )
-        .route(
-            "/api/runs/{run_id}/panel/ws",
-            get(handlers::panel_ws),
-        )
+        .route("/api/runs/{run_id}/panel/ws", get(handlers::panel_ws))
         .route(
             "/api/runs/{run_id}/panel/options/{input_id}",
             get(handlers::get_latest_option),

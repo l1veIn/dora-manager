@@ -123,7 +123,11 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
     let transpile_result = crate::dataflow::transpile_graph_for_run(home, &snapshot_path, &run_id)
         .with_context(|| format!("Failed to transpile '{}'", dataflow_name))?;
     let transpiled_path = repo::run_transpiled_path(home, &run_id);
-    fs::write(&transpiled_path, serde_yaml::to_string(&transpile_result.yaml)?).with_context(|| {
+    fs::write(
+        &transpiled_path,
+        serde_yaml::to_string(&transpile_result.yaml)?,
+    )
+    .with_context(|| {
         format!(
             "Failed to write transpiled graph {}",
             transpiled_path.display()
@@ -136,8 +140,9 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
         fs::create_dir_all(&panel_dir)
             .with_context(|| format!("Failed to create panel dir {}", panel_dir.display()))?;
         let widgets_path = panel_dir.join("widgets.json");
-        fs::write(&widgets_path, serde_json::to_string_pretty(widgets)?)
-            .with_context(|| format!("Failed to write widgets config {}", widgets_path.display()))?;
+        fs::write(&widgets_path, serde_json::to_string_pretty(widgets)?).with_context(|| {
+            format!("Failed to write widgets config {}", widgets_path.display())
+        })?;
 
         // Pre-seed default values as commands so panel_serve emits them on startup
         if let Some(obj) = widgets.as_object() {

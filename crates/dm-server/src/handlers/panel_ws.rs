@@ -26,7 +26,9 @@ async fn handle_panel_ws(mut socket: WebSocket, state: AppState, run_id: String,
         Err(e) => {
             let _ = socket
                 .send(Message::Text(
-                    serde_json::json!({"type": "error", "message": e.to_string()}).to_string().into(),
+                    serde_json::json!({"type": "error", "message": e.to_string()})
+                        .to_string()
+                        .into(),
                 ))
                 .await;
             return;
@@ -89,4 +91,3 @@ async fn handle_panel_ws(mut socket: WebSocket, state: AppState, run_id: String,
         }
     }
 }
-

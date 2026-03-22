@@ -1,6 +1,5 @@
 /// Transpile passes — each function performs one well-defined transformation
 /// on the `DmGraph` intermediate representation.
-
 use std::path::PathBuf;
 
 use crate::node::{self, Node};
@@ -28,10 +27,7 @@ fn is_reserved_node_id(id: &str) -> bool {
 /// presence of `node:` vs `path:` fields.
 pub(crate) fn parse(content: &str) -> anyhow::Result<DmGraph> {
     let raw: serde_yaml::Value = serde_yaml::from_str(content)?;
-    let raw_mapping = raw
-        .as_mapping()
-        .cloned()
-        .unwrap_or_default();
+    let raw_mapping = raw.as_mapping().cloned().unwrap_or_default();
 
     let mut extra_fields = raw_mapping.clone();
     extra_fields.remove(&serde_yaml::Value::String("nodes".to_string()));
@@ -233,10 +229,7 @@ pub(crate) fn validate_port_schemas(
             };
 
             // Find port declarations in dm.json
-            let source_port = source_meta
-                .ports
-                .iter()
-                .find(|p| p.id == source_output_id);
+            let source_port = source_meta.ports.iter().find(|p| p.id == source_output_id);
             let input_port = this_meta.ports.iter().find(|p| p.id == input_port_id);
 
             // dynamic_ports: if port isn't declared in dm.json, skip silently
@@ -281,21 +274,21 @@ pub(crate) fn validate_port_schemas(
                     }
                 };
 
-            let in_schema =
-                match crate::node::schema::parse_schema(in_schema_val, &input_node_dir) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        diags.push(TranspileDiagnostic {
-                            yaml_id: managed.yaml_id.clone(),
-                            node_id: managed.node_id.clone(),
-                            kind: DiagnosticKind::InvalidPortSchema {
-                                port_id: input_port_id.to_string(),
-                                reason: e.to_string(),
-                            },
-                        });
-                        continue;
-                    }
-                };
+            let in_schema = match crate::node::schema::parse_schema(in_schema_val, &input_node_dir)
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    diags.push(TranspileDiagnostic {
+                        yaml_id: managed.yaml_id.clone(),
+                        node_id: managed.node_id.clone(),
+                        kind: DiagnosticKind::InvalidPortSchema {
+                            port_id: input_port_id.to_string(),
+                            reason: e.to_string(),
+                        },
+                    });
+                    continue;
+                }
+            };
 
             // Check compatibility
             if let Err(e) = crate::node::schema::check_compatibility(&out_schema, &in_schema) {
@@ -389,12 +382,10 @@ pub(crate) fn resolve_paths(
         }
 
         // Stash metadata for the config-merge pass (stored temporarily)
-        managed
-            .extra_fields
-            .insert(
-                serde_yaml::Value::String("__dm_meta_path".to_string()),
-                serde_yaml::Value::String(meta_file_path.display().to_string()),
-            );
+        managed.extra_fields.insert(
+            serde_yaml::Value::String("__dm_meta_path".to_string()),
+            serde_yaml::Value::String(meta_file_path.display().to_string()),
+        );
     }
 }
 
@@ -532,7 +523,11 @@ pub(crate) fn inject_test_harness(graph: &mut DmGraph) {
         let is_harness = extra_fields
             .get(&serde_yaml::Value::String("env".to_string()))
             .and_then(|v| v.as_mapping())
-            .and_then(|m| m.get(&serde_yaml::Value::String("DM_TEST_AUTO_TRIGGER".to_string())))
+            .and_then(|m| {
+                m.get(&serde_yaml::Value::String(
+                    "DM_TEST_AUTO_TRIGGER".to_string(),
+                ))
+            })
             .is_some();
 
         if !is_harness {
@@ -546,12 +541,17 @@ pub(crate) fn inject_test_harness(graph: &mut DmGraph) {
             .unwrap_or_default();
 
         let auto_trigger = env_map
-            .get(&serde_yaml::Value::String("DM_TEST_AUTO_TRIGGER".to_string()))
+            .get(&serde_yaml::Value::String(
+                "DM_TEST_AUTO_TRIGGER".to_string(),
+            ))
             .and_then(|v| v.as_str())
-            .unwrap_or("false") == "true";
+            .unwrap_or("false")
+            == "true";
 
         let output_ports = env_map
-            .get(&serde_yaml::Value::String("DM_TEST_OUTPUT_PORTS".to_string()))
+            .get(&serde_yaml::Value::String(
+                "DM_TEST_OUTPUT_PORTS".to_string(),
+            ))
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
@@ -575,10 +575,7 @@ pub(crate) fn inject_test_harness(graph: &mut DmGraph) {
         // Remove env block — harness gets config via args, not env
         extra_fields.remove(&serde_yaml::Value::String("env".to_string()));
 
-        eprintln!(
-            "[dm-core] injected test harness for node '{}'",
-            yaml_id
-        );
+        eprintln!("[dm-core] injected test harness for node '{}'", yaml_id);
     }
 }
 

@@ -97,9 +97,7 @@ fn collect_node_metrics(home: &Path, dora_uuid: &str) -> Result<Vec<NodeMetrics>
 
 /// Parse newline-delimited JSON from `dora list --format json`.
 /// Each line: {"uuid":"...","name":"...","status":"Running","nodes":8,"cpu":23.16,"memory":1.83}
-fn parse_dataflow_metrics_json(
-    stdout: &str,
-) -> Result<HashMap<String, DataflowAggregateMetrics>> {
+fn parse_dataflow_metrics_json(stdout: &str) -> Result<HashMap<String, DataflowAggregateMetrics>> {
     let mut map = HashMap::new();
     for line in stdout.lines() {
         let line = line.trim();
@@ -143,10 +141,7 @@ fn parse_node_metrics_json(stdout: &str) -> Vec<NodeMetrics> {
                 .to_string();
             let pid = v.get("pid").and_then(|v| v.as_str()).map(str::to_string);
             let cpu = v.get("cpu").and_then(|v| v.as_str()).map(str::to_string);
-            let memory = v
-                .get("memory")
-                .and_then(|v| v.as_str())
-                .map(str::to_string);
+            let memory = v.get("memory").and_then(|v| v.as_str()).map(str::to_string);
             Some(NodeMetrics {
                 id,
                 status,

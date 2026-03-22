@@ -22,9 +22,14 @@ pub fn panel_serve(home: &std::path::Path, run_id: &str, _node_id: &str) -> Resu
                 Event::Input { id, metadata, data } => {
                     let type_hint = extract_type_hint(&metadata, &data);
                     let bytes = arrow_to_bytes(&metadata, &data);
-                    eprintln!("[panel] INPUT id={}, type_hint={}, data_type={:?}, {} bytes, params={:?}",
-                        AsRef::<str>::as_ref(&id), type_hint, data.data_type(), bytes.len(),
-                        metadata.parameters.keys().collect::<Vec<_>>());
+                    eprintln!(
+                        "[panel] INPUT id={}, type_hint={}, data_type={:?}, {} bytes, params={:?}",
+                        AsRef::<str>::as_ref(&id),
+                        type_hint,
+                        data.data_type(),
+                        bytes.len(),
+                        metadata.parameters.keys().collect::<Vec<_>>()
+                    );
                     if let Err(e) = store2.write_asset(id.as_ref(), &type_hint, &bytes) {
                         eprintln!("Panel write error: {e}");
                     }
@@ -102,20 +107,16 @@ pub fn panel_send(
     Ok(())
 }
 
-fn extract_type_hint(
-    metadata: &Metadata,
-    data: &dora_node_api::ArrowData,
-) -> String {
-    if let Some(Parameter::String(content_type)) =
-        metadata.parameters.get("content_type")
-    {
+fn extract_type_hint(metadata: &Metadata, data: &dora_node_api::ArrowData) -> String {
+    if let Some(Parameter::String(content_type)) = metadata.parameters.get("content_type") {
         return content_type.clone();
     }
     if sample_rate_from_metadata(metadata).is_some() && is_audio_array(data.data_type()) {
         return "audio/wav".to_string();
     }
     // UInt8 with sample_rate = raw PCM bytes from queue passthrough.
-    if sample_rate_from_metadata(metadata).is_some() && matches!(data.data_type(), DataType::UInt8) {
+    if sample_rate_from_metadata(metadata).is_some() && matches!(data.data_type(), DataType::UInt8)
+    {
         return "audio/wav".to_string();
     }
     match data.data_type() {

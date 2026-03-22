@@ -74,9 +74,7 @@ pub async fn get_active_run(
     ) {
         Ok(mut result) => {
             if params.metrics.unwrap_or(false) {
-                if let Ok(metrics_map) =
-                    dm_core::runs::collect_all_active_metrics(&state.home)
-                {
+                if let Ok(metrics_map) = dm_core::runs::collect_all_active_metrics(&state.home) {
                     for run in &mut result.runs {
                         if let Some(uuid) = run.dora_uuid.as_deref() {
                             run.metrics = metrics_map.get(uuid).cloned();
