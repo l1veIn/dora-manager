@@ -1,5 +1,8 @@
 # dm — Dora Manager
 
+> [!NOTE]
+> 🇨🇳 [中文说明 (Chinese Documentation)](README_zh.md)
+
 A powerful Rust-based CLI, HTTP API, and Visual Panel for managing [dora-rs](https://github.com/dora-rs/dora) environments. `dm` goes beyond simple version management by providing a dataflow transpiler, reactive UI widgets, and full runtime orchestration.
 
 ## 🎨 Interactive Graph Editor
