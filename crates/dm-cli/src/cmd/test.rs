@@ -228,7 +228,7 @@ pub async fn run(
     let _ = log_handle.await;
 
     dm_core::auto_down_if_idle(home, false).await;
-    eprintln!("{} Test ended.\n", "🧪");
+    eprintln!("🧪 Test ended.\n");
 
     Ok(())
 }

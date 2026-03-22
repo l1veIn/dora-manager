@@ -30,11 +30,11 @@ pub(crate) fn parse(content: &str) -> anyhow::Result<DmGraph> {
     let raw_mapping = raw.as_mapping().cloned().unwrap_or_default();
 
     let mut extra_fields = raw_mapping.clone();
-    extra_fields.remove(&serde_yaml::Value::String("nodes".to_string()));
+    extra_fields.remove(serde_yaml::Value::String("nodes".to_string()));
 
     let mut nodes = Vec::new();
     if let Some(entries) = raw_mapping
-        .get(&serde_yaml::Value::String("nodes".to_string()))
+        .get(serde_yaml::Value::String("nodes".to_string()))
         .and_then(|n| n.as_sequence())
     {
         for entry in entries {
@@ -43,17 +43,17 @@ pub(crate) fn parse(content: &str) -> anyhow::Result<DmGraph> {
             };
 
             let yaml_id = mapping
-                .get(&serde_yaml::Value::String("id".to_string()))
+                .get(serde_yaml::Value::String("id".to_string()))
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
 
             let node_field = mapping
-                .get(&serde_yaml::Value::String("node".to_string()))
+                .get(serde_yaml::Value::String("node".to_string()))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
             let path_field = mapping
-                .get(&serde_yaml::Value::String("path".to_string()))
+                .get(serde_yaml::Value::String("path".to_string()))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
@@ -62,12 +62,12 @@ pub(crate) fn parse(content: &str) -> anyhow::Result<DmGraph> {
             // Build extra_fields: everything except id, node, path, config, widgets
             let mut node_extra = mapping.clone();
             for key in &["id", "node", "path", "config", "widgets"] {
-                node_extra.remove(&serde_yaml::Value::String(key.to_string()));
+                node_extra.remove(serde_yaml::Value::String(key.to_string()));
             }
 
             // Extract widgets block (Panel-only, DM-specific)
             let widgets = mapping
-                .get(&serde_yaml::Value::String("widgets".to_string()))
+                .get(serde_yaml::Value::String("widgets".to_string()))
                 .cloned();
 
             match node_id {
@@ -80,18 +80,18 @@ pub(crate) fn parse(content: &str) -> anyhow::Result<DmGraph> {
                 }
                 Some(id) if node_field.is_some() => {
                     let inline_config = mapping
-                        .get(&serde_yaml::Value::String("config".to_string()))
+                        .get(serde_yaml::Value::String("config".to_string()))
                         .and_then(|v| serde_json::to_value(v).ok())
                         .unwrap_or(serde_json::json!({}));
 
                     // Preserve existing env from YAML
                     let existing_env = mapping
-                        .get(&serde_yaml::Value::String("env".to_string()))
+                        .get(serde_yaml::Value::String("env".to_string()))
                         .and_then(|v| v.as_mapping().cloned())
                         .unwrap_or_default();
 
                     // Remove env from extra_fields since we manage it separately
-                    node_extra.remove(&serde_yaml::Value::String("env".to_string()));
+                    node_extra.remove(serde_yaml::Value::String("env".to_string()));
 
                     nodes.push(DmNode::Managed(ManagedNode {
                         yaml_id,
@@ -187,7 +187,7 @@ pub(crate) fn validate_port_schemas(
         // Extract `inputs:` from extra_fields
         let Some(inputs_val) = managed
             .extra_fields
-            .get(&serde_yaml::Value::String("inputs".to_string()))
+            .get(serde_yaml::Value::String("inputs".to_string()))
         else {
             continue;
         };
@@ -408,14 +408,14 @@ pub(crate) fn merge_config(
         // Read the __dm_meta_path stashed by resolve_paths
         let meta_path_str = managed
             .extra_fields
-            .get(&serde_yaml::Value::String("__dm_meta_path".to_string()))
+            .get(serde_yaml::Value::String("__dm_meta_path".to_string()))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
         // Clean up the temporary marker
         managed
             .extra_fields
-            .remove(&serde_yaml::Value::String("__dm_meta_path".to_string()));
+            .remove(serde_yaml::Value::String("__dm_meta_path".to_string()));
 
         let Some(meta_path_str) = meta_path_str else {
             continue;
@@ -521,10 +521,10 @@ pub(crate) fn inject_test_harness(graph: &mut DmGraph) {
         // The parser sees them as Panel because dm-test-harness is reserved.
         // We identify them by checking the env for DM_TEST_AUTO_TRIGGER.
         let is_harness = extra_fields
-            .get(&serde_yaml::Value::String("env".to_string()))
+            .get(serde_yaml::Value::String("env".to_string()))
             .and_then(|v| v.as_mapping())
             .and_then(|m| {
-                m.get(&serde_yaml::Value::String(
+                m.get(serde_yaml::Value::String(
                     "DM_TEST_AUTO_TRIGGER".to_string(),
                 ))
             })
@@ -535,13 +535,13 @@ pub(crate) fn inject_test_harness(graph: &mut DmGraph) {
         }
 
         let env_map = extra_fields
-            .get(&serde_yaml::Value::String("env".to_string()))
+            .get(serde_yaml::Value::String("env".to_string()))
             .and_then(|v| v.as_mapping())
             .cloned()
             .unwrap_or_default();
 
         let auto_trigger = env_map
-            .get(&serde_yaml::Value::String(
+            .get(serde_yaml::Value::String(
                 "DM_TEST_AUTO_TRIGGER".to_string(),
             ))
             .and_then(|v| v.as_str())
@@ -549,14 +549,14 @@ pub(crate) fn inject_test_harness(graph: &mut DmGraph) {
             == "true";
 
         let output_ports = env_map
-            .get(&serde_yaml::Value::String(
+            .get(serde_yaml::Value::String(
                 "DM_TEST_OUTPUT_PORTS".to_string(),
             ))
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
 
-        let mut args = format!("test harness-serve");
+        let mut args = "test harness-serve".to_string();
         if auto_trigger {
             args.push_str(" --auto-trigger");
         }
@@ -573,7 +573,7 @@ pub(crate) fn inject_test_harness(graph: &mut DmGraph) {
             serde_yaml::Value::String(args),
         );
         // Remove env block — harness gets config via args, not env
-        extra_fields.remove(&serde_yaml::Value::String("env".to_string()));
+        extra_fields.remove(serde_yaml::Value::String("env".to_string()));
 
         eprintln!("[dm-core] injected test harness for node '{}'", yaml_id);
     }
@@ -689,10 +689,8 @@ pub(crate) fn extract_widgets(graph: &DmGraph) -> Option<serde_json::Value> {
             continue;
         };
         // Convert YAML value → JSON value
-        if let Ok(json) = serde_json::to_value(widgets_val) {
-            if let serde_json::Value::Object(map) = json {
-                all_widgets.extend(map);
-            }
+        if let Ok(serde_json::Value::Object(map)) = serde_json::to_value(widgets_val) {
+            all_widgets.extend(map);
         }
     }
 

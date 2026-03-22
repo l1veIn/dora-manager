@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod schema_tests {
     use serde_json::json;
 
     use crate::node::schema::{check_compatibility, parse_schema, ArrowType, FloatPrecision};

@@ -3,7 +3,7 @@
 /// Instead of manipulating raw `serde_yaml::Value` trees with string keys,
 /// the transpiler parses each node into one of three strongly-typed variants
 /// and converts them back to YAML only in the final emit pass.
-
+///
 /// A parsed DM graph — the core IR that every pass operates on.
 pub(crate) struct DmGraph {
     pub nodes: Vec<DmNode>,
