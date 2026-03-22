@@ -7,7 +7,7 @@ A powerful Rust-based CLI, HTTP API, and Visual Panel for managing [dora-rs](htt
 The centerpiece of Dora Manager is its high-performance, SvelteFlow-based Visual Editor. You can build, visualize, and edit Dora dataflows directly in your browser.
 
 <p align="center">
-  <img src="docs/assets/editor_polish_demo.webp" alt="Graph Editor Demo" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1)"/>
+  <img src="assets/editor_polish_demo.webp" alt="Graph Editor Demo" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1)"/>
 </p>
 
 - **Right-Click Context Menus**: Seamless node duplication, edge deletion, and quick inspections straight from the canvas workspace.
@@ -22,8 +22,8 @@ The centerpiece of Dora Manager is its high-performance, SvelteFlow-based Visual
     <td align="center"><b>Deep-Schema Config Inspector</b></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/assets/editor_screenshot.png" width="480"></td>
-    <td align="center"><img src="docs/assets/inspector_screenshot.png" width="480"></td>
+    <td align="center"><img src="assets/editor_screenshot.png" width="480"></td>
+    <td align="center"><img src="assets/inspector_screenshot.png" width="480"></td>
   </tr>
 </table>
 
@@ -48,6 +48,25 @@ dm-cli    (bin)   → CLI & Terminal UI (colored output, progress bars)
 dm-server (bin)   → Axum HTTP API & WebSocket Sync (JSON REST on port 3210)
 web       (Svelte)→ Reactive visual panel, dynamically rendering widget overrides
 ```
+
+## 🧠 Design Philosophy
+
+At its core, `dm` builds upon Apache Arrow to provide a cross-language, zero-copy, shared-memory data bus. It orchestrates this power through three main abstractions:
+
+### 1. Nodes (The Builders)
+Nodes are independent, language-agnostic executable units (Rust, Python, C++). The behavior and interface of a Node is strictly defined by its **`dm.json` contract**.
+* A `dm.json` dictates what properties the Node accepts, the configuration schema, what reactive React/Svelte widgets it requires in the UI, and exactly which Python/System dependencies it brings. 
+* *Example:* `dora-qwen` is a standalone Node that only requires text input and natively streams conversational outputs.
+
+### 2. Dataflows (The Orchestration)
+A Dataflow is a `.yml` topology mapping Node instances together into a Directed Acyclic Graph (DAG).
+* Through `dora-manager`, you wire nodes up visually. Behind the scenes, we transpile your graphical lines into zero-networking, high-throughput memory channels. Different Nodes in different languages talk to each other directly without REST/gRPC overhead.
+
+### 3. Runs (The Execution)
+Once you hit "Start", the Dataflow blueprint transforms into a **Run**.
+* A Run is a living lifecycle entity tracked by the DM Panel. It records live CPU/Memory utilization, exposes stdout/stderr logging, and dynamically allows you to patch live inputs via Smart Widgets—making robotics or desktop AI pipelines truly interactive.
+
+---
 
 ## ⚡ Quick Start
 

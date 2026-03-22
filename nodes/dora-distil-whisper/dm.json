@@ -1,0 +1,38 @@
+{
+  "id": "dora-distil-whisper",
+  "name": "dora-distil-whisper",
+  "version": "0.1.0",
+  "installed_at": "1772625384",
+  "source": {
+    "build": "pip install -e ."
+  },
+  "description": "Dora dora-distil-whisper",
+  "executable": ".venv/bin/dora-distil-whisper",
+  "maintainers": [
+    {
+      "name": "Haixuan Xavier Tao"
+    }
+  ],
+  "license": "MIT",
+  "display": {
+    "category": "",
+    "tags": []
+  },
+  "capabilities": [],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.9",
+    "platforms": []
+  },
+  "ports": [],
+  "files": {
+    "readme": "README.md",
+    "entry": "dora_distil_whisper/main.py",
+    "tests": [
+      "tests",
+      "tests/test_distil_whisper.py"
+    ],
+    "examples": []
+  },
+  "examples": []
+}

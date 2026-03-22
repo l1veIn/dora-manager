@@ -1,0 +1,38 @@
+{
+  "id": "dora-kokoro-tts",
+  "name": "dora-kokoro-tts",
+  "version": "0.1.0",
+  "installed_at": "1772625427",
+  "source": {
+    "build": "pip install -e ."
+  },
+  "description": "dora-kokoro-tts",
+  "executable": ".venv/bin/dora-kokoro-tts",
+  "maintainers": [
+    {
+      "name": "Your Name"
+    }
+  ],
+  "license": "MIT",
+  "display": {
+    "category": "",
+    "tags": []
+  },
+  "capabilities": [],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [],
+  "files": {
+    "readme": "README.md",
+    "entry": "dora_kokoro_tts/main.py",
+    "tests": [
+      "tests",
+      "tests/test_dora_kokoro_tts.py"
+    ],
+    "examples": []
+  },
+  "examples": []
+}

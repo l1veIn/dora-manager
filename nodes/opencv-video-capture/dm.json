@@ -1,0 +1,38 @@
+{
+  "id": "opencv-video-capture",
+  "name": "opencv-video-capture",
+  "version": "0.1.0",
+  "installed_at": "1772625689",
+  "source": {
+    "build": "pip install -e ."
+  },
+  "description": "Dora Node for capturing video with OpenCV",
+  "executable": ".venv/bin/opencv-video-capture",
+  "maintainers": [
+    {
+      "name": "Haixuan Xavier Tao"
+    }
+  ],
+  "license": "MIT",
+  "display": {
+    "category": "",
+    "tags": []
+  },
+  "capabilities": [],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.8",
+    "platforms": []
+  },
+  "ports": [],
+  "files": {
+    "readme": "README.md",
+    "entry": "opencv_video_capture/main.py",
+    "tests": [
+      "tests",
+      "tests/test_opencv_video_capture.py"
+    ],
+    "examples": []
+  },
+  "examples": []
+}

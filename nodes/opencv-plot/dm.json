@@ -1,0 +1,37 @@
+{
+  "id": "opencv-plot",
+  "name": "opencv-plot",
+  "version": "0.1.0",
+  "installed_at": "1772625689",
+  "source": {
+    "build": "pip install -e ."
+  },
+  "description": "Dora Node for plotting text and bbox on image with OpenCV",
+  "executable": ".venv/bin/opencv-plot",
+  "maintainers": [
+    {
+      "name": "Haixuan Xavier Tao"
+    }
+  ],
+  "display": {
+    "category": "",
+    "tags": []
+  },
+  "capabilities": [],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.8",
+    "platforms": []
+  },
+  "ports": [],
+  "files": {
+    "readme": "README.md",
+    "entry": "opencv_plot/main.py",
+    "tests": [
+      "tests",
+      "tests/test_opencv_plot.py"
+    ],
+    "examples": []
+  },
+  "examples": []
+}

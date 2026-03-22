@@ -1,0 +1,38 @@
+{
+  "id": "dora-qwen",
+  "name": "dora-qwen",
+  "version": "0.1.0",
+  "installed_at": "1772625504",
+  "source": {
+    "build": "pip install -e ."
+  },
+  "description": "dora-qwen",
+  "executable": ".venv/bin/dora-qwen",
+  "maintainers": [
+    {
+      "name": "Your Name"
+    }
+  ],
+  "license": "MIT",
+  "display": {
+    "category": "",
+    "tags": []
+  },
+  "capabilities": [],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.9",
+    "platforms": []
+  },
+  "ports": [],
+  "files": {
+    "readme": "README.md",
+    "entry": "dora_qwen/main.py",
+    "tests": [
+      "tests",
+      "tests/test_dora_qwen.py"
+    ],
+    "examples": []
+  },
+  "examples": []
+}

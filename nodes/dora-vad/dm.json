@@ -1,0 +1,38 @@
+{
+  "id": "dora-vad",
+  "name": "dora-vad",
+  "version": "0.1.0",
+  "installed_at": "1772625615",
+  "source": {
+    "build": "pip install -e ."
+  },
+  "description": "Dora Node for Text translating using Argostranslate",
+  "executable": ".venv/bin/dora-vad",
+  "maintainers": [
+    {
+      "name": "Haixuan Xavier Tao"
+    }
+  ],
+  "license": "MIT",
+  "display": {
+    "category": "",
+    "tags": []
+  },
+  "capabilities": [],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.8",
+    "platforms": []
+  },
+  "ports": [],
+  "files": {
+    "readme": "README.md",
+    "entry": "dora_vad/main.py",
+    "tests": [
+      "tests",
+      "tests/test_translate.py"
+    ],
+    "examples": []
+  },
+  "examples": []
+}
