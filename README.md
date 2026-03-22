@@ -1,6 +1,6 @@
 # dm — Dora Manager
 
-A powerful Rust-based CLI, HTTP API, and Visual Panel for managing [dora-rs](https://github.com/dora-rs/dora) environments. `dm` goes beyond simple version management by providing a Zero-Networking dataflow transpiler, reactive UI widgets, and full runtime orchestration.
+A powerful Rust-based CLI, HTTP API, and Visual Panel for managing [dora-rs](https://github.com/dora-rs/dora) environments. `dm` goes beyond simple version management by providing a dataflow transpiler, reactive UI widgets, and full runtime orchestration.
 
 ## 🎨 Interactive Graph Editor
 
@@ -38,33 +38,42 @@ The centerpiece of Dora Manager is its high-performance, SvelteFlow-based Visual
   - `dm-queue`: High-performance buffer queue with metadata passthrough and idle flush mechanisms.
   - `dm-mjpeg` & `dm-microphone`: Media ingestion fully wired with dynamic control switches.
 - **System Health Diagnostics**: Built-in real-time probes (`doctor`) and CPU/Memory usage badges for tracking active run metrics.
-- **Zero-Networking Architecture & YAML Transpiler**: Transparently compiles extended Dataflow models on the fly with no underlying network spaghetti.
+- **Dataflow Transpiler**: Translates extended YAML (containing `node:` references and `config:` blocks) into standard dora-rs executable YAML through a multi-pass pipeline: node path resolution, four-layer config merging (inline > flow > node > schema default) into environment variables, Panel node injection, and port schema compatibility validation.
 
 ## 🏗️ Architecture
 
 ```text
-dm-core   (lib)   → Business logic, Transpiler, Zero-Networking state, Node Installer
+dm-core   (lib)   → Core logic: Transpiler, Node management, Run scheduling
 dm-cli    (bin)   → CLI & Terminal UI (colored output, progress bars)
-dm-server (bin)   → Axum HTTP API & WebSocket Sync (JSON REST on port 3210)
-web       (Svelte)→ Reactive visual panel, dynamically rendering widget overrides
+dm-server (bin)   → Axum HTTP API (REST on port 3210)
+web       (Svelte)→ Reactive visual panel with WebSocket real-time interaction
 ```
 
 ## 🧠 Design Philosophy
 
-At its core, `dm` builds upon Apache Arrow to provide a cross-language, zero-copy, shared-memory data bus. It orchestrates this power through three main abstractions:
+`dm` treats [dora-rs](https://github.com/dora-rs/dora) as its underlying **multi-language dataflow runtime** — a high-performance process orchestrator built on Apache Arrow that enables zero-copy, shared-memory communication between nodes written in Rust, Python, C++, and more. On top of this runtime, `dm` provides a management layer that organizes work around three core entities:
 
-### 1. Nodes (The Builders)
-Nodes are independent, language-agnostic executable units (Rust, Python, C++). The behavior and interface of a Node is strictly defined by its **`dm.json` contract**.
-* A `dm.json` dictates what properties the Node accepts, the configuration schema, what reactive React/Svelte widgets it requires in the UI, and exactly which Python/System dependencies it brings. 
-* *Example:* `dora-qwen` is a standalone Node that only requires text input and natively streams conversational outputs.
+### 1. Nodes
+Nodes are independent, language-agnostic executable units (Rust, Python, C++). Each Node's interface and behavior is defined by its **`dm.json`** contract:
+* **`executable`**: Entry point path for the node binary/script
+* **`ports`**: Input/output port definitions, optionally with `schema` for transpile-time type compatibility checking
+* **`config_schema`**: Configuration parameters with types, defaults, and environment variable mappings (`env` field)
+* **`widgets`**: Frontend widget declarations for the Web Panel
+* **`dependencies`**: Runtime dependency declarations (e.g., Python virtual environment paths)
 
-### 2. Dataflows (The Orchestration)
-A Dataflow is a `.yml` topology mapping Node instances together into a Directed Acyclic Graph (DAG).
-* Through `dora-manager`, you wire nodes up visually. Behind the scenes, we transpile your graphical lines into zero-networking, high-throughput memory channels. Different Nodes in different languages talk to each other directly without REST/gRPC overhead.
+### 2. Dataflows
+A Dataflow is a `.yml` topology file describing how node instances are wired together. Users reference installed nodes via `node:` (instead of raw `path:`), and the transpiler handles the rest:
+1. Resolves `node: dora-qwen` to the node's absolute executable path
+2. Merges `config:` values from four layers (inline > flow > node > schema default) into environment variables
+3. Validates port schema compatibility across connections
+4. Injects Panel node runtime parameters
 
-### 3. Runs (The Execution)
-Once you hit "Start", the Dataflow blueprint transforms into a **Run**.
-* A Run is a living lifecycle entity tracked by the DM Panel. It records live CPU/Memory utilization, exposes stdout/stderr logging, and dynamically allows you to patch live inputs via Smart Widgets—making robotics or desktop AI pipelines truly interactive.
+> **Note**: Dataflows currently enforce input port in-degree limits only (each input port accepts at most one source). No cycle detection or DAG enforcement is performed.
+
+### 3. Runs
+Once started, a Dataflow blueprint becomes a **Run** — a tracked lifecycle entity.
+* Runs record per-node CPU/Memory utilization and stdout/stderr logs.
+* The Web Panel communicates with running nodes via WebSocket, supporting real-time parameter adjustment through Smart Widgets.
 
 ---
 
@@ -158,11 +167,27 @@ curl -X POST http://127.0.0.1:3210/api/down
 - **Config file**: `~/.dm/config.toml`
 - **Versions**: `~/.dm/versions/<version>/dora`
 
+## ⚠️ Known Limitations
+
+`dm` is under active development. The following are known limitations:
+
+- **Graph Editor is early-stage**: The visual editor covers basic operations but lacks advanced features such as auto-layout for complex topologies, undo/redo history, and multi-select batch operations.
+- **Limited test coverage**: The project currently has low unit and integration test coverage, with no CI/CD pipeline in place.
+- **Network-dependent installation**: `dm install` and node downloads rely on GitHub Releases. Offline mode is not yet supported.
+- **Single-machine only**: The current architecture is designed for single-machine deployment. Distributed multi-node cluster scheduling is not supported.
+- **No topology validation**: The transpiler does not perform cycle detection or topological sorting. Only port in-degree limits and schema compatibility are checked.
+- **Incomplete documentation**: The full `dm.json` specification, node development guide, and API reference documentation are still in progress.
+- **Windows compatibility untested**: Development and testing have been primarily on macOS and Linux. Windows compatibility has not been fully verified.
+
 ## 📦 Install Strategy
 
 1. **Binary download** from GitHub Releases (fastest).
 2. **Build from source** via `cargo build` if no binary is available for your platform.
 3. Node distribution (`dm-node-install`) uses a `cargo-binstall`-inspired strategy for smooth plugin deployments.
+
+## 🤖 Development Note
+
+This project has a high [VibeCoding](https://en.wikipedia.org/wiki/Vibe_coding) content. The majority of the codebase was built with significant assistance from AI coding agents, primarily **Antigravity** (Google DeepMind) and **Codex** (OpenAI). Human effort was focused on architecture decisions, product design, and quality review.
 
 ## 📄 License
 
