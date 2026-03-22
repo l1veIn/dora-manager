@@ -104,6 +104,8 @@ pub struct DataflowProject {
     pub yaml: String,
     pub meta: FlowMeta,
     pub executable: DataflowExecutableSummary,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

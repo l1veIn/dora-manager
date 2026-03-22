@@ -51,11 +51,13 @@ pub fn get(home: &Path, name: &str) -> Result<DataflowProject> {
             ..Default::default()
         });
         let executable = inspect::inspect_yaml(home, &yaml).summary;
+        let view = repo::read_view(home, name).ok();
         Ok(DataflowProject {
             name: name.to_string(),
             yaml,
             meta,
             executable,
+            view,
         })
     })();
     op.emit_result(&result);
@@ -102,6 +104,14 @@ pub fn get_flow_meta(home: &Path, name: &str) -> Result<FlowMeta> {
 
 pub fn save_flow_meta(home: &Path, name: &str, meta: &FlowMeta) -> Result<()> {
     repo::write_meta(home, name, meta)
+}
+
+pub fn get_flow_view(home: &Path, name: &str) -> Result<serde_json::Value> {
+    repo::read_view(home, name)
+}
+
+pub fn save_flow_view(home: &Path, name: &str, view: &serde_json::Value) -> Result<()> {
+    repo::write_view(home, name, view)
 }
 
 pub fn inspect_config(home: &Path, name: &str) -> Result<DataflowConfigAggregation> {

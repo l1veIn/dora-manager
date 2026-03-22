@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use super::model::{DataflowHistoryEntry, DataflowMeta, FlowMeta};
 use super::paths::{
     dataflow_dir, dataflow_yaml_path, dataflows_dir, flow_config_path, flow_history_dir,
-    flow_meta_path, DATAFLOW_FILE,
+    flow_meta_path, flow_view_path, DATAFLOW_FILE,
 };
 
 pub fn list_projects(home: &Path) -> Result<Vec<DataflowMeta>> {
@@ -92,6 +92,28 @@ pub fn read_config(home: &Path, name: &str) -> Result<serde_json::Value> {
         .with_context(|| format!("Failed to read dataflow config '{}'", name))?;
     serde_json::from_str(&content)
         .with_context(|| format!("Failed to parse dataflow config '{}'", name))
+}
+
+pub fn read_view(home: &Path, name: &str) -> Result<serde_json::Value> {
+    let path = flow_view_path(&dataflow_dir(home, name));
+    if !path.exists() {
+        return Ok(serde_json::json!({}));
+    }
+    let content = fs::read_to_string(&path)
+        .with_context(|| format!("Failed to read view for '{}'", name))?;
+    serde_json::from_str(&content)
+        .with_context(|| format!("Failed to parse view for '{}'", name))
+}
+
+pub fn write_view(home: &Path, name: &str, view: &serde_json::Value) -> Result<()> {
+    let dir = dataflow_dir(home, name);
+    fs::create_dir_all(&dir)?;
+    let path = flow_view_path(&dir);
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(view).context("Failed to serialize view.json")?,
+    )
+    .with_context(|| format!("Failed to write {}", path.display()))
 }
 
 pub fn write_config(home: &Path, name: &str, config: &serde_json::Value) -> Result<()> {

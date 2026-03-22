@@ -7,23 +7,32 @@
 	import AppSidebar from "$lib/components/layout/AppSidebar.svelte";
 	import AppHeader from "$lib/components/layout/AppHeader.svelte";
 	import { Toaster } from "$lib/components/ui/sonner/index.js";
+	import { page } from "$app/state";
 
 	let { children } = $props();
+
+	let isEditorRoute = $derived(page.url?.pathname?.endsWith('/editor') ?? false);
 </script>
 
 <ModeWatcher />
 <Toaster />
 
-<Sidebar.Provider>
-	<AppSidebar />
-	<main
-		class="flex-1 w-full h-screen max-h-screen overflow-hidden flex flex-col min-w-0"
-	>
-		<AppHeader />
-		<div
-			class="flex-1 min-h-0 overflow-auto bg-background text-foreground relative"
+{#if isEditorRoute}
+	<div class="h-screen w-screen overflow-hidden bg-background text-foreground">
+		{@render children()}
+	</div>
+{:else}
+	<Sidebar.Provider>
+		<AppSidebar />
+		<main
+			class="flex-1 w-full h-screen max-h-screen overflow-hidden flex flex-col min-w-0"
 		>
-			{@render children()}
-		</div>
-	</main>
-</Sidebar.Provider>
+			<AppHeader />
+			<div
+				class="flex-1 min-h-0 overflow-auto bg-background text-foreground relative"
+			>
+				{@render children()}
+			</div>
+		</main>
+	</Sidebar.Provider>
+{/if}

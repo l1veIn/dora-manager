@@ -262,3 +262,26 @@ fn dataflow_not_found_or_err(e: anyhow::Error, name: &str) -> Response {
     }
     err(e).into_response()
 }
+
+/// GET /api/dataflows/:name/view
+pub async fn get_dataflow_view(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> impl IntoResponse {
+    match dm_core::dataflow::get_flow_view(&state.home, &name) {
+        Ok(view) => Json(view).into_response(),
+        Err(e) => dataflow_not_found_or_err(e, &name).into_response(),
+    }
+}
+
+/// POST /api/dataflows/:name/view
+pub async fn save_dataflow_view(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(view): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    match dm_core::dataflow::save_flow_view(&state.home, &name, &view) {
+        Ok(()) => Json(serde_json::json!({ "message": "View saved" })).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}

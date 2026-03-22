@@ -104,6 +104,14 @@ async fn main() {
             "/api/dataflows/{name}/delete",
             post(handlers::delete_dataflow),
         )
+        .route(
+            "/api/dataflows/{name}/view",
+            get(handlers::get_dataflow_view),
+        )
+        .route(
+            "/api/dataflows/{name}/view",
+            post(handlers::save_dataflow_view),
+        )
         // ─── Dataflow Execution ───
         .route("/api/dataflow/start", post(handlers::start_dataflow))
         .route("/api/dataflow/stop", post(handlers::stop_dataflow))

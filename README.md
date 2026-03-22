@@ -2,6 +2,33 @@
 
 A powerful Rust-based CLI, HTTP API, and Visual Panel for managing [dora-rs](https://github.com/dora-rs/dora) environments. `dm` goes beyond simple version management by providing a Zero-Networking dataflow transpiler, reactive UI widgets, and full runtime orchestration.
 
+## 🎨 Interactive Graph Editor
+
+The centerpiece of Dora Manager is its high-performance, SvelteFlow-based Visual Editor. You can build, visualize, and edit Dora dataflows directly in your browser.
+
+<p align="center">
+  <img src="docs/assets/editor_polish_demo.webp" alt="Graph Editor Demo" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1)"/>
+</p>
+
+- **Right-Click Context Menus**: Seamless node duplication, edge deletion, and quick inspections straight from the canvas workspace.
+- **Floating Inspector**: A draggable, resizable window exposing rich configuration schemas dynamically parsed from each Node's capabilities.
+- **Real-time Synchronization**: Every edge drawn, duplicate created, and property edited on the visual field binds symmetrically to the underlying YAML model.
+
+### UI Previews
+
+<table align="center">
+  <tr>
+    <td align="center"><b>Split-View Dataflow Canvas</b></td>
+    <td align="center"><b>Deep-Schema Config Inspector</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/assets/editor_screenshot.png" width="480"></td>
+    <td align="center"><img src="docs/assets/inspector_screenshot.png" width="480"></td>
+  </tr>
+</table>
+
+<br/>
+
 ## 🚀 Key Features
 
 - **Visual Dataflow Orchestration**: A stunning Svelte/Tailwind web panel with real-time grid layouts, lazy tab loading, and responsive tracking.
@@ -24,25 +51,47 @@ web       (Svelte)→ Reactive visual panel, dynamically rendering widget overri
 
 ## ⚡ Quick Start
 
-```bash
-# Build the suite
-cargo build --release
+### 1. Build the Suite
 
-# Manage your environment
+Since the SvelteKit frontend is statically embedded directly into the Rust backend server, you must compile the web assets before compiling the Rust crates.
+
+```bash
+# Build the SvelteKit Visual Panel
+cd web
+npm install
+npm run build
+cd ..
+
+# Build the Rust suite (dm-cli & dm-server)
+cargo build --release
+```
+
+### 2. Enter the Visual Editor
+
+To spin up the orchestrated API and Visual Panel, simply start the server:
+
+```bash
+./target/release/dm-server
+```
+
+**Next, open your browser and navigate to: [http://127.0.0.1:3210](http://127.0.0.1:3210) to access the Interactive Graph Editor!**
+
+> 💡 **Tip for Developers**: You can use `./dev.sh` to spin up both the Rust backend and the SvelteKit development server (with Hot Module Replacement) simultaneously.
+
+### 3. Manage Environments (CLI)
+
+You can still use the powerful CLI tool to orchestrate environments silently:
+
+```bash
+# Environment lifecycle
 ./target/release/dm install
 ./target/release/dm doctor
-./target/release/dm versions
 ./target/release/dm use 0.4.1
 
-# Control runtime
+# Dataflow execution
 ./target/release/dm up
-./target/release/dm down
-
-# Run & view your dataflow in the Visual Panel
 ./target/release/dm start dataflow.yml
-
-# Pass-through to native dora CLI
-./target/release/dm -- stop --name my-dataflow
+./target/release/dm down
 ```
 
 ## 📸 Try it out: OpenCV Camera Pipeline
@@ -74,12 +123,7 @@ cargo run -- run quickstart.yml
 
 ## 🔌 HTTP API
 
-Start the Axum server:
-```bash
-cargo run -p dm-server
-```
-
-**Endpoints:**
+The Axum REST server binds on `3210` by default.
 ```bash
 curl http://127.0.0.1:3210/api/doctor
 curl http://127.0.0.1:3210/api/versions

@@ -43,7 +43,9 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
+		"@dagrejs/dagre": "^2.0.4",
 		"@sveltejs/adapter-static": "^3.0.10",
+		"@xyflow/svelte": "^1.5.1",
 		"clsx": "^2.1.1",
 		"dompurify": "^3.3.1",
 		"lucide-svelte": "^0.575.0",
@@ -54,6 +56,7 @@
 		"svelte-jsoneditor": "^3.11.0",
 		"tailwind-merge": "^3.5.0",
 		"viewerjs": "^1.11.7",
-		"wavesurfer.js": "^7.12.1"
+		"wavesurfer.js": "^7.12.1",
+		"yaml": "^2.8.3"
 	}
 }

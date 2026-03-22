@@ -18,18 +18,20 @@
         Settings,
         FileText,
         History,
+        GitBranch,
     } from "lucide-svelte";
     import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import YamlEditorTab from "./components/YamlEditorTab.svelte";
     import MetaTab from "./components/MetaTab.svelte";
     import ConfigOverridesTab from "./components/ConfigOverridesTab.svelte";
     import HistoryTab from "./components/HistoryTab.svelte";
+    import GraphEditorTab from "./components/GraphEditorTab.svelte";
 
     let dataflowName = $derived(page.params.id as string);
     let dataflow = $state<any>(null);
     let loading = $state(true);
     let isRunConflictDialogOpen = $state(false);
-    let activeTab = $state("yaml");
+    let activeTab = $state("graph");
 
     async function loadDataflow() {
         loading = true;
@@ -155,8 +157,12 @@
         </div>
     {:else if dataflow}
         <!-- Workspace Main Content -->
-        <Tabs.Root value="yaml" onValueChange={(v) => { activeTab = v; }} class="flex-1 flex flex-col min-h-0">
+        <Tabs.Root value="graph" onValueChange={(v) => { activeTab = v; }} class="flex-1 flex flex-col min-h-0">
             <Tabs.List class="w-fit mb-4">
+                <Tabs.Trigger value="graph" class="gap-2">
+                    <GitBranch class="size-4" />
+                    Graph Editor
+                </Tabs.Trigger>
                 <Tabs.Trigger value="yaml" class="gap-2">
                     <Code class="size-4" />
                     dataflow.yml
@@ -174,6 +180,19 @@
                     History
                 </Tabs.Trigger>
             </Tabs.List>
+
+            <Tabs.Content
+                value="graph"
+                class="flex-1 flex flex-col min-h-0 overflow-hidden mt-0"
+            >
+                {#if activeTab === "graph" && dataflow?.yaml !== undefined}
+                    <GraphEditorTab
+                        {dataflowName}
+                        yamlStr={dataflow.yaml || ""}
+                        viewJson={dataflow.view || {}}
+                    />
+                {/if}
+            </Tabs.Content>
 
             <Tabs.Content
                 value="yaml"

@@ -13,9 +13,10 @@ use axum::response::IntoResponse;
 
 pub use dataflow::{
     delete_dataflow, get_dataflow, get_dataflow_config, get_dataflow_config_schema,
-    get_dataflow_history_version, get_dataflow_meta, import_dataflows, inspect_dataflow,
-    list_dataflow_history, list_dataflows, restore_dataflow_history_version, save_dataflow,
-    save_dataflow_config, save_dataflow_meta, start_dataflow, stop_dataflow,
+    get_dataflow_history_version, get_dataflow_meta, get_dataflow_view, import_dataflows,
+    inspect_dataflow, list_dataflow_history, list_dataflows, restore_dataflow_history_version,
+    save_dataflow, save_dataflow_config, save_dataflow_meta, save_dataflow_view, start_dataflow,
+    stop_dataflow,
 };
 pub use events::{count_events, export_events, ingest_event, query_events};
 pub use nodes::{
