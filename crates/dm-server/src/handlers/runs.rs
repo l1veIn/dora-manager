@@ -26,6 +26,7 @@ pub struct StartRunRequest {
     pub yaml: String,
     pub name: Option<String>,
     pub force: Option<bool>,
+    pub view_json: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -122,6 +123,14 @@ pub async fn get_run_transpiled(
     }
 }
 
+/// GET /api/runs/:id/view
+pub async fn get_run_view(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+    match dm_core::runs::read_run_view(&state.home, &id) {
+        Ok(content) => content.into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct RunDetailParams {
     pub include_metrics: Option<bool>,
@@ -197,6 +206,7 @@ pub async fn start_run(
         &state.home,
         &req.yaml,
         &dataflow_name,
+        req.view_json.as_deref(),
         dm_core::runs::RunSource::Server,
         strategy,
     )

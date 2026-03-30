@@ -22,6 +22,10 @@ pub fn run_snapshot_path(home: &Path, run_id: &str) -> PathBuf {
     run_dir(home, run_id).join("dataflow.yml")
 }
 
+pub fn run_view_json_path(home: &Path, run_id: &str) -> PathBuf {
+    run_dir(home, run_id).join("view.json")
+}
+
 pub fn run_transpiled_path(home: &Path, run_id: &str) -> PathBuf {
     run_dir(home, run_id).join("dataflow.transpiled.yml")
 }
@@ -93,6 +97,12 @@ pub fn read_run_transpiled(home: &Path, run_id: &str) -> Result<String> {
     let path = run_transpiled_path(home, run_id);
     fs::read_to_string(&path)
         .with_context(|| format!("Failed to read transpiled run snapshot {}", path.display()))
+}
+
+pub fn read_run_view(home: &Path, run_id: &str) -> Result<String> {
+    let path = run_view_json_path(home, run_id);
+    fs::read_to_string(&path)
+        .with_context(|| format!("Failed to read run view.json {}", path.display()))
 }
 
 pub fn read_run_log_file(home: &Path, run_id: &str, node_id: &str) -> Result<String> {

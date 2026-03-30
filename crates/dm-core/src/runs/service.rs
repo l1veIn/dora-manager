@@ -22,7 +22,7 @@ pub use self::service_admin::{clean_runs, delete_run};
 pub use self::service_metrics::{collect_all_active_metrics, get_run_metrics};
 pub use self::service_query::{
     get_active_run, get_run, list_active_runs, list_runs, list_runs_filtered, read_run_log,
-    read_run_log_chunk, read_run_transpiled,
+    read_run_log_chunk, read_run_transpiled, read_run_view,
 };
 pub use self::service_runtime::{refresh_run_statuses, stop_run, sync_run_outputs};
 pub use self::service_start::{

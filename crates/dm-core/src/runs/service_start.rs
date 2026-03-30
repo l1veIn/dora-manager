@@ -24,6 +24,7 @@ pub async fn start_run_from_yaml(
         home,
         yaml,
         dataflow_name,
+        None,
         RunSource::Unknown,
         StartConflictStrategy::Fail,
     )
@@ -40,6 +41,7 @@ pub async fn start_run_from_yaml_with_strategy(
         home,
         yaml,
         dataflow_name,
+        None,
         RunSource::Unknown,
         strategy,
     )
@@ -50,6 +52,7 @@ pub async fn start_run_from_yaml_with_source_and_strategy(
     home: &Path,
     yaml: &str,
     dataflow_name: &str,
+    view_json: Option<&str>,
     source: RunSource,
     strategy: StartConflictStrategy,
 ) -> Result<StartRunResult> {
@@ -58,6 +61,7 @@ pub async fn start_run_from_yaml_with_source_and_strategy(
         home,
         yaml,
         dataflow_name,
+        view_json,
         source,
         strategy,
         &backend,
@@ -69,6 +73,7 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
     home: &Path,
     yaml: &str,
     dataflow_name: &str,
+    view_json: Option<&str>,
     source: RunSource,
     strategy: StartConflictStrategy,
     backend: &B,
@@ -118,6 +123,12 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
     let snapshot_path = repo::run_snapshot_path(home, &run_id);
     fs::write(&snapshot_path, yaml)
         .with_context(|| format!("Failed to write snapshot {}", snapshot_path.display()))?;
+
+    if let Some(vj) = view_json {
+        let view_json_path = repo::run_view_json_path(home, &run_id);
+        fs::write(&view_json_path, vj)
+            .with_context(|| format!("Failed to write view.json {}", view_json_path.display()))?;
+    }
 
     let dataflow_hash = format!("sha256:{:x}", Sha256::digest(yaml.as_bytes()));
     let transpile_result = crate::dataflow::transpile_graph_for_run(home, &snapshot_path, &run_id)
@@ -239,6 +250,7 @@ pub async fn start_run_from_file(home: &Path, file_path: &Path) -> Result<StartR
     start_run_from_file_with_source_and_strategy(
         home,
         file_path,
+        None,
         RunSource::Unknown,
         StartConflictStrategy::Fail,
     )
@@ -250,13 +262,14 @@ pub async fn start_run_from_file_with_strategy(
     file_path: &Path,
     strategy: StartConflictStrategy,
 ) -> Result<StartRunResult> {
-    start_run_from_file_with_source_and_strategy(home, file_path, RunSource::Unknown, strategy)
+    start_run_from_file_with_source_and_strategy(home, file_path, None, RunSource::Unknown, strategy)
         .await
 }
 
 pub async fn start_run_from_file_with_source_and_strategy(
     home: &Path,
     file_path: &Path,
+    view_json: Option<&str>,
     source: RunSource,
     strategy: StartConflictStrategy,
 ) -> Result<StartRunResult> {
@@ -267,6 +280,6 @@ pub async fn start_run_from_file_with_source_and_strategy(
         .unwrap_or_default()
         .to_string_lossy()
         .to_string();
-    start_run_from_yaml_with_source_and_strategy(home, &yaml, &dataflow_name, source, strategy)
+    start_run_from_yaml_with_source_and_strategy(home, &yaml, &dataflow_name, view_json, source, strategy)
         .await
 }

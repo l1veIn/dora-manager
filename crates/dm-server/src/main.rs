@@ -127,12 +127,14 @@ async fn main() {
             "/api/runs/{id}/transpiled",
             get(handlers::get_run_transpiled),
         )
+        .route("/api/runs/{id}/view", get(handlers::get_run_view))
         .route("/api/runs/delete", post(handlers::delete_runs))
         .route("/api/runs/{id}/logs/{node_id}", get(handlers::get_run_logs))
         .route(
             "/api/runs/{id}/logs/{node_id}/tail",
             get(handlers::tail_run_logs),
         )
+        .route("/api/runs/{id}/ws", get(handlers::run_ws))
         // ─── Events / Observability ───
         .route("/api/events/count", get(handlers::count_events))
         .route("/api/events/export", get(handlers::export_events))

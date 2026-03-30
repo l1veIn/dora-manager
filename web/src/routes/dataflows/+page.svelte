@@ -119,6 +119,7 @@
                 yaml: res.yaml,
                 name,
                 force,
+                view_json: res.view ? JSON.stringify(res.view) : undefined,
             });
             toast.success(`Started ${name}`);
             if (result.run_id) goto(`/runs/${result.run_id}`);

@@ -229,6 +229,7 @@ pub async fn start_dataflow(
             yaml: req.yaml,
             name: None,
             force: None,
+            view_json: None,
         }),
     )
     .await

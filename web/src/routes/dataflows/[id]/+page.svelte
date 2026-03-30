@@ -77,6 +77,7 @@
                 name: dataflowName,
                 yaml: dataflow.yaml,
                 force,
+                view_json: dataflow.view ? JSON.stringify(dataflow.view) : undefined,
             });
             toast.success("Started dataflow");
             if (res.run_id) {

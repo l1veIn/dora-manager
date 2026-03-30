@@ -10,6 +10,7 @@
     import { yaml } from "@codemirror/lang-yaml";
     import { mode } from "mode-watcher";
     import { oneDark } from "@codemirror/theme-one-dark";
+    import RuntimeGraphView from "./graph/RuntimeGraphView.svelte";
 
     let {
         run,
@@ -23,10 +24,13 @@
 
     let isYamlOpen = $state(false);
     let isTranspiledOpen = $state(false);
+    let isGraphOpen = $state(false);
     let yamlContent = $state("");
     let transpiledContent = $state("");
+    let viewJson = $state<any>(null);
     let loadingYaml = $state(false);
     let loadingTranspiled = $state(false);
+    let loadingGraph = $state(false);
 
     async function openYaml() {
         if (!run?.id) return;
@@ -56,6 +60,27 @@
                 transpiledContent = `Error: ${e.message}`;
             } finally {
                 loadingTranspiled = false;
+            }
+        }
+    }
+
+    async function openGraph() {
+        if (!run?.id) return;
+        isGraphOpen = true;
+        if (!yamlContent || !viewJson) {
+            loadingGraph = true;
+            try {
+                // Fetch the run snapshot yaml and layout view
+                const yamlTask = yamlContent ? Promise.resolve(yamlContent) : getText(`/runs/${run.id}/dataflow`);
+                const viewTask = viewJson ? Promise.resolve(viewJson) : get(`/runs/${run.id}/view`);
+                
+                const [yamlRes, viewRes] = await Promise.all([yamlTask, viewTask]);
+                yamlContent = yamlRes;
+                viewJson = viewRes;
+            } catch (e: any) {
+                console.error("Failed to load graph data", e);
+            } finally {
+                loadingGraph = false;
             }
         }
     }
@@ -156,6 +181,15 @@
                 <FileText class="size-3.5 mr-1.5" />
                 Transpiled
             </Button>
+            <Button
+                variant="default"
+                size="sm"
+                onclick={openGraph}
+                class="h-8"
+            >
+                <FileText class="size-3.5 mr-1.5" />
+                Graph
+            </Button>
         {/if}
     </div>
 </header>
@@ -255,5 +289,29 @@
                 >Close</Button
             >
         </Dialog.Footer>
+    </Dialog.Content>
+</Dialog.Root>
+
+<!-- Runtime Graph View Modal -->
+<Dialog.Root bind:open={isGraphOpen}>
+    <Dialog.Content class="sm:max-w-screen-xl w-[95vw] h-[95vh] flex flex-col p-1">
+        <Dialog.Header class="hidden">
+            <Dialog.Title>Runtime Call Graph</Dialog.Title>
+            <Dialog.Description>Real-time visual monitoring</Dialog.Description>
+        </Dialog.Header>
+        <div class="flex-1 w-full h-full relative overflow-hidden rounded-md border text-sm">
+            {#if loadingGraph}
+                <div class="h-full w-full flex items-center justify-center text-muted-foreground">
+                    <Loader2 class="size-6 animate-spin mr-2" /> 
+                    Loading graph map...
+                </div>
+            {:else if isGraphOpen && yamlContent && viewJson !== null}
+                <RuntimeGraphView runId={run.id} {yamlContent} {viewJson} />
+            {:else}
+                <div class="h-full flex items-center justify-center text-red-500">
+                    Cannot load layout data. Maybe this run was invoked via CLI?
+                </div>
+            {/if}
+        </div>
     </Dialog.Content>
 </Dialog.Root>

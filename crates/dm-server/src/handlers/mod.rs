@@ -3,6 +3,7 @@ mod events;
 mod nodes;
 mod panel;
 mod panel_ws;
+mod run_ws;
 mod runs;
 mod runtime;
 mod system;
@@ -25,9 +26,10 @@ pub use nodes::{
 };
 pub use panel::{get_latest_option, get_widgets, query_assets, send_command, serve_asset_file};
 pub use panel_ws::panel_ws;
+pub use run_ws::run_ws;
 pub use runs::{
     delete_runs, get_active_run, get_run, get_run_dataflow, get_run_logs, get_run_metrics,
-    get_run_transpiled, list_runs, start_run, stop_run, tail_run_logs,
+    get_run_transpiled, get_run_view, list_runs, start_run, stop_run, tail_run_logs,
 };
 pub use runtime::{down, install, uninstall, up, use_version};
 pub use system::{doctor, get_config, status, update_config, versions};

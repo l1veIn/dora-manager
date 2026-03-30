@@ -73,6 +73,10 @@ pub fn read_run_transpiled(home: &Path, run_id: &str) -> Result<String> {
     repo::read_run_transpiled(home, run_id)
 }
 
+pub fn read_run_view(home: &Path, run_id: &str) -> Result<String> {
+    repo::read_run_view(home, run_id)
+}
+
 pub fn read_run_log_chunk(
     home: &Path,
     run_id: &str,
