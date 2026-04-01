@@ -42,6 +42,8 @@ pub fn create_layout(home: &Path, run_id: &str) -> Result<PathBuf> {
     let dir = run_dir(home, run_id);
     fs::create_dir_all(run_logs_dir(home, run_id))
         .with_context(|| format!("Failed to create logs dir for run '{}'", run_id))?;
+    fs::create_dir_all(run_out_dir(home, run_id))
+        .with_context(|| format!("Failed to create output dir for run '{}'", run_id))?;
     Ok(dir)
 }
 

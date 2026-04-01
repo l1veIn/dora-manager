@@ -1,0 +1,54 @@
+{
+  "id": "dm-input",
+  "name": "dm-input",
+  "version": "0.1.0",
+  "installed_at": "",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Register web input widgets with dm-server and emit user actions back into the dataflow.",
+  "executable": ".venv/bin/dm-input",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Interaction",
+    "tags": ["builtin", "interaction", "input"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [],
+  "dynamic_ports": true,
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_input/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "label": {
+      "default": "",
+      "description": "Input group label shown in the UI.",
+      "env": "LABEL"
+    },
+    "widgets": {
+      "default": {},
+      "description": "Widget definition map keyed by output port name.",
+      "env": "WIDGETS"
+    },
+    "poll_interval": {
+      "default": 1000,
+      "description": "Polling interval in milliseconds for claimed input events.",
+      "env": "POLL_INTERVAL"
+    }
+  },
+  "path": ""
+}

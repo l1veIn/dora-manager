@@ -134,6 +134,27 @@ async fn main() {
             "/api/runs/{id}/logs/{node_id}/tail",
             get(handlers::tail_run_logs),
         )
+        .route("/api/runs/{id}/interaction", get(handlers::get_interaction))
+        .route(
+            "/api/runs/{id}/interaction/display",
+            post(handlers::post_display),
+        )
+        .route(
+            "/api/runs/{id}/interaction/input/register",
+            post(handlers::register_input),
+        )
+        .route(
+            "/api/runs/{id}/interaction/input/events",
+            post(handlers::emit_input_event),
+        )
+        .route(
+            "/api/runs/{id}/interaction/input/claim/{node_id}",
+            get(handlers::claim_input_events),
+        )
+        .route(
+            "/api/runs/{id}/artifacts/{*path}",
+            get(handlers::serve_artifact_file),
+        )
         .route("/api/runs/{id}/ws", get(handlers::run_ws))
         // ─── Events / Observability ───
         .route("/api/events/count", get(handlers::count_events))

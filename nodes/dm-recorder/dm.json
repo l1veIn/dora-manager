@@ -1,0 +1,76 @@
+{
+  "id": "dm-recorder",
+  "name": "dm-recorder",
+  "version": "0.1.0",
+  "installed_at": "",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Record audio chunks into a single WAV artifact under the current run output directory.",
+  "executable": ".venv/bin/dm-recorder",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Storage",
+    "tags": ["builtin", "storage", "audio"]
+  },
+  "capabilities": ["configurable", "media"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "data",
+      "name": "data",
+      "direction": "input",
+      "description": "Audio chunk as bytes or float samples.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "type": { "name": "binary" }
+      }
+    },
+    {
+      "id": "path",
+      "name": "path",
+      "direction": "output",
+      "description": "Absolute WAV file path.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "type": { "name": "utf8" }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_recorder/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "path": {
+      "default": "recording.wav",
+      "description": "Output file path relative to runs/:id/out/.",
+      "env": "PATH"
+    },
+    "sample_rate": {
+      "default": 16000,
+      "description": "Sample rate for generated WAV.",
+      "env": "SAMPLE_RATE"
+    },
+    "channels": {
+      "default": 1,
+      "description": "Number of audio channels.",
+      "env": "CHANNELS"
+    }
+  },
+  "path": ""
+}

@@ -1,5 +1,6 @@
 mod dataflow;
 mod events;
+mod interaction;
 mod nodes;
 mod run_ws;
 mod runs;
@@ -18,6 +19,10 @@ pub use dataflow::{
     stop_dataflow,
 };
 pub use events::{count_events, export_events, ingest_event, query_events};
+pub use interaction::{
+    claim_input_events, emit_input_event, get_interaction, post_display, register_input,
+    serve_artifact_file,
+};
 pub use nodes::{
     create_node, get_node_config, get_node_file_content, get_node_files, import_node, install_node,
     list_nodes, node_readme, node_status, save_node_config, uninstall_node,

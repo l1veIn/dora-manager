@@ -1,0 +1,107 @@
+{
+  "id": "dm-save",
+  "name": "dm-save",
+  "version": "0.1.0",
+  "installed_at": "",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Persist binary payloads as files under the current run output directory.",
+  "executable": ".venv/bin/dm-save",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Storage",
+    "tags": [
+      "builtin",
+      "storage",
+      "file"
+    ]
+  },
+  "capabilities": [
+    "configurable"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "data",
+      "name": "data",
+      "direction": "input",
+      "description": "Binary payload to persist as a file.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "description": "Opaque binary payload",
+        "type": {
+          "name": "binary"
+        }
+      }
+    },
+    {
+      "id": "path",
+      "name": "path",
+      "direction": "output",
+      "description": "Absolute path of the file written for the latest input event.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "description": "Absolute file path",
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_save/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "dir": {
+      "description": "Output directory relative to runs/:id/out/.",
+      "env": "DIR"
+    },
+    "naming": {
+      "default": "{timestamp}_{seq}",
+      "description": "Filename template. Supported variables: {timestamp}, {seq}, {node_id}.",
+      "env": "NAMING"
+    },
+    "extension": {
+      "default": "auto",
+      "description": "File extension override. Use auto to infer from event metadata.",
+      "env": "EXTENSION"
+    },
+    "max_files": {
+      "default": null,
+      "description": "Maximum number of files to retain.",
+      "env": "MAX_FILES"
+    },
+    "max_total_size": {
+      "default": null,
+      "description": "Maximum cumulative file size, for example 100 MB or 1 GB.",
+      "env": "MAX_TOTAL_SIZE"
+    },
+    "max_age": {
+      "default": null,
+      "description": "Maximum file age, for example 24h or 7d.",
+      "env": "MAX_AGE"
+    },
+    "overwrite_latest": {
+      "default": false,
+      "description": "Overwrite a stable latest file instead of writing a new file for every event.",
+      "env": "OVERWRITE_LATEST"
+    }
+  },
+  "path": ""
+}

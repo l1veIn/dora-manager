@@ -52,6 +52,7 @@ pub fn transpile_graph_for_run(
 
         let ctx = TranspileContext {
             home,
+            run_id: _run_id,
             flow_config,
         };
         let mut diags = Vec::new();
@@ -67,6 +68,7 @@ pub fn transpile_graph_for_run(
         passes::resolve_paths(&ctx, &mut graph, &mut diags);
         passes::validate_port_schemas(&ctx, &graph, &mut diags);
         passes::merge_config(&ctx, &mut graph, &mut diags);
+        passes::inject_runtime_env(&ctx, &mut graph);
 
         // Log diagnostics as warnings
         for d in &diags {

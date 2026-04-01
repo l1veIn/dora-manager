@@ -10,6 +10,7 @@
     import RunSummaryCard from "./RunSummaryCard.svelte";
     import RunNodeList from "./RunNodeList.svelte";
     import TerminalPane from "./TerminalPane.svelte";
+    import InteractionPane from "./InteractionPane.svelte";
 
     let runId = $derived($page.params.id);
 
@@ -17,6 +18,10 @@
     let loading = $state(true);
     let error = $state<string | null>(null);
     let metrics = $state<any>(null);
+    let interaction = $state<{ displays: any[]; inputs: any[] }>({
+        displays: [],
+        inputs: [],
+    });
 
     let selectedNodeId = $state<string>("");
     let showTerminal = $state(
@@ -33,6 +38,10 @@
     }
 
     let isRunActive = $derived(run?.status === "running");
+    let hasInteraction = $derived(
+        (interaction?.displays?.length ?? 0) > 0 ||
+            (interaction?.inputs?.length ?? 0) > 0,
+    );
 
     // ── Data fetching ──
 
@@ -54,6 +63,25 @@
         } finally {
             loading = false;
         }
+    }
+
+    async function fetchInteraction() {
+        if (!runId) return;
+        try {
+            interaction = await get(`/runs/${runId}/interaction`);
+        } catch (e) {
+            console.error("Failed to fetch interaction state", e);
+        }
+    }
+
+    async function emitInteraction(nodeId: string, outputId: string, value: any) {
+        if (!runId) return;
+        await post(`/runs/${runId}/interaction/input/events`, {
+            node_id: nodeId,
+            output_id: outputId,
+            value,
+        });
+        await fetchInteraction();
     }
 
     async function stopRun() {
@@ -81,12 +109,14 @@
 
     onMount(() => {
         fetchRunDetail();
+        fetchInteraction();
         mainPolling = setInterval(() => {
             if (isRunActive) {
                 fetchRunDetail();
+                fetchInteraction();
             } else {
                 metrics = null;
-                if (mainPolling) clearInterval(mainPolling);
+                fetchInteraction();
             }
         }, 3000);
     });
@@ -144,17 +174,40 @@
             <!-- Content Area -->
             {#if showTerminal}
                 <div class="flex-1 min-w-0 bg-background flex flex-col relative text-foreground h-full overflow-hidden">
-                    <TerminalPane
-                        runId={runId || ""}
-                        nodeId={selectedNodeId}
-                        {isRunActive}
-                        onClose={() => { setShowTerminal(false); }}
-                    />
+                    {#if hasInteraction}
+                        <div class="h-[45%] min-h-[260px] border-b overflow-hidden">
+                            <InteractionPane
+                                runId={runId || ""}
+                                displays={interaction.displays}
+                                inputs={interaction.inputs}
+                                onEmit={emitInteraction}
+                            />
+                        </div>
+                    {/if}
+                    <div class="flex-1 min-h-0">
+                        <TerminalPane
+                            runId={runId || ""}
+                            nodeId={selectedNodeId}
+                            {isRunActive}
+                            onClose={() => { setShowTerminal(false); }}
+                        />
+                    </div>
                 </div>
             {:else}
-                <div class="flex-1 min-w-0 flex items-center justify-center bg-background">
-                    <p class="text-sm text-muted-foreground/60">Click a node on the left to view its logs.</p>
-                </div>
+                {#if hasInteraction}
+                    <div class="flex-1 min-w-0 overflow-hidden bg-background">
+                        <InteractionPane
+                            runId={runId || ""}
+                            displays={interaction.displays}
+                            inputs={interaction.inputs}
+                            onEmit={emitInteraction}
+                        />
+                    </div>
+                {:else}
+                    <div class="flex-1 min-w-0 flex items-center justify-center bg-background">
+                        <p class="text-sm text-muted-foreground/60">Click a node on the left to view its logs.</p>
+                    </div>
+                {/if}
             {/if}
         </div>
     {/if}

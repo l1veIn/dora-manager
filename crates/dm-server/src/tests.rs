@@ -192,6 +192,17 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
     .unwrap();
 }
 
+fn setup_run(home: &std::path::Path, run_id: &str) {
+    dm_core::runs::create_layout(home, run_id).unwrap();
+    let run = dm_core::runs::RunInstance {
+        run_id: run_id.to_string(),
+        dataflow_name: "demo".to_string(),
+        started_at: "2026-04-01T00:00:00Z".to_string(),
+        ..Default::default()
+    };
+    dm_core::runs::save_run(home, &run).unwrap();
+}
+
 async fn body_text(resp: axum::response::Response) -> String {
     let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     String::from_utf8(bytes.to_vec()).unwrap()
@@ -1471,4 +1482,122 @@ async fn serve_web_unknown_path_falls_back_to_index() {
         .to_str()
         .unwrap_or_default()
         .contains("text/html"));
+}
+
+#[tokio::test]
+async fn interaction_display_roundtrip_persists_state() {
+    let (_tmp, state) = test_state();
+    setup_run(&state.home, "run-display");
+
+    let resp = handlers::post_display(
+        State(state.clone()),
+        Path("run-display".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "node_id": "show-chat",
+                "label": "Chat",
+                "file": "logs/chat.log",
+                "render": "text",
+                "tail": true,
+                "max_lines": 200
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let get_resp = handlers::get_interaction(State(state), Path("run-display".to_string()))
+        .await
+        .into_response();
+    let body = body_text(get_resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["displays"].as_array().unwrap().len(), 1);
+    assert_eq!(json["displays"][0]["file"], "logs/chat.log");
+}
+
+#[tokio::test]
+async fn interaction_input_registration_and_claim_roundtrip() {
+    let (_tmp, state) = test_state();
+    setup_run(&state.home, "run-input");
+
+    let register = handlers::register_input(
+        State(state.clone()),
+        Path("run-input".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "node_id": "prompt",
+                "label": "Prompt",
+                "widgets": {
+                    "text": {
+                        "type": "textarea",
+                        "label": "Prompt",
+                        "default": "hello"
+                    }
+                }
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(register.status(), axum::http::StatusCode::OK);
+
+    let emit = handlers::emit_input_event(
+        State(state.clone()),
+        Path("run-input".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "node_id": "prompt",
+                "output_id": "text",
+                "value": "world"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(emit.status(), axum::http::StatusCode::OK);
+
+    let claim = handlers::claim_input_events(
+        State(state),
+        Path(("run-input".to_string(), "prompt".to_string())),
+        Query(serde_json::from_value(serde_json::json!({ "since": 0 })).unwrap()),
+    )
+    .await
+    .into_response();
+    assert_eq!(claim.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(claim).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["events"].as_array().unwrap().len(), 1);
+    assert_eq!(json["events"][0]["value"], "world");
+}
+
+#[tokio::test]
+async fn serve_artifact_file_reads_run_out_and_rejects_traversal() {
+    let (_tmp, state) = test_state();
+    setup_run(&state.home, "run-artifact");
+    let out_dir = dm_core::runs::run_out_dir(&state.home, "run-artifact");
+    std::fs::create_dir_all(out_dir.join("nested")).unwrap();
+    std::fs::write(out_dir.join("nested/result.json"), "{\"ok\":true}").unwrap();
+
+    let bad = handlers::serve_artifact_file(
+        State(state.clone()),
+        Path(("run-artifact".to_string(), "../secret.txt".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(bad.status(), axum::http::StatusCode::BAD_REQUEST);
+
+    let ok = handlers::serve_artifact_file(
+        State(state),
+        Path(("run-artifact".to_string(), "nested/result.json".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(ok.status(), axum::http::StatusCode::OK);
+    let body = body_text(ok).await;
+    assert_eq!(body, "{\"ok\":true}");
 }

@@ -1,0 +1,92 @@
+{
+  "id": "dm-log",
+  "name": "dm-log",
+  "version": "0.1.0",
+  "installed_at": "",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Serialize incoming data to append-only log files under the current run output directory.",
+  "executable": ".venv/bin/dm-log",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Storage",
+    "tags": ["builtin", "storage", "log"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "data",
+      "name": "data",
+      "direction": "input",
+      "description": "Data payload to serialize into a log file.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "type": { "name": "utf8" },
+        "description": "Text, JSON, or structured data"
+      }
+    },
+    {
+      "id": "path",
+      "name": "path",
+      "direction": "output",
+      "description": "Absolute log file path written by the node.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "type": { "name": "utf8" },
+        "description": "Absolute file path"
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_log/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "path": {
+      "description": "Output log path relative to runs/:id/out/.",
+      "env": "PATH"
+    },
+    "format": {
+      "default": "text",
+      "description": "Serialization format: text, json, csv.",
+      "env": "FORMAT"
+    },
+    "rotation": {
+      "default": null,
+      "description": "Rotation rule accepted by loguru, for example 50 MB.",
+      "env": "ROTATION"
+    },
+    "retention": {
+      "default": null,
+      "description": "Retention rule accepted by loguru, for example 7 days.",
+      "env": "RETENTION"
+    },
+    "compression": {
+      "default": null,
+      "description": "Optional compression for rotated files, for example gz or zip.",
+      "env": "COMPRESSION"
+    },
+    "timestamp": {
+      "default": true,
+      "description": "Prefix each record with an ISO timestamp.",
+      "env": "TIMESTAMP"
+    }
+  },
+  "path": ""
+}

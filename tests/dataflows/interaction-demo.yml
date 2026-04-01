@@ -1,0 +1,38 @@
+nodes:
+  - id: prompt
+    node: dm-input
+    outputs:
+      - text
+    config:
+      label: "Prompt"
+      widgets:
+        text:
+          type: textarea
+          label: "User Prompt"
+          placeholder: "Type something..."
+
+  - id: echo
+    node: dora-echo
+    inputs:
+      text: prompt/text
+    outputs:
+      - text
+
+  - id: log
+    node: dm-log
+    inputs:
+      data: echo/text
+    outputs:
+      - path
+    config:
+      path: "chat/session.log"
+      format: text
+
+  - id: display
+    node: dm-display
+    inputs:
+      path: log/path
+    config:
+      label: "Session Log"
+      render: text
+      tail: true

@@ -1,0 +1,80 @@
+{
+  "id": "dm-display",
+  "name": "dm-display",
+  "version": "0.1.0",
+  "installed_at": "",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Notify dm-server that a stored artifact should be displayed in the current run UI.",
+  "executable": ".venv/bin/dm-display",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Interaction",
+    "tags": ["builtin", "interaction", "display"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "path",
+      "name": "path",
+      "direction": "input",
+      "description": "Path emitted by a storage-family node.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": { "name": "utf8" }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_display/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "label": {
+      "default": "",
+      "description": "Display label shown in the UI.",
+      "env": "LABEL"
+    },
+    "render": {
+      "default": "auto",
+      "description": "Render mode: auto, text, image, audio, video, json, markdown.",
+      "env": "RENDER"
+    },
+    "tail": {
+      "default": true,
+      "description": "Whether text-like files should be tailed.",
+      "env": "TAIL"
+    },
+    "max_lines": {
+      "default": 500,
+      "description": "Maximum lines returned for tailed text displays.",
+      "env": "MAX_LINES"
+    },
+    "source": {
+      "default": null,
+      "description": "Static source file relative to runs/:id/out/.",
+      "env": "SOURCE"
+    },
+    "poll_interval": {
+      "default": 2000,
+      "description": "Polling interval in milliseconds for static sources.",
+      "env": "POLL_INTERVAL"
+    }
+  },
+  "path": ""
+}

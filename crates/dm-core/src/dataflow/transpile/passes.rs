@@ -416,7 +416,36 @@ pub(crate) fn merge_config(
 }
 
 // ---------------------------------------------------------------------------
-// Pass 4: Emit — DmGraph → serde_yaml::Value
+// Pass 4: Inject generic runtime env for managed nodes
+// ---------------------------------------------------------------------------
+
+pub(crate) fn inject_runtime_env(ctx: &TranspileContext, graph: &mut DmGraph) {
+    let run_out_dir = crate::runs::run_out_dir(ctx.home, ctx.run_id)
+        .display()
+        .to_string();
+
+    for node in &mut graph.nodes {
+        let DmNode::Managed(managed) = node else {
+            continue;
+        };
+
+        managed.merged_env.insert(
+            serde_yaml::Value::String("DM_RUN_ID".to_string()),
+            serde_yaml::Value::String(ctx.run_id.to_string()),
+        );
+        managed.merged_env.insert(
+            serde_yaml::Value::String("DM_RUN_OUT_DIR".to_string()),
+            serde_yaml::Value::String(run_out_dir.clone()),
+        );
+        managed.merged_env.insert(
+            serde_yaml::Value::String("DM_SERVER_URL".to_string()),
+            serde_yaml::Value::String("http://127.0.0.1:3210".to_string()),
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Pass 5: Emit — DmGraph → serde_yaml::Value
 // ---------------------------------------------------------------------------
 
 /// Convert the typed IR back into a `serde_yaml::Value` suitable for

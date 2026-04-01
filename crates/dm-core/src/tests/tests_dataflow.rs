@@ -2,7 +2,7 @@ use std::fs;
 
 use tempfile::tempdir;
 
-use crate::dataflow::transpile_graph;
+use crate::dataflow::{transpile_graph, transpile_graph_for_run};
 use crate::node::{node_dir, Node, NodeDisplay, NodeFiles, NodeRuntime, NodeSource};
 
 fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
@@ -83,7 +83,51 @@ nodes:
     assert!(node
         .get(serde_yaml::Value::String("custom".into()))
         .is_none());
-    assert!(node.get(serde_yaml::Value::String("env".into())).is_none());
+    let env = node
+        .get(serde_yaml::Value::String("env".into()))
+        .and_then(|value| value.as_mapping())
+        .unwrap();
+    assert!(env.contains_key(serde_yaml::Value::String("DM_RUN_ID".into())));
+    assert!(env.contains_key(serde_yaml::Value::String("DM_RUN_OUT_DIR".into())));
+}
+
+#[test]
+fn transpile_graph_injects_generic_runtime_env() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    setup_managed_node(home, "test-node", ".venv/bin/test-node");
+
+    let yaml_path = home.join("graph.yml");
+    fs::write(
+        &yaml_path,
+        r#"
+nodes:
+  - id: n1
+    node: test-node
+"#,
+    )
+    .unwrap();
+
+    let out = transpile_graph_for_run(home, &yaml_path, "run-123").unwrap().yaml;
+    let nodes = out["nodes"].as_sequence().unwrap();
+    let node = nodes[0].as_mapping().unwrap();
+    let env = node
+        .get(serde_yaml::Value::String("env".into()))
+        .and_then(|value| value.as_mapping())
+        .unwrap();
+
+    let run_id = env
+        .get(serde_yaml::Value::String("DM_RUN_ID".into()))
+        .and_then(|value| value.as_str());
+    let run_out_dir = env
+        .get(serde_yaml::Value::String("DM_RUN_OUT_DIR".into()))
+        .and_then(|value| value.as_str());
+
+    assert_eq!(run_id, Some("run-123"));
+    assert_eq!(
+        run_out_dir,
+        Some(home.join("runs/run-123/out").to_string_lossy().as_ref())
+    );
 }
 
 #[test]
