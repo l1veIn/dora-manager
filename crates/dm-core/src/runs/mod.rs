@@ -1,6 +1,5 @@
 mod graph;
 mod model;
-pub mod panel;
 mod repo;
 mod runtime;
 mod service;
@@ -14,7 +13,7 @@ pub use model::{
 pub use repo::{
     create_layout, delete_run as delete_run_dir, list_run_instances, load_run, read_run_dataflow,
     read_run_transpiled as read_run_transpiled_file, read_run_view as read_run_view_file, run_dir, run_json_path, run_logs_dir,
-    run_out_dir, run_panel_dir, run_snapshot_path, runs_dir, save_run,
+    run_out_dir, run_snapshot_path, runs_dir, save_run,
 };
 pub use service::{
     clean_runs, collect_all_active_metrics, delete_run, get_active_run, get_run, get_run_metrics,

@@ -13,7 +13,6 @@ pub struct PaginationParams {
     pub offset: Option<i64>,
     pub status: Option<String>,
     pub search: Option<String>,
-    pub has_panel: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -49,7 +48,6 @@ pub async fn list_runs(
     let filter = dm_core::runs::RunListFilter {
         status: params.status,
         search: params.search,
-        has_panel: params.has_panel,
     };
 
     match dm_core::runs::list_runs_filtered(&state.home, limit, offset, &filter) {
@@ -70,7 +68,6 @@ pub async fn get_active_run(
         &dm_core::runs::RunListFilter {
             status: Some("running".to_string()),
             search: None,
-            has_panel: None,
         },
     ) {
         Ok(mut result) => {

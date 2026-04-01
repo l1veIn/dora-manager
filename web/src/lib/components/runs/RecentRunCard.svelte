@@ -124,13 +124,6 @@
                     {/if}
                 </div>
             {/if}
-            {#if run.has_panel}
-                <Badge
-                    variant="outline"
-                    class="font-mono text-[9px] h-4 leading-none py-0 px-1 border-indigo-200 text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900 absolute bottom-3 right-3 shrink-0"
-                    >Panel</Badge
-                >
-            {/if}
         </div>
     </Card.Content>
 </Card.Root>

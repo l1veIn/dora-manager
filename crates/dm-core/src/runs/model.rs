@@ -105,8 +105,6 @@ pub struct RunTranspileMetadata {
     #[serde(default)]
     pub working_dir: Option<String>,
     #[serde(default)]
-    pub panel_node_ids: Vec<String>,
-    #[serde(default)]
     pub resolved_node_paths: BTreeMap<String, String>,
 }
 
@@ -127,7 +125,6 @@ pub struct RunInstance {
     pub dataflow_name: String,
     pub dataflow_hash: String,
     pub source: RunSource,
-    pub has_panel: bool,
     pub status: RunStatus,
     pub termination_reason: Option<TerminationReason>,
     pub failure_reason: Option<String>,
@@ -156,7 +153,6 @@ impl Default for RunInstance {
             dataflow_name: String::new(),
             dataflow_hash: String::new(),
             source: RunSource::Unknown,
-            has_panel: false,
             status: RunStatus::Running,
             termination_reason: None,
             failure_reason: None,
@@ -197,7 +193,6 @@ pub struct RunSummary {
     pub finished_at: Option<String>,
     pub exit_code: Option<i32>,
     pub source: String,
-    pub has_panel: bool,
     pub node_count: u32,
     pub status: String,
     pub termination_reason: Option<String>,
@@ -259,5 +254,4 @@ pub struct PaginatedRuns {
 pub struct RunListFilter {
     pub status: Option<String>,
     pub search: Option<String>,
-    pub has_panel: Option<bool>,
 }

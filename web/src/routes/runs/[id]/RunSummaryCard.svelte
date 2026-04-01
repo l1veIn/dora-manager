@@ -166,26 +166,6 @@
                         </div>
                     {/if}
 
-                    {#if run.transpile.panel_node_ids && run.transpile.panel_node_ids.length > 0}
-                        <div class="flex flex-col gap-1.5">
-                            <dt
-                                class="text-[11px] text-muted-foreground font-medium uppercase tracking-wider"
-                            >
-                                Panel Nodes
-                            </dt>
-                            <dd
-                                class="font-mono text-[10px] flex flex-wrap gap-1"
-                            >
-                                {#each run.transpile.panel_node_ids as nodeId}
-                                    <span
-                                        class="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded"
-                                        >{nodeId}</span
-                                    >
-                                {/each}
-                            </dd>
-                        </div>
-                    {/if}
-
                     {#if run.transpile.resolved_node_paths && Object.keys(run.transpile.resolved_node_paths).length > 0}
                         <div class="flex flex-col gap-1.5">
                             <dt

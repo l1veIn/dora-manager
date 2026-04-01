@@ -139,9 +139,6 @@ pub fn inspect_config(home: &Path, name: &str) -> Result<DataflowConfigAggregati
             let Some(node_id) = entry.get("node").and_then(|value| value.as_str()) else {
                 continue;
             };
-            if node_id == "dm-panel" {
-                continue;
-            }
 
             let resolved = resolve_node_dir(home, node_id).is_some();
             let inline_config = entry

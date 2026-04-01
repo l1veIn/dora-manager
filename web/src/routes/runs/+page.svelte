@@ -277,7 +277,6 @@
                     <Table.Head class="w-[160px]">Started</Table.Head>
                     <Table.Head class="w-[160px]">Finished</Table.Head>
                     <Table.Head class="w-[80px] text-center">Nodes</Table.Head>
-                    <Table.Head class="w-[80px] text-center">Panel</Table.Head>
                     <Table.Head class="w-[120px]">Source</Table.Head>
                 </Table.Row>
             </Table.Header>
@@ -381,19 +380,6 @@
                             <Table.Cell class="text-center font-mono text-sm"
                                 >{run.node_count ?? "-"}</Table.Cell
                             >
-                            <Table.Cell class="text-center">
-                                {#if run.has_panel}
-                                    <Badge
-                                        variant="outline"
-                                        class="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800 font-mono text-[10px]"
-                                        >Yes</Badge
-                                    >
-                                {:else}
-                                    <span class="text-muted-foreground text-sm"
-                                        >-</span
-                                    >
-                                {/if}
-                            </Table.Cell>
                             <Table.Cell>
                                 <Badge
                                     variant="secondary"
@@ -427,8 +413,7 @@
             <AlertDialog.Description>
                 This action cannot be undone. This will permanently delete
                 <strong class="text-foreground">{selectedRunIds.length}</strong>
-                run instance(s) and erase all associated logs, events, and panel
-                assets from your disk.
+                run instance(s) and erase all associated logs, events, and artifacts from your disk.
             </AlertDialog.Description>
         </AlertDialog.Header>
         <AlertDialog.Footer>

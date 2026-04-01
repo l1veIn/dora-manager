@@ -124,7 +124,6 @@ fn to_status_run_entry(run: RunInstance) -> StatusRunEntry {
         finished_at: run.stopped_at,
         expected_nodes: run.node_count_expected,
         observed_nodes: run.node_count_observed,
-        has_panel: run.has_panel,
         dora_uuid: run.dora_uuid,
         outcome_summary: run.outcome.summary,
     }

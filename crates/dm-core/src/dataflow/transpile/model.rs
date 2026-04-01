@@ -14,14 +14,6 @@ pub(crate) struct DmGraph {
 
 /// One node in the DM graph, classified by its source type.
 pub(crate) enum DmNode {
-    /// Built-in `dm-panel` node — handled via the current `dm` binary.
-    Panel {
-        yaml_id: String,
-        /// All YAML fields except `id`, `node`, `widgets`.
-        extra_fields: serde_yaml::Mapping,
-        /// Extracted `widgets:` block (DM-only, stripped before dora sees it).
-        widgets: Option<serde_yaml::Value>,
-    },
     /// A managed node installed in `~/.dm/nodes/<node_id>/`.
     Managed(ManagedNode),
     /// An external node specified by `path:` — not managed by DM.

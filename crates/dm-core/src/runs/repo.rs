@@ -34,10 +34,6 @@ pub fn run_logs_dir(home: &Path, run_id: &str) -> PathBuf {
     run_dir(home, run_id).join("logs")
 }
 
-pub fn run_panel_dir(home: &Path, run_id: &str) -> PathBuf {
-    run_dir(home, run_id).join("panel")
-}
-
 pub fn run_out_dir(home: &Path, run_id: &str) -> PathBuf {
     run_dir(home, run_id).join("out")
 }

@@ -20,8 +20,6 @@ pub enum DiagnosticKind {
     MetadataUnreadable { path: PathBuf },
     /// `dm.json` exists but `executable` field is empty.
     MissingExecutable,
-    /// A managed node ID conflicts with a reserved built-in name.
-    ReservedNodeId,
     /// A port schema could not be parsed.
     InvalidPortSchema { port_id: String, reason: String },
     /// An output→input connection has incompatible port schemas.
@@ -40,9 +38,6 @@ impl fmt::Display for TranspileDiagnostic {
                 format!("metadata unreadable at {}", path.display())
             }
             DiagnosticKind::MissingExecutable => "dm.json has empty executable field".to_string(),
-            DiagnosticKind::ReservedNodeId => {
-                "conflicts with a reserved built-in node name".to_string()
-            }
             DiagnosticKind::InvalidPortSchema { port_id, reason } => {
                 format!("port '{}' has an invalid schema: {}", port_id, reason)
             }

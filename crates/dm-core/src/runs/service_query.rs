@@ -114,7 +114,6 @@ fn to_summary(run: RunInstance) -> RunSummary {
         finished_at: run.stopped_at,
         exit_code: run.exit_code,
         source: run.source.as_str().to_string(),
-        has_panel: run.has_panel,
         node_count: run.node_count_observed,
         status: run.status.as_str().to_string(),
         termination_reason: run
@@ -142,12 +141,6 @@ fn apply_run_list_filter(runs: Vec<RunInstance>, filter: &RunListFilter) -> Vec<
 
     runs.into_iter()
         .filter(|run| {
-            if let Some(has_panel) = filter.has_panel {
-                if run.has_panel != has_panel {
-                    return false;
-                }
-            }
-
             if let Some(status) = normalized_status.as_deref() {
                 if run.status.as_str() != status {
                     return false;

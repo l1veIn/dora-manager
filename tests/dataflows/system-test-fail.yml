@@ -22,8 +22,3 @@ nodes:
       data: fail_echo/text
     env:
       DATA: "'system-test-expected'"
-
-  - id: panel
-    node: dm-panel
-    inputs:
-      failed_text: fail_echo/text

@@ -19,7 +19,6 @@ enum WsMessage {
     Logs { node_id: String, lines: Vec<String> },
     Io { node_id: String, lines: Vec<String> },
     Status { status: String },
-    Error { message: String },
 }
 
 pub async fn run_ws(
@@ -123,9 +122,7 @@ async fn handle_run_ws(mut socket: WebSocket, state: AppState, run_id: String) {
                     // If still active, fetch dora metrics
                     if "Running" == run_detail.summary.status {
                         match dm_core::runs::get_run_metrics(&state.home, &run_id) {
-                            Ok(Some(mut metrics)) => {
-                                // Ignore panel node in metrics array because we only care about real dataflow nodes
-                                metrics.nodes.retain(|n| n.id != "dm-panel");
+                            Ok(Some(metrics)) => {
                                 let metrics_msg = WsMessage::Metrics { data: metrics.nodes };
                                 if send_msg(&mut socket, &metrics_msg).await.is_err() { return; }
                             }

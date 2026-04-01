@@ -7,9 +7,3 @@ nodes:
     outputs:
       - image
       - meta
-
-  - id: panel
-    node: dm-panel
-    inputs:
-      screenshot: screen/image
-      screenshot_meta: screen/meta

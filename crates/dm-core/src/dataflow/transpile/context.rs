@@ -4,8 +4,6 @@ use std::path::Path;
 pub(crate) struct TranspileContext<'a> {
     /// DM home directory (e.g. `~/.dm`).
     pub home: &'a Path,
-    /// Unique run identifier injected into panel nodes.
-    pub run_id: &'a str,
     /// Dataflow-level config loaded from `config.json`.
     pub flow_config: serde_json::Value,
 }

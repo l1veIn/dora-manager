@@ -22,8 +22,3 @@ nodes:
       data: finish_echo/text
     env:
       DATA: "'system-test-finish'"
-
-  - id: panel
-    node: dm-panel
-    inputs:
-      finish_text: finish_echo/text

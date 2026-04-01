@@ -4,14 +4,12 @@
     import { get, post } from "$lib/api";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button/index.js";
-    import { PaneGroup, Pane, PaneResizer } from "paneforge";
 
     import RunHeader from "./RunHeader.svelte";
     import RunFailureBanner from "./RunFailureBanner.svelte";
     import RunSummaryCard from "./RunSummaryCard.svelte";
     import RunNodeList from "./RunNodeList.svelte";
     import TerminalPane from "./TerminalPane.svelte";
-    import PanelPane from "./PanelPane.svelte";
 
     let runId = $derived($page.params.id);
 
@@ -143,41 +141,8 @@
                 />
             </aside>
 
-            <!-- Content Area: Terminal + Panel layout -->
-            {#if showTerminal && run.has_panel}
-                <!-- Both visible: resizable split -->
-                <PaneGroup
-                    direction="horizontal"
-                    autoSaveId="dora-runs-split"
-                    class="flex-1 min-w-0 flex h-full overflow-hidden relative"
-                >
-                    <Pane
-                        id="terminal"
-                        defaultSize={33}
-                        minSize={20}
-                        class="bg-background flex flex-col relative text-foreground h-full overflow-hidden"
-                    >
-                        <TerminalPane
-                            runId={runId || ""}
-                            nodeId={selectedNodeId}
-                            {isRunActive}
-                            onClose={() => { setShowTerminal(false); }}
-                        />
-                    </Pane>
-                    <PaneResizer
-                        class="w-px relative bg-border hover:bg-primary/50 active:bg-primary/80 transition-all cursor-col-resize z-20 after:absolute after:inset-y-0 after:-inset-x-2"
-                    />
-                    <Pane
-                        id="panel"
-                        defaultSize={67}
-                        minSize={25}
-                        class="bg-card flex flex-col h-full z-10 shadow-xl overflow-hidden relative"
-                    >
-                        <PanelPane runId={runId || ""} {isRunActive} />
-                    </Pane>
-                </PaneGroup>
-            {:else if showTerminal}
-                <!-- Terminal only (no panel) -->
+            <!-- Content Area -->
+            {#if showTerminal}
                 <div class="flex-1 min-w-0 bg-background flex flex-col relative text-foreground h-full overflow-hidden">
                     <TerminalPane
                         runId={runId || ""}
@@ -186,13 +151,7 @@
                         onClose={() => { setShowTerminal(false); }}
                     />
                 </div>
-            {:else if run.has_panel}
-                <!-- Panel only (terminal closed) -->
-                <div class="flex-1 min-w-0 bg-card flex flex-col h-full overflow-hidden relative">
-                    <PanelPane runId={runId || ""} {isRunActive} />
-                </div>
             {:else}
-                <!-- Neither (no panel, terminal closed) -->
                 <div class="flex-1 min-w-0 flex items-center justify-center bg-background">
                     <p class="text-sm text-muted-foreground/60">Click a node on the left to view its logs.</p>
                 </div>

@@ -80,10 +80,3 @@ nodes:
     env:
       BATCH_SIZE: "1"
       LOG_DIR: "recorder"
-
-  - id: panel
-    node: dm-panel
-    inputs:
-      text_asset: text_echo/data
-      json_asset: json_echo/data
-      bytes_asset: bytes_echo/data

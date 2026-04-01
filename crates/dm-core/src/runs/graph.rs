@@ -11,7 +11,6 @@ pub(crate) fn extract_node_ids_from_yaml(yaml: &str) -> Result<Vec<String>> {
 }
 
 pub(crate) fn build_transpile_metadata(graph: &serde_yaml::Value) -> RunTranspileMetadata {
-    let mut panel_node_ids = Vec::new();
     let mut resolved_node_paths = BTreeMap::new();
     let working_dir = std::env::current_dir()
         .ok()
@@ -35,27 +34,11 @@ pub(crate) fn build_transpile_metadata(graph: &serde_yaml::Value) -> RunTranspil
             ) {
                 resolved_node_paths.insert(id, path.to_string());
             }
-
-            let is_panel = map
-                .get(serde_yaml::Value::String("args".to_string()))
-                .and_then(|value| value.as_str())
-                .map(|args| args.contains("panel serve --run-id"))
-                .unwrap_or(false);
-
-            if is_panel {
-                if let Some(id) = node_id {
-                    panel_node_ids.push(id);
-                }
-            }
         }
     }
 
-    panel_node_ids.sort();
-    panel_node_ids.dedup();
-
     RunTranspileMetadata {
         working_dir,
-        panel_node_ids,
         resolved_node_paths,
     }
 }

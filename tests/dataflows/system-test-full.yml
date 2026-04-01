@@ -43,15 +43,3 @@ nodes:
     outputs:
       - summary_text
       - summary_json
-
-  - id: panel
-    node: dm-panel
-    inputs:
-      audio_asset: microphone/audio
-      audio_meta: microphone/meta
-      screenshot: screen/image
-      screenshot_meta: screen/meta
-      vad_start: vad/timestamp_start
-      vad_end: vad/timestamp_end
-      observer_text: observer/summary_text
-      observer_json: observer/summary_json

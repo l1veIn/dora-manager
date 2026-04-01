@@ -124,17 +124,16 @@ pub fn print_status_report(report: &StatusReport) {
         println!("  (no active runs)");
     } else {
         println!(
-            "  {:<8}  {:<20}  {:<10}  {:<11}  {:<7}  {:<6}  Started",
-            "Run", "Dataflow", "Status", "Nodes", "Panel", "Dora"
+            "  {:<8}  {:<20}  {:<10}  {:<11}  {:<6}  Started",
+            "Run", "Dataflow", "Status", "Nodes", "Dora"
         );
         for item in &report.active_runs {
             println!(
-                "  {:<8}  {:<20}  {:<10}  {:<11}  {:<7}  {:<6}  {}",
+                "  {:<8}  {:<20}  {:<10}  {:<11}  {:<6}  {}",
                 short_id(&item.run_id).dimmed(),
                 item.dataflow_name.bold(),
                 item.status.as_str(),
                 format!("{}/{}", item.observed_nodes, item.expected_nodes),
-                if item.has_panel { "yes" } else { "no" },
                 item.dora_uuid
                     .as_deref()
                     .map(short_id)

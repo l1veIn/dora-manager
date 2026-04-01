@@ -109,7 +109,6 @@ pub struct StatusRunEntry {
     pub finished_at: Option<String>,
     pub expected_nodes: u32,
     pub observed_nodes: u32,
-    pub has_panel: bool,
     pub dora_uuid: Option<String>,
     pub outcome_summary: String,
 }

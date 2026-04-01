@@ -129,13 +129,6 @@
         {#if run}
             <div class="ml-2 flex flex-row items-center gap-2">
                 <RunStatusBadge status={run.status} />
-                {#if run.has_panel}
-                    <Badge
-                        variant="outline"
-                        class="font-mono text-[9px] uppercase px-1.5 py-0 shadow-sm bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800"
-                        >Panel Present</Badge
-                    >
-                {/if}
             </div>
         {/if}
 

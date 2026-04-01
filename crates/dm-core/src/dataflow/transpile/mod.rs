@@ -6,9 +6,7 @@
 /// 3. **resolve_paths**          — `node:` → absolute `path:` via `dm.json`
 /// 4. **validate_port_schemas**  — check port schema compatibility
 /// 5. **merge_config**           — four-layer config merge → `env:`
-/// 6. **inject_panel**           — `dm-panel` → current `dm` binary + args
-/// 7. **extract_widgets**        — collect panel widget definitions → JSON
-/// 8. **emit**                   — `DmGraph` → `serde_yaml::Value`
+/// 6. **emit**                   — `DmGraph` → `serde_yaml::Value`
 mod context;
 mod error;
 mod model;
@@ -24,15 +22,11 @@ use context::TranspileContext;
 
 use super::repo;
 
-/// Result of a transpilation, containing both the dora-compatible YAML
-/// and any DM-specific metadata extracted during the process.
+/// Result of a transpilation, containing the dora-compatible YAML.
 #[derive(Debug)]
 pub struct TranspileResult {
     /// Standard dora `Descriptor` YAML ready for `dora start`.
     pub yaml: serde_yaml::Value,
-    /// Widget definitions extracted from `widgets:` fields on panel nodes.
-    /// `None` if no panel node declares widgets.
-    pub widgets: Option<serde_json::Value>,
 }
 
 /// Transpile a DM graph YAML, generating a fresh run-id automatically.
@@ -44,7 +38,7 @@ pub fn transpile_graph(home: &Path, yaml_path: &Path) -> Result<TranspileResult>
 pub fn transpile_graph_for_run(
     home: &Path,
     yaml_path: &Path,
-    run_id: &str,
+    _run_id: &str,
 ) -> Result<TranspileResult> {
     let op = OperationEvent::new(home, EventSource::Dataflow, "dataflow.transpile")
         .attr("path", yaml_path.display().to_string());
@@ -58,7 +52,6 @@ pub fn transpile_graph_for_run(
 
         let ctx = TranspileContext {
             home,
-            run_id,
             flow_config,
         };
         let mut diags = Vec::new();
@@ -74,11 +67,6 @@ pub fn transpile_graph_for_run(
         passes::resolve_paths(&ctx, &mut graph, &mut diags);
         passes::validate_port_schemas(&ctx, &graph, &mut diags);
         passes::merge_config(&ctx, &mut graph, &mut diags);
-        passes::inject_panel(&ctx, &mut graph);
-        passes::inject_test_harness(&mut graph);
-
-        // Extract DM-specific metadata
-        let widgets = passes::extract_widgets(&graph);
 
         // Log diagnostics as warnings
         for d in &diags {
@@ -86,10 +74,7 @@ pub fn transpile_graph_for_run(
         }
 
         // Emit
-        Ok(TranspileResult {
-            yaml: passes::emit(&graph),
-            widgets,
-        })
+        Ok(TranspileResult { yaml: passes::emit(&graph) })
     })();
 
     op.emit_result(&result);

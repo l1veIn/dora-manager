@@ -1,4 +1,3 @@
-mod builtin;
 mod cmd;
 mod display;
 
@@ -93,14 +92,6 @@ enum Commands {
         command: Option<RunsCommands>,
     },
 
-    /// Panel: real-time visualization, control, and recording
-    #[command(subcommand)]
-    Panel(PanelCommands),
-
-    /// Test a single node interactively
-    #[command(subcommand)]
-    Test(TestCommands),
-
     /// Pass-through: run any dora CLI command with the active version
     #[command(
         name = "--",
@@ -152,56 +143,6 @@ enum DataflowCommands {
         /// Local path(s) or GitHub URL(s)
         #[arg(required = true)]
         sources: Vec<String>,
-    },
-}
-
-#[derive(Subcommand)]
-enum PanelCommands {
-    /// [internal] Run as dora node (called by transpiler)
-    Serve {
-        /// Run ID (UUID)
-        #[arg(long)]
-        run_id: String,
-        /// Node ID in the dataflow graph
-        #[arg(long, default_value = "dm-panel")]
-        node_id: String,
-    },
-    /// Send a control command to the active panel
-    Send {
-        /// Output ID (e.g. "speed", "direction")
-        output_id: String,
-        /// Value (JSON format)
-        value: String,
-        /// Specific run ID (auto-discovered if omitted)
-        #[arg(long)]
-        run: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-enum TestCommands {
-    /// [internal] Run as dora harness node (called by transpiler)
-    HarnessServe {
-        /// Auto-trigger all SUT input ports on startup
-        #[arg(long)]
-        auto_trigger: bool,
-        /// Output port names (harness → SUT inputs)
-        #[arg(long, value_delimiter = ',')]
-        output_ports: Vec<String>,
-    },
-    /// Test a node by name (generates test dataflow + runs it)
-    Run {
-        /// Node ID (e.g. dm-downloader)
-        node_id: String,
-        /// Override config values (repeatable)
-        #[arg(long = "config", value_name = "KEY=VALUE")]
-        config_overrides: Vec<String>,
-        /// Auto-trigger all input ports on startup
-        #[arg(long)]
-        auto_trigger: bool,
-        /// Auto-exit after N seconds (0 = manual/interactive)
-        #[arg(long, default_value = "0")]
-        timeout: u64,
     },
 }
 
@@ -301,44 +242,6 @@ async fn main() -> Result<()> {
                 follow,
             }) => cmd::runs::logs(&home, run_id, node_id, follow).await?,
             Some(RunsCommands::Clean { keep }) => cmd::runs::clean(&home, keep)?,
-        },
-
-        Commands::Panel(command) => match command {
-            PanelCommands::Serve { run_id, node_id } => {
-                builtin::panel::panel_serve(&home, &run_id, &node_id)?;
-            }
-            PanelCommands::Send {
-                output_id,
-                value,
-                run,
-            } => {
-                builtin::panel::panel_send(&home, &output_id, &value, run)?;
-            }
-        },
-
-        Commands::Test(command) => match command {
-            TestCommands::HarnessServe {
-                auto_trigger,
-                output_ports,
-            } => {
-                cmd::test::harness_serve(auto_trigger, &output_ports)?;
-            }
-            TestCommands::Run {
-                node_id,
-                config_overrides,
-                auto_trigger,
-                timeout,
-            } => {
-                cmd::test::run(
-                    &home,
-                    cli.verbose,
-                    &node_id,
-                    &config_overrides,
-                    auto_trigger,
-                    timeout,
-                )
-                .await?;
-            }
         },
 
         Commands::Passthrough { args } => {
@@ -467,6 +370,7 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
     let result = dm_core::runs::start_run_from_file_with_source_and_strategy(
         home,
         file_path,
+        None,
         dm_core::runs::RunSource::Cli,
         strategy,
     )

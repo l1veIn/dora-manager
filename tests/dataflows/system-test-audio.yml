@@ -8,9 +8,3 @@ nodes:
     outputs:
       - audio
       - meta
-
-  - id: panel
-    node: dm-panel
-    inputs:
-      audio_asset: microphone/audio
-      audio_meta: microphone/meta

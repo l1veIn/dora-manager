@@ -140,32 +140,6 @@ async fn main() {
         .route("/api/events/export", get(handlers::export_events))
         .route("/api/events", get(handlers::query_events))
         .route("/api/events", post(handlers::ingest_event))
-        // ─── Panel ───
-        .route(
-            "/api/runs/{run_id}/panel/assets",
-            get(handlers::query_assets),
-        )
-        .route(
-            "/api/runs/{run_id}/panel/file/{*path}",
-            get(handlers::serve_asset_file),
-        )
-        .route(
-            "/api/runs/{run_id}/panel/commands",
-            post(handlers::send_command),
-        )
-        .route(
-            "/api/runs/{run_id}/panel/command",
-            post(handlers::send_command),
-        )
-        .route(
-            "/api/runs/{run_id}/panel/widgets",
-            get(handlers::get_widgets),
-        )
-        .route("/api/runs/{run_id}/panel/ws", get(handlers::panel_ws))
-        .route(
-            "/api/runs/{run_id}/panel/options/{input_id}",
-            get(handlers::get_latest_option),
-        )
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
         .with_state(state.clone())
