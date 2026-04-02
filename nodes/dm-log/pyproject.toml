@@ -3,7 +3,7 @@ name = "dm-log"
 version = "0.1.0"
 description = "Serialize incoming data to append-only log files"
 requires-python = ">=3.10"
-dependencies = ["dora-rs >= 0.3.9", "pyarrow", "loguru"]
+dependencies = ["dora-rs == 0.4.1", "pyarrow", "loguru"]
 
 [project.scripts]
 dm-log = "dm_log.main:main"

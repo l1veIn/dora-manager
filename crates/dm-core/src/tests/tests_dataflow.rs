@@ -119,14 +119,65 @@ nodes:
     let run_id = env
         .get(serde_yaml::Value::String("DM_RUN_ID".into()))
         .and_then(|value| value.as_str());
+    let node_id = env
+        .get(serde_yaml::Value::String("DM_NODE_ID".into()))
+        .and_then(|value| value.as_str());
     let run_out_dir = env
         .get(serde_yaml::Value::String("DM_RUN_OUT_DIR".into()))
         .and_then(|value| value.as_str());
 
     assert_eq!(run_id, Some("run-123"));
+    assert_eq!(node_id, Some("n1"));
     assert_eq!(
         run_out_dir,
         Some(home.join("runs/run-123/out").to_string_lossy().as_ref())
+    );
+}
+
+#[test]
+fn transpile_graph_skips_null_config_defaults() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    setup_managed_node(home, "test-node", ".venv/bin/test-node");
+
+    let dir = node_dir(home, "test-node");
+    let mut meta: Node = serde_json::from_str(&fs::read_to_string(dir.join("dm.json")).unwrap()).unwrap();
+    meta.config_schema = Some(serde_json::json!({
+        "source": {
+            "default": null,
+            "env": "SOURCE"
+        },
+        "label": {
+            "default": "Hello",
+            "env": "LABEL"
+        }
+    }));
+    fs::write(dir.join("dm.json"), serde_json::to_string_pretty(&meta).unwrap()).unwrap();
+
+    let yaml_path = home.join("graph.yml");
+    fs::write(
+        &yaml_path,
+        r#"
+nodes:
+  - id: n1
+    node: test-node
+"#,
+    )
+    .unwrap();
+
+    let out = transpile_graph_for_run(home, &yaml_path, "run-123").unwrap().yaml;
+    let nodes = out["nodes"].as_sequence().unwrap();
+    let node = nodes[0].as_mapping().unwrap();
+    let env = node
+        .get(serde_yaml::Value::String("env".into()))
+        .and_then(|value| value.as_mapping())
+        .unwrap();
+
+    assert!(!env.contains_key(serde_yaml::Value::String("SOURCE".into())));
+    assert_eq!(
+        env.get(serde_yaml::Value::String("LABEL".into()))
+            .and_then(|value| value.as_str()),
+        Some("Hello")
     );
 }
 

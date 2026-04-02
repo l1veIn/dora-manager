@@ -8,7 +8,9 @@
     type DisplayEntry = {
         node_id: string;
         label: string;
-        file: string;
+        kind: string;
+        file?: string | null;
+        content?: any;
         render: string;
         tail: boolean;
         max_lines: number;
@@ -39,8 +41,18 @@
     let loadingKeys = $state<Record<string, boolean>>({});
     let draftValues = $state<Record<string, any>>({});
 
-    function displayUrl(file: string) {
+    function displayUrl(file: string | null | undefined) {
+        if (!file) return "";
         return `/api/runs/${runId}/artifacts/${file}`;
+    }
+
+    function inlineDisplayText(entry: DisplayEntry) {
+        if (entry.render === "json") {
+            return JSON.stringify(entry.content ?? null, null, 2);
+        }
+        if (typeof entry.content === "string") return entry.content;
+        if (entry.content == null) return "";
+        return JSON.stringify(entry.content, null, 2);
     }
 
     function widgetKey(nodeId: string, outputId: string) {
@@ -71,6 +83,21 @@
     }
 
     async function loadDisplay(entry: DisplayEntry) {
+        if (entry.kind === "inline") {
+            const key = entry.node_id;
+            if (entry.render === "markdown") {
+                textContent[key] = DOMPurify.sanitize(marked.parse(String(entry.content ?? "")) as string);
+            } else if (entry.render === "json") {
+                textContent[key] = JSON.stringify(entry.content ?? null, null, 2);
+            } else if (entry.tail && typeof entry.content === "string") {
+                const lines = entry.content.split("\n");
+                textContent[key] = lines.slice(-entry.max_lines).join("\n");
+            } else {
+                textContent[key] = inlineDisplayText(entry);
+            }
+            loadingKeys[key] = false;
+            return;
+        }
         if (!["text", "json", "markdown"].includes(entry.render)) return;
         const key = entry.node_id;
         loadingKeys[key] = true;
@@ -157,7 +184,7 @@
                         <div class="px-3 py-2 border-b flex items-center justify-between">
                             <div>
                                 <div class="font-medium text-sm">{entry.label}</div>
-                                <div class="text-[11px] text-muted-foreground font-mono">{entry.file}</div>
+                                <div class="text-[11px] text-muted-foreground font-mono">{entry.kind === "inline" ? "<inline>" : entry.file}</div>
                             </div>
                             <Badge variant="outline" class="uppercase text-[10px]">{entry.render}</Badge>
                         </div>

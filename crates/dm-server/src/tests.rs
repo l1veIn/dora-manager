@@ -6,6 +6,7 @@ use axum::http::Uri;
 use axum::response::IntoResponse;
 use axum::Json;
 use tempfile::TempDir;
+use tokio::sync::broadcast;
 
 use crate::handlers;
 use crate::AppState;
@@ -19,6 +20,8 @@ fn test_state() -> (TempDir, AppState) {
     let state = AppState {
         home: Arc::new(home),
         events: Arc::new(events),
+        interaction_events: broadcast::channel(64).0,
+        input_events: broadcast::channel(64).0,
     };
     (tmp, state)
 }
@@ -1496,6 +1499,7 @@ async fn interaction_display_roundtrip_persists_state() {
             serde_json::from_value(serde_json::json!({
                 "node_id": "show-chat",
                 "label": "Chat",
+                "kind": "file",
                 "file": "logs/chat.log",
                 "render": "text",
                 "tail": true,
@@ -1508,13 +1512,114 @@ async fn interaction_display_roundtrip_persists_state() {
     .into_response();
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
-    let get_resp = handlers::get_interaction(State(state), Path("run-display".to_string()))
+    let get_resp = handlers::get_interaction(State(state.clone()), Path("run-display".to_string()))
         .await
         .into_response();
     let body = body_text(get_resp).await;
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["displays"].as_array().unwrap().len(), 1);
+    assert_eq!(json["displays"][0]["kind"], "file");
     assert_eq!(json["displays"][0]["file"], "logs/chat.log");
+    assert!(crate::interaction_service::db_path(&state.home, "run-display").exists());
+}
+
+#[tokio::test]
+async fn interaction_inline_display_roundtrip_persists_content() {
+    let (_tmp, state) = test_state();
+    setup_run(&state.home, "run-inline-display");
+
+    let resp = handlers::post_display(
+        State(state.clone()),
+        Path("run-inline-display".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "node_id": "show-reply",
+                "label": "Reply",
+                "kind": "inline",
+                "content": "hello world",
+                "render": "text",
+                "tail": true,
+                "max_lines": 200
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let get_resp = handlers::get_interaction(State(state), Path("run-inline-display".to_string()))
+        .await
+        .into_response();
+    let body = body_text(get_resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["displays"].as_array().unwrap().len(), 1);
+    assert_eq!(json["displays"][0]["kind"], "inline");
+    assert_eq!(json["displays"][0]["content"], "hello world");
+    assert!(json["displays"][0]["file"].is_null());
+}
+
+#[tokio::test]
+async fn interaction_messages_query_returns_history() {
+    let (_tmp, state) = test_state();
+    setup_run(&state.home, "run-message-history");
+
+    let _ = handlers::post_display(
+        State(state.clone()),
+        Path("run-message-history".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "node_id": "reply",
+                "label": "Reply",
+                "kind": "inline",
+                "content": "hello",
+                "render": "text"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    let _ = handlers::post_display(
+        State(state.clone()),
+        Path("run-message-history".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "node_id": "reply",
+                "label": "Reply",
+                "kind": "inline",
+                "content": "world",
+                "render": "text"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    let resp = handlers::list_display_messages(
+        State(state),
+        Path("run-message-history".to_string()),
+        Query(
+            serde_json::from_value(serde_json::json!({
+                "after_seq": 0,
+                "source_id": "reply",
+                "limit": 10
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["messages"].as_array().unwrap().len(), 2);
+    assert_eq!(json["messages"][0]["content"], "hello");
+    assert_eq!(json["messages"][1]["content"], "world");
+    assert_eq!(json["next_seq"], 2);
 }
 
 #[tokio::test]

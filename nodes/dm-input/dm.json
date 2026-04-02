@@ -2,7 +2,7 @@
   "id": "dm-input",
   "name": "dm-input",
   "version": "0.1.0",
-  "installed_at": "",
+  "installed_at": "1775118860",
   "source": {
     "build": "pip install -e .",
     "github": null
@@ -16,16 +16,21 @@
   ],
   "display": {
     "category": "Builtin/Interaction",
-    "tags": ["builtin", "interaction", "input"]
+    "tags": [
+      "builtin",
+      "interaction",
+      "input"
+    ]
   },
-  "capabilities": ["configurable"],
+  "capabilities": [
+    "configurable"
+  ],
   "runtime": {
     "language": "python",
     "python": ">=3.10",
     "platforms": []
   },
   "ports": [],
-  "dynamic_ports": true,
   "files": {
     "readme": "README.md",
     "entry": "dm_input/main.py",
@@ -39,16 +44,17 @@
       "description": "Input group label shown in the UI.",
       "env": "LABEL"
     },
+    "poll_interval": {
+      "default": 1000,
+      "description": "Reconnect interval in milliseconds for the input event websocket.",
+      "env": "POLL_INTERVAL"
+    },
     "widgets": {
       "default": {},
       "description": "Widget definition map keyed by output port name.",
       "env": "WIDGETS"
-    },
-    "poll_interval": {
-      "default": 1000,
-      "description": "Polling interval in milliseconds for claimed input events.",
-      "env": "POLL_INTERVAL"
     }
   },
+  "dynamic_ports": true,
   "path": ""
 }

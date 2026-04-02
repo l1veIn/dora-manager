@@ -3,7 +3,7 @@ name = "dm-recorder"
 version = "0.1.0"
 description = "Record audio chunks into a single WAV artifact"
 requires-python = ">=3.10"
-dependencies = ["dora-rs >= 0.3.9", "pyarrow"]
+dependencies = ["dora-rs == 0.4.1", "pyarrow"]
 
 [project.scripts]
 dm-recorder = "dm_recorder.main:main"

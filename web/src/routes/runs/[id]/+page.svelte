@@ -1,6 +1,7 @@
 <script lang="ts">
     import { page } from "$app/stores";
     import { onMount, onDestroy } from "svelte";
+    import { browser } from "$app/environment";
     import { get, post } from "$lib/api";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button/index.js";
@@ -29,6 +30,9 @@
             localStorage.getItem("dm-show-terminal") !== "false",
     );
     let stoppingRun = $state(false);
+    let interactionSocket: WebSocket | null = null;
+    let reconnectInteractionSocket: ReturnType<typeof setTimeout> | null = null;
+    let interactionRefreshInFlight: Promise<void> | null = null;
 
     // Persist terminal toggle preference
     function setShowTerminal(value: boolean) {
@@ -67,11 +71,21 @@
 
     async function fetchInteraction() {
         if (!runId) return;
-        try {
-            interaction = await get(`/runs/${runId}/interaction`);
-        } catch (e) {
-            console.error("Failed to fetch interaction state", e);
+        if (interactionRefreshInFlight) {
+            return interactionRefreshInFlight;
         }
+
+        interactionRefreshInFlight = (async () => {
+            try {
+                interaction = await get(`/runs/${runId}/interaction`);
+            } catch (e) {
+                console.error("Failed to fetch interaction state", e);
+            } finally {
+                interactionRefreshInFlight = null;
+            }
+        })();
+
+        return interactionRefreshInFlight;
     }
 
     async function emitInteraction(nodeId: string, outputId: string, value: any) {
@@ -107,22 +121,71 @@
 
     let mainPolling: ReturnType<typeof setInterval> | null = null;
 
+    function scheduleInteractionSocketReconnect() {
+        if (!browser || reconnectInteractionSocket || !runId) return;
+        reconnectInteractionSocket = setTimeout(() => {
+            reconnectInteractionSocket = null;
+            connectInteractionSocket();
+        }, 1000);
+    }
+
+    function closeInteractionSocket() {
+        if (reconnectInteractionSocket) {
+            clearTimeout(reconnectInteractionSocket);
+            reconnectInteractionSocket = null;
+        }
+        if (interactionSocket) {
+            interactionSocket.onopen = null;
+            interactionSocket.onmessage = null;
+            interactionSocket.onerror = null;
+            interactionSocket.onclose = null;
+            interactionSocket.close();
+            interactionSocket = null;
+        }
+    }
+
+    function connectInteractionSocket() {
+        if (!browser || !runId) return;
+
+        closeInteractionSocket();
+
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(
+            `${protocol}//${window.location.host}/api/runs/${runId}/interaction/ws`,
+        );
+
+        socket.onmessage = async () => {
+            await fetchInteraction();
+        };
+        socket.onerror = () => {
+            socket.close();
+        };
+        socket.onclose = () => {
+            if (interactionSocket === socket) {
+                interactionSocket = null;
+            }
+            scheduleInteractionSocketReconnect();
+        };
+
+        interactionSocket = socket;
+    }
+
     onMount(() => {
         fetchRunDetail();
         fetchInteraction();
+        connectInteractionSocket();
         mainPolling = setInterval(() => {
             if (isRunActive) {
                 fetchRunDetail();
-                fetchInteraction();
             } else {
                 metrics = null;
-                fetchInteraction();
             }
         }, 3000);
     });
 
     onDestroy(() => {
         if (mainPolling) clearInterval(mainPolling);
+        closeInteractionSocket();
     });
 </script>
 

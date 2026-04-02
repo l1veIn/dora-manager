@@ -2,7 +2,7 @@
   "id": "dm-log",
   "name": "dm-log",
   "version": "0.1.0",
-  "installed_at": "",
+  "installed_at": "1775100768",
   "source": {
     "build": "pip install -e .",
     "github": null
@@ -16,9 +16,15 @@
   ],
   "display": {
     "category": "Builtin/Storage",
-    "tags": ["builtin", "storage", "log"]
+    "tags": [
+      "builtin",
+      "storage",
+      "log"
+    ]
   },
-  "capabilities": ["configurable"],
+  "capabilities": [
+    "configurable"
+  ],
   "runtime": {
     "language": "python",
     "python": ">=3.10",
@@ -33,8 +39,10 @@
       "required": true,
       "multiple": false,
       "schema": {
-        "type": { "name": "utf8" },
-        "description": "Text, JSON, or structured data"
+        "description": "Text, JSON, or structured data",
+        "type": {
+          "name": "utf8"
+        }
       }
     },
     {
@@ -45,8 +53,10 @@
       "required": true,
       "multiple": false,
       "schema": {
-        "type": { "name": "utf8" },
-        "description": "Absolute file path"
+        "description": "Absolute file path",
+        "type": {
+          "name": "utf8"
+        }
       }
     }
   ],
@@ -58,29 +68,29 @@
   },
   "examples": [],
   "config_schema": {
-    "path": {
-      "description": "Output log path relative to runs/:id/out/.",
-      "env": "PATH"
+    "compression": {
+      "default": null,
+      "description": "Optional compression for rotated files, for example gz or zip.",
+      "env": "COMPRESSION"
     },
     "format": {
       "default": "text",
       "description": "Serialization format: text, json, csv.",
       "env": "FORMAT"
     },
-    "rotation": {
-      "default": null,
-      "description": "Rotation rule accepted by loguru, for example 50 MB.",
-      "env": "ROTATION"
+    "path": {
+      "description": "Output log path relative to runs/:id/out/.",
+      "env": "PATH"
     },
     "retention": {
       "default": null,
       "description": "Retention rule accepted by loguru, for example 7 days.",
       "env": "RETENTION"
     },
-    "compression": {
+    "rotation": {
       "default": null,
-      "description": "Optional compression for rotated files, for example gz or zip.",
-      "env": "COMPRESSION"
+      "description": "Rotation rule accepted by loguru, for example 50 MB.",
+      "env": "ROTATION"
     },
     "timestamp": {
       "default": true,
@@ -88,5 +98,6 @@
       "env": "TIMESTAMP"
     }
   },
+  "dynamic_ports": false,
   "path": ""
 }

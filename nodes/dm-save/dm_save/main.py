@@ -143,6 +143,7 @@ def cleanup(directory: Path, max_age: int | None, max_files: int | None, max_tot
 
 def main():
     node = Node()
+    node_id = env_str("DM_NODE_ID", "dm-save")
 
     run_out_dir = env_str("DM_RUN_OUT_DIR")
     if not run_out_dir:
@@ -163,7 +164,7 @@ def main():
     overwrite_latest = env_bool("OVERWRITE_LATEST", False)
 
     seq = 0
-    stable_stem = re.sub(r"[^a-zA-Z0-9._-]+", "_", node.node_id())
+    stable_stem = re.sub(r"[^a-zA-Z0-9._-]+", "_", node_id)
 
     for event in node:
         if event["type"] != "INPUT" or event["id"] != "data":
@@ -186,7 +187,7 @@ def main():
             stem = naming.format(
                 timestamp=timestamp,
                 seq=f"{seq:04d}",
-                node_id=node.node_id(),
+                node_id=node_id,
             )
             filename = f"{stem}.{extension}"
 

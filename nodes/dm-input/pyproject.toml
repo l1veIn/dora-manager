@@ -3,7 +3,7 @@ name = "dm-input"
 version = "0.1.0"
 description = "Register web input widgets with dm-server and emit user actions back into the dataflow"
 requires-python = ">=3.10"
-dependencies = ["dora-rs >= 0.3.9", "pyarrow", "requests"]
+dependencies = ["dora-rs == 0.4.1", "pyarrow", "requests", "websocket-client"]
 
 [project.scripts]
 dm-input = "dm_input.main:main"

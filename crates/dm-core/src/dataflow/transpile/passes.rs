@@ -402,6 +402,9 @@ pub(crate) fn merge_config(
                 .or_else(|| field_schema.get("default"));
 
             if let Some(val) = value {
+                if val.is_null() {
+                    continue;
+                }
                 let val_str = match val {
                     serde_json::Value::String(s) => s.clone(),
                     other => other.to_string(),
@@ -432,6 +435,10 @@ pub(crate) fn inject_runtime_env(ctx: &TranspileContext, graph: &mut DmGraph) {
         managed.merged_env.insert(
             serde_yaml::Value::String("DM_RUN_ID".to_string()),
             serde_yaml::Value::String(ctx.run_id.to_string()),
+        );
+        managed.merged_env.insert(
+            serde_yaml::Value::String("DM_NODE_ID".to_string()),
+            serde_yaml::Value::String(managed.yaml_id.clone()),
         );
         managed.merged_env.insert(
             serde_yaml::Value::String("DM_RUN_OUT_DIR".to_string()),

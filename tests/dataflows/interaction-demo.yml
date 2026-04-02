@@ -18,21 +18,11 @@ nodes:
     outputs:
       - text
 
-  - id: log
-    node: dm-log
-    inputs:
-      data: echo/text
-    outputs:
-      - path
-    config:
-      path: "chat/session.log"
-      format: text
-
   - id: display
     node: dm-display
     inputs:
-      path: log/path
+      data: echo/text
     config:
-      label: "Session Log"
+      label: "Echo Output"
       render: text
       tail: true

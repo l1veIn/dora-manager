@@ -25,6 +25,27 @@ nodes:
       mode: screenshot
       output_format: png
 
+  - id: screen-save
+    node: dm-save
+    inputs:
+      data: screen/image
+    outputs:
+      - path
+    config:
+      dir: artifacts/screenshots
+      naming: latest
+      extension: png
+      overwrite_latest: true
+
+  - id: screen-display
+    node: dm-display
+    inputs:
+      path: screen-save/path
+    config:
+      label: "Latest Screenshot"
+      render: image
+      tail: false
+
   - id: screen-video
     node: dm-test-media-capture
     inputs:
@@ -36,6 +57,26 @@ nodes:
       mode: record_clip
       clip_duration_sec: 5
       output_format: mp4
+
+  - id: screen-video-save
+    node: dm-save
+    inputs:
+      data: screen-video/video
+    outputs:
+      - path
+    config:
+      dir: artifacts/clips
+      extension: mp4
+      max_files: 5
+
+  - id: screen-video-display
+    node: dm-display
+    inputs:
+      path: screen-video-save/path
+    config:
+      label: "Latest Screen Clip"
+      render: video
+      tail: false
 
   # Live screen capture for MJPEG preview (1 fps)
   - id: screen-live
@@ -57,12 +98,50 @@ nodes:
     env:
       TARGET_LANGUAGE: english
 
+  - id: transcript-log
+    node: dm-log
+    inputs:
+      data: dora-distil-whisper/text
+    outputs:
+      - path
+    config:
+      path: transcripts/whisper.log
+      format: text
+
+  - id: transcript-display
+    node: dm-display
+    inputs:
+      data: dora-distil-whisper/text
+    config:
+      label: "Whisper Transcript"
+      render: text
+      tail: true
+
   - id: dora-qwen
     node: dora-qwen
     inputs:
       text: dora-distil-whisper/text
     outputs:
       - text
+
+  - id: response-log
+    node: dm-log
+    inputs:
+      data: dora-qwen/text
+    outputs:
+      - path
+    config:
+      path: transcripts/qwen.log
+      format: text
+
+  - id: response-display
+    node: dm-display
+    inputs:
+      data: dora-qwen/text
+    config:
+      label: "Qwen Reply"
+      render: text
+      tail: true
 
   - id: dora-kokoro-tts
     node: dora-kokoro-tts
@@ -73,7 +152,26 @@ nodes:
     env:
       ACTIVATION_WORDS: you
 
-  # Aggregate TTS audio chunks into a complete asset before Panel
+  - id: tts-record
+    node: dm-recorder
+    inputs:
+      data: dora-kokoro-tts/audio
+    outputs:
+      - path
+    config:
+      path: audio/reply.wav
+      sample_rate: 24000
+
+  - id: tts-display
+    node: dm-display
+    config:
+      label: "TTS Reply"
+      source: audio/reply.wav
+      render: audio
+      tail: false
+      poll_interval: 1000
+
+  # Aggregate TTS audio chunks into a complete asset for audio playback/debugging
   - id: tts-queue
     node: dm-queue
     inputs:

@@ -3,7 +3,7 @@ name = "dm-save"
 version = "0.1.0"
 description = "Persist binary payloads as files under the current run output directory"
 requires-python = ">=3.10"
-dependencies = ["dora-rs >= 0.3.9", "pyarrow"]
+dependencies = ["dora-rs == 0.4.1", "pyarrow"]
 
 [project.scripts]
 dm-save = "dm_save.main:main"

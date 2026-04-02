@@ -2,7 +2,7 @@
   "id": "dm-recorder",
   "name": "dm-recorder",
   "version": "0.1.0",
-  "installed_at": "",
+  "installed_at": "1775100464",
   "source": {
     "build": "pip install -e .",
     "github": null
@@ -16,9 +16,16 @@
   ],
   "display": {
     "category": "Builtin/Storage",
-    "tags": ["builtin", "storage", "audio"]
+    "tags": [
+      "builtin",
+      "storage",
+      "audio"
+    ]
   },
-  "capabilities": ["configurable", "media"],
+  "capabilities": [
+    "configurable",
+    "media"
+  ],
   "runtime": {
     "language": "python",
     "python": ">=3.10",
@@ -33,7 +40,9 @@
       "required": true,
       "multiple": false,
       "schema": {
-        "type": { "name": "binary" }
+        "type": {
+          "name": "binary"
+        }
       }
     },
     {
@@ -44,7 +53,9 @@
       "required": true,
       "multiple": false,
       "schema": {
-        "type": { "name": "utf8" }
+        "type": {
+          "name": "utf8"
+        }
       }
     }
   ],
@@ -72,5 +83,6 @@
       "env": "CHANNELS"
     }
   },
+  "dynamic_ports": false,
   "path": ""
 }

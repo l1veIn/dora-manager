@@ -1,4 +1,5 @@
 mod handlers;
+mod interaction_service;
 #[cfg(test)]
 mod tests;
 
@@ -7,9 +8,12 @@ use std::sync::Arc;
 use axum::routing::{get, post};
 use axum::Router;
 use rust_embed::Embed;
+use serde::{Deserialize, Serialize};
+use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
 use dm_core::events::EventStore;
+use crate::interaction_service::InputEvent;
 
 #[derive(Embed)]
 #[folder = "../../web/build"]
@@ -19,6 +23,22 @@ struct WebAssets;
 pub struct AppState {
     pub home: Arc<std::path::PathBuf>,
     pub events: Arc<EventStore>,
+    pub interaction_events: broadcast::Sender<InteractionNotification>,
+    pub input_events: broadcast::Sender<InputEventNotification>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InteractionNotification {
+    pub event: String,
+    pub run_id: String,
+    pub source_id: Option<String>,
+    pub seq: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InputEventNotification {
+    pub run_id: String,
+    pub event: InputEvent,
 }
 
 #[tokio::main]
@@ -30,6 +50,8 @@ async fn main() {
     let state = AppState {
         home: Arc::new(home),
         events: Arc::new(events),
+        interaction_events: broadcast::channel(512).0,
+        input_events: broadcast::channel(512).0,
     };
 
     let app = Router::new()
@@ -136,6 +158,14 @@ async fn main() {
         )
         .route("/api/runs/{id}/interaction", get(handlers::get_interaction))
         .route(
+            "/api/runs/{id}/interaction/ws",
+            get(handlers::interaction_ws),
+        )
+        .route(
+            "/api/runs/{id}/interaction/messages",
+            get(handlers::list_display_messages),
+        )
+        .route(
             "/api/runs/{id}/interaction/display",
             post(handlers::post_display),
         )
@@ -150,6 +180,10 @@ async fn main() {
         .route(
             "/api/runs/{id}/interaction/input/claim/{node_id}",
             get(handlers::claim_input_events),
+        )
+        .route(
+            "/api/runs/{id}/interaction/input/ws/{node_id}",
+            get(handlers::input_ws),
         )
         .route(
             "/api/runs/{id}/artifacts/{*path}",

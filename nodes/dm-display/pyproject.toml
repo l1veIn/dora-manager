@@ -3,7 +3,7 @@ name = "dm-display"
 version = "0.1.0"
 description = "Notify dm-server that a stored artifact should be displayed"
 requires-python = ">=3.10"
-dependencies = ["dora-rs >= 0.3.9", "pyarrow", "requests"]
+dependencies = ["dora-rs == 0.4.1", "pyarrow", "requests"]
 
 [project.scripts]
 dm-display = "dm_display.main:main"

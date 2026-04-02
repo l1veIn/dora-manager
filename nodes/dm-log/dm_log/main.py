@@ -55,6 +55,7 @@ def serialize_value(value, fmt: str) -> str:
 
 def main():
     node = Node()
+    node_id = env_str("DM_NODE_ID", "dm-log")
     run_out_dir = env_str("DM_RUN_OUT_DIR")
     relative_path = env_str("PATH")
     if not run_out_dir or not relative_path:
@@ -62,7 +63,7 @@ def main():
 
     output_path = Path(run_out_dir) / relative_path
     if output_path.suffix == "":
-        output_path = output_path / f"{node.node_id()}.log"
+        output_path = output_path / f"{node_id}.log"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     fmt = env_str("FORMAT", "text")

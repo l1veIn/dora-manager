@@ -2,7 +2,7 @@
   "id": "dm-save",
   "name": "dm-save",
   "version": "0.1.0",
-  "installed_at": "",
+  "installed_at": "1775100769",
   "source": {
     "build": "pip install -e .",
     "github": null
@@ -103,5 +103,6 @@
       "env": "OVERWRITE_LATEST"
     }
   },
+  "dynamic_ports": false,
   "path": ""
 }
