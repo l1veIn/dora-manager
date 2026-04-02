@@ -5,10 +5,12 @@
         runId: string;
         nodeId: string;
         isRunActive: boolean;
+        nodes?: any[];
+        onNodeChange?: (id: string) => void;
         onClose: () => void;
     }
 
-    let { runId, nodeId, isRunActive, onClose }: Props = $props();
+    let { runId, nodeId, isRunActive, nodes = [], onNodeChange, onClose }: Props = $props();
 </script>
 
-<RunLogViewer {runId} {nodeId} {isRunActive} {onClose} />
+<RunLogViewer {runId} {nodeId} {isRunActive} {nodes} {onNodeChange} {onClose} />

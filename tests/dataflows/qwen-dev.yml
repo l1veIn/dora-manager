@@ -1,8 +1,35 @@
 nodes:
+  - id: input
+    node: dm-input
+    outputs:
+      - enabled
+      - device_id
+    config:
+      label: "Microphone Settings"
+      widgets:
+        enabled:
+          type: switch
+          label: "Enable Microphone"
+          default: false
+        device_id:
+          type: input
+          label: "Type Device ID or 'default'"
+          default: "default"
+
+  - id: devicelist-display
+    node: dm-display
+    inputs:
+      data: dm-microphone/devices
+    config:
+      label: "Available Microphones"
+      render: json
+      tail: false
+
   - id: dm-microphone
     node: dm-microphone
     inputs:
-      tick: dora/timer/millis/2000
+      enabled: input/enabled
+      device_id: input/device_id
     outputs:
       - audio
       - devices
@@ -164,12 +191,12 @@ nodes:
 
   - id: tts-display
     node: dm-display
+    inputs:
+      path: tts-record/path
     config:
       label: "TTS Reply"
-      source: audio/reply.wav
       render: audio
       tail: false
-      poll_interval: 1000
 
   # Aggregate TTS audio chunks into a complete asset for audio playback/debugging
   - id: tts-queue

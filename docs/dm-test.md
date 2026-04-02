@@ -51,12 +51,12 @@ nodes:
       - <input_port>                       # feed SUT inputs via stdin
 ```
 
-### dm-test-harness: Pre-builtin Node
+### : Pre-builtin Node
 
 Like `dm-panel`, the harness is compiled into the `dm` binary — no Python, no separate install:
 
 ```rust
-// RESERVED_NODE_IDS: &[&str] = &["dm-panel", "dm-test-harness"];
+// RESERVED_NODE_IDS: &[&str] = &["dm-panel", ""];
 
 // Transpiler generates:
 // path: dm

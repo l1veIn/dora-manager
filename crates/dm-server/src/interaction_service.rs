@@ -114,8 +114,10 @@ pub struct InputEventWrite {
 #[derive(Debug, Clone, Default)]
 pub struct MessageFilter {
     pub after_seq: Option<i64>,
+    pub before_seq: Option<i64>,
     pub source_id: Option<String>,
     pub limit: Option<usize>,
+    pub desc: Option<bool>,
 }
 
 pub struct InteractionMessageService {
@@ -296,11 +298,19 @@ impl InteractionMessageService {
             sql.push_str(" AND seq > ?");
             values.push(Box::new(after_seq));
         }
+        if let Some(before_seq) = filter.before_seq {
+            sql.push_str(" AND seq < ?");
+            values.push(Box::new(before_seq));
+        }
         if let Some(ref source_id) = filter.source_id {
             sql.push_str(" AND node_id = ?");
             values.push(Box::new(source_id.clone()));
         }
-        sql.push_str(" ORDER BY seq ASC LIMIT ?");
+        if filter.desc.unwrap_or(false) {
+            sql.push_str(" ORDER BY seq DESC LIMIT ?");
+        } else {
+            sql.push_str(" ORDER BY seq ASC LIMIT ?");
+        }
         values.push(Box::new(filter.limit.unwrap_or(200) as i64));
         let refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
 
@@ -319,7 +329,12 @@ impl InteractionMessageService {
                 created_at: row.get(9)?,
             })
         })?;
-        let messages: Vec<DisplayMessage> = collect_rows(rows)?;
+        let mut messages: Vec<DisplayMessage> = collect_rows(rows)?;
+        
+        if filter.desc.unwrap_or(false) {
+            messages.reverse();
+        }
+        
         let next_seq = messages
             .last()
             .map(|message| message.seq)

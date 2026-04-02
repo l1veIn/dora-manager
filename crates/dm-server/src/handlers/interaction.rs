@@ -47,8 +47,10 @@ pub struct ClaimEventsParams {
 #[derive(Debug, Deserialize)]
 pub struct ListMessagesParams {
     pub after_seq: Option<i64>,
+    pub before_seq: Option<i64>,
     pub source_id: Option<String>,
     pub limit: Option<usize>,
+    pub desc: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -148,8 +150,10 @@ pub async fn list_display_messages(
         let service = InteractionMessageService::open(&state.home, &run_id)?;
         service.list_display_messages(&interaction_service::MessageFilter {
             after_seq: params.after_seq,
+            before_seq: params.before_seq,
             source_id: params.source_id,
             limit: params.limit,
+            desc: params.desc,
         })
     })();
 

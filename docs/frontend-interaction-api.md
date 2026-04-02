@@ -16,7 +16,7 @@ interaction 相关角色可以这样理解：
 
 - `dm-input`
   - 向 server 注册“这个 run 里有哪些输入控件”
-  - 从 server claim 用户输入事件
+  - 通过专用下行 WS 接收用户输入事件
   - 把这些输入事件重新发回 dataflow
 - `dm-display`
   - 把“这个 run 里有哪些可显示内容”通知给 server
@@ -128,7 +128,7 @@ Content-Type: application/json
 用途：
 
 - web 前端把用户操作写回 server
-- `dm-input` 节点之后会从 server claim 到这条事件
+- `dm-input` 节点之后会通过专用 input WS 收到这条事件
 
 ### 3. Subscribe Interaction Notifications
 
@@ -148,7 +148,7 @@ GET /api/runs/{run_id}/interaction/ws
   "event": "display.updated",
   "run_id": "092a3eed-3527-4c1e-a86e-a6a3cb6ce699",
   "source_id": "reply",
-  "seq": null
+  "seq": 12
 }
 ```
 
@@ -158,7 +158,34 @@ GET /api/runs/{run_id}/interaction/ws
 - 前端不要把 WS 当作完整数据源
 - 真实数据仍然通过 HTTP 获取
 
-### 4. Read Artifact File
+### 4. Input Node Downstream WebSocket
+
+```http
+GET /api/runs/{run_id}/interaction/input/ws/{node_id}?since=<seq>
+```
+
+用途：
+
+- 这条接口主要给 `dm-input` 使用，不是给 web 前端使用
+- `dm-input` 建立连接后会先 replay `since` 之后的历史事件
+- 然后继续接收新的 live input event
+
+示例消息：
+
+```json
+{
+  "type": "input.event",
+  "event": {
+    "seq": 3,
+    "node_id": "prompt",
+    "output_id": "text",
+    "value": "hello",
+    "timestamp": 1775101235
+  }
+}
+```
+
+### 5. Read Artifact File
 
 ```http
 GET /api/runs/{run_id}/artifacts/{relative_path}
@@ -178,7 +205,7 @@ GET /api/runs/{run_id}/artifacts/{relative_path}
 - 前端不要拼绝对文件系统路径
 - 前端不要假设本地磁盘可访问
 
-### 5. Get Run Detail
+### 6. Get Run Detail
 
 ```http
 GET /api/runs/{run_id}
@@ -192,7 +219,7 @@ GET /api/runs/{run_id}
 GET /api/runs/{run_id}?include_metrics=true
 ```
 
-### 6. Stop Run
+### 7. Stop Run
 
 ```http
 POST /api/runs/{run_id}/stop

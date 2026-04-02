@@ -8,8 +8,17 @@
         runId = "",
         nodeId = "",
         isRunActive = false,
+        nodes = [],
+        onNodeChange,
         onClose,
-    } = $props<{ runId: string; nodeId: string; isRunActive: boolean; onClose?: () => void }>();
+    } = $props<{
+        runId: string;
+        nodeId: string;
+        isRunActive: boolean;
+        nodes?: any[];
+        onNodeChange?: (id: string) => void;
+        onClose?: () => void;
+    }>();
 
     let logContent = $state<string>("");
     let loading = $state(false);
@@ -123,14 +132,21 @@
         class="px-4 border-b bg-muted/30 flex items-center justify-between shrink-0 h-11"
     >
         <div class="flex items-center gap-2">
-            <span
-                class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider"
-                >Terminal</span
+            <select
+                class="text-xs font-mono text-muted-foreground bg-muted hover:bg-muted/80 md:px-2 md:py-0.5 rounded px-1.5 py-0 border-0 outline-none ring-0 focus:ring-1 focus:ring-primary cursor-pointer max-w-[140px] truncate"
+                value={nodeId}
+                onchange={(e) => {
+                    const id = e.currentTarget.value;
+                    if (onNodeChange) onNodeChange(id);
+                }}
             >
-            <span
-                class="text-xs font-mono text-muted-foreground bg-muted md:px-2 md:py-0.5 rounded px-1.5"
-                >{nodeId || "(None Selected)"}</span
-            >
+                {#if !nodeId}<option value="" disabled hidden
+                        >(None Selected)</option
+                    >{/if}
+                {#each nodes as nItem (nItem.id)}
+                    <option value={nItem.id}>{nItem.id}</option>
+                {/each}
+            </select>
         </div>
 
         <div class="flex items-center gap-1.5 text-muted-foreground">
@@ -176,18 +192,6 @@
             >
                 <Download class="size-3.5" />
             </Button>
-            {#if onClose}
-                <div class="w-px h-4 bg-border mx-0.5"></div>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 rounded hover:bg-muted hover:text-foreground"
-                    onclick={onClose}
-                    title="Close terminal"
-                >
-                    <X class="size-3.5" />
-                </Button>
-            {/if}
         </div>
     </div>
 
@@ -198,9 +202,11 @@
     >
         {#if !nodeId}
             <div
-                class="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm font-mono"
+                class="absolute inset-0 flex flex-col gap-3 items-center justify-center text-muted-foreground text-sm font-mono"
             >
-                > Select a node to view logs
+                <div>
+                    > Select a node from the top left dropdown to view logs
+                </div>
             </div>
         {:else if loading && !logContent}
             <div
