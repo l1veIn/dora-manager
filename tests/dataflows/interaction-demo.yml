@@ -1,28 +1,24 @@
 nodes:
   - id: prompt
-    node: dm-input
+    node: dm-text-input
     outputs:
-      - text
+      - value
     config:
       label: "Prompt"
-      widgets:
-        text:
-          type: textarea
-          label: "User Prompt"
-          placeholder: "Type something..."
+      placeholder: "Type something..."
+      multiline: true
 
   - id: echo
     node: dora-echo
     inputs:
-      text: prompt/text
+      value: prompt/value
     outputs:
-      - text
+      - value
 
   - id: display
     node: dm-display
     inputs:
-      data: echo/text
+      data: echo/value
     config:
       label: "Echo Output"
       render: text
-      tail: true

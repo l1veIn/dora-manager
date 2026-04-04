@@ -24,6 +24,7 @@
         placeholder={xw.placeholder || `Enter ${label}...`}
         class="w-full pr-10 rounded-lg bg-background shadow-sm"
         {disabled}
+        oninput={() => onValueChange(value)}
         onkeydown={(e: KeyboardEvent) => {
             if (e.key === "Enter" && !e.shiftKey && value) {
                 e.preventDefault();

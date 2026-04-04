@@ -9,7 +9,7 @@ use tempfile::TempDir;
 use tokio::sync::broadcast;
 
 use crate::handlers;
-use crate::AppState;
+use crate::state::AppState;
 
 const FAKE_DORA_UUID: &str = "019cc181-adad-7654-aa78-63502362337b";
 
@@ -433,28 +433,7 @@ async fn dataflow_meta_and_config_handlers_roundtrip() {
     assert_eq!(meta_json["name"], "Demo Flow");
     assert_eq!(meta_json["type"], "chat");
 
-    let config_resp = handlers::save_dataflow_config(
-        State(state.clone()),
-        Path("demo-flow".to_string()),
-        Json(serde_json::json!({
-            "dora-qwen": {
-                "model": "qwen-max"
-            }
-        })),
-    )
-    .await
-    .into_response();
-    assert_eq!(config_resp.status(), axum::http::StatusCode::OK);
 
-    let get_config_resp =
-        handlers::get_dataflow_config(State(state), Path("demo-flow".to_string()))
-            .await
-            .into_response();
-    assert_eq!(get_config_resp.status(), axum::http::StatusCode::OK);
-    let config_body = body_text(get_config_resp).await;
-    let config_json: serde_json::Value = serde_json::from_str(&config_body).unwrap();
-    assert_eq!(config_json["config"]["dora-qwen"]["model"], "qwen-max");
-    assert_eq!(config_json["executable"]["can_run"], true);
 }
 
 #[tokio::test]
@@ -588,11 +567,11 @@ async fn get_dataflow_config_schema_returns_aggregated_fields() {
     .await
     .into_response();
 
-    let _ = handlers::save_dataflow_config(
+    let _ = handlers::save_node_config(
         State(state.clone()),
-        Path("cfg-flow".to_string()),
+        Path("cfg-node".to_string()),
         Json(serde_json::json!({
-            "worker": { "mode": "flow-mode" }
+            "mode": "node-mode"
         })),
     )
     .await
@@ -607,11 +586,11 @@ async fn get_dataflow_config_schema_returns_aggregated_fields() {
     assert_eq!(json["nodes"][0]["yaml_id"], "worker");
     assert_eq!(
         json["nodes"][0]["fields"]["mode"]["effective_source"],
-        "flow"
+        "node"
     );
     assert_eq!(
         json["nodes"][0]["fields"]["mode"]["effective_value"],
-        "flow-mode"
+        "node-mode"
     );
     assert_eq!(json["executable"]["can_run"], true);
 }
@@ -1488,11 +1467,11 @@ async fn serve_web_unknown_path_falls_back_to_index() {
 }
 
 #[tokio::test]
-async fn interaction_display_roundtrip_persists_state() {
+async fn interaction_stream_roundtrip_persists_state() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-display");
 
-    let resp = handlers::post_display(
+    let resp = handlers::post_stream(
         State(state.clone()),
         Path("run-display".to_string()),
         Json(
@@ -1517,18 +1496,18 @@ async fn interaction_display_roundtrip_persists_state() {
         .into_response();
     let body = body_text(get_resp).await;
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(json["displays"].as_array().unwrap().len(), 1);
-    assert_eq!(json["displays"][0]["kind"], "file");
-    assert_eq!(json["displays"][0]["file"], "logs/chat.log");
-    assert!(crate::interaction_service::db_path(&state.home, "run-display").exists());
+    assert_eq!(json["streams"].as_array().unwrap().len(), 1);
+    assert_eq!(json["streams"][0]["kind"], "file");
+    assert_eq!(json["streams"][0]["file"], "logs/chat.log");
+    assert!(crate::services::db_path(&state.home, "run-display").exists());
 }
 
 #[tokio::test]
-async fn interaction_inline_display_roundtrip_persists_content() {
+async fn interaction_inline_stream_roundtrip_persists_content() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-inline-display");
 
-    let resp = handlers::post_display(
+    let resp = handlers::post_stream(
         State(state.clone()),
         Path("run-inline-display".to_string()),
         Json(
@@ -1553,10 +1532,10 @@ async fn interaction_inline_display_roundtrip_persists_content() {
         .into_response();
     let body = body_text(get_resp).await;
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(json["displays"].as_array().unwrap().len(), 1);
-    assert_eq!(json["displays"][0]["kind"], "inline");
-    assert_eq!(json["displays"][0]["content"], "hello world");
-    assert!(json["displays"][0]["file"].is_null());
+    assert_eq!(json["streams"].as_array().unwrap().len(), 1);
+    assert_eq!(json["streams"][0]["kind"], "inline");
+    assert_eq!(json["streams"][0]["content"], "hello world");
+    assert!(json["streams"][0]["file"].is_null());
 }
 
 #[tokio::test]
@@ -1564,7 +1543,7 @@ async fn interaction_messages_query_returns_history() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-message-history");
 
-    let _ = handlers::post_display(
+    let _ = handlers::post_stream(
         State(state.clone()),
         Path("run-message-history".to_string()),
         Json(
@@ -1581,7 +1560,7 @@ async fn interaction_messages_query_returns_history() {
     .await
     .into_response();
 
-    let _ = handlers::post_display(
+    let _ = handlers::post_stream(
         State(state.clone()),
         Path("run-message-history".to_string()),
         Json(
@@ -1598,7 +1577,7 @@ async fn interaction_messages_query_returns_history() {
     .await
     .into_response();
 
-    let resp = handlers::list_display_messages(
+    let resp = handlers::list_stream_messages(
         State(state),
         Path("run-message-history".to_string()),
         Query(

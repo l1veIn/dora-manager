@@ -1,9 +1,9 @@
 [project]
-name = "dm-input"
+name = "dm-button"
 version = "0.1.0"
-description = "Register web input widgets with dm-server and emit user actions back into the dataflow"
+description = "A trigger button widget for the Interaction UI."
 requires-python = ">=3.10"
 dependencies = ["dora-rs == 0.4.1", "pyarrow", "requests", "websocket-client"]
 
 [project.scripts]
-dm-input = "dm_input.main:main"
+dm-button = "dm_button.main:main"

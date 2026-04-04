@@ -30,6 +30,7 @@
         placeholder={xw.placeholder || `Enter ${label}...`}
         class="w-full min-h-[80px] pl-3 pr-10 py-2 rounded-lg border shadow-sm bg-background text-sm focus-visible:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 transition-shadow resize-y"
         {disabled}
+        oninput={() => onValueChange(value)}
         onkeydown={handleKeydown}
     ></textarea>
     <Button

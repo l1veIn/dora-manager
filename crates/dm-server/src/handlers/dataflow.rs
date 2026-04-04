@@ -5,9 +5,12 @@ use axum::Json;
 use serde::Deserialize;
 
 use crate::handlers::{err, runs::StartRunRequest};
-use crate::AppState;
+use crate::state::AppState;
+
+use utoipa::ToSchema;
 
 /// GET /api/dataflows
+#[utoipa::path(get, path = "/api/dataflows", responses((status = 200, description = "List of dataflows")))]
 pub async fn list_dataflows(State(state): State<AppState>) -> impl IntoResponse {
     match dm_core::dataflow::list(&state.home) {
         Ok(result) => Json(result).into_response(),
@@ -16,6 +19,7 @@ pub async fn list_dataflows(State(state): State<AppState>) -> impl IntoResponse 
 }
 
 /// GET /api/dataflows/:name
+#[utoipa::path(get, path = "/api/dataflows/{name}", params(("name" = String, Path)), responses((status = 200, description = "Dataflow details")))]
 pub async fn get_dataflow(
     State(state): State<AppState>,
     Path(name): Path<String>,
@@ -37,17 +41,18 @@ pub async fn get_dataflow(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct SaveDataflowRequest {
     pub yaml: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct ImportDataflowsRequest {
     pub sources: Vec<String>,
 }
 
 /// POST /api/dataflows/:name
+#[utoipa::path(post, path = "/api/dataflows/{name}", params(("name" = String, Path)), request_body = SaveDataflowRequest, responses((status = 200, description = "Saved dataflow")))]
 pub async fn save_dataflow(
     State(state): State<AppState>,
     Path(name): Path<String>,
@@ -60,6 +65,7 @@ pub async fn save_dataflow(
 }
 
 /// POST /api/dataflows/import
+#[utoipa::path(post, path = "/api/dataflows/import", request_body = ImportDataflowsRequest, responses((status = 200, description = "Import result")))]
 pub async fn import_dataflows(
     State(state): State<AppState>,
     Json(req): Json<ImportDataflowsRequest>,
@@ -91,6 +97,7 @@ pub async fn import_dataflows(
 }
 
 /// POST /api/dataflows/:name/delete
+#[utoipa::path(post, path = "/api/dataflows/{name}/delete", params(("name" = String, Path)), responses((status = 200, description = "Deletion result")))]
 pub async fn delete_dataflow(
     State(state): State<AppState>,
     Path(name): Path<String>,
@@ -135,28 +142,7 @@ pub async fn save_dataflow_meta(
     }
 }
 
-/// GET /api/dataflows/:name/config
-pub async fn get_dataflow_config(
-    State(state): State<AppState>,
-    Path(name): Path<String>,
-) -> impl IntoResponse {
-    match dm_core::dataflow::get_flow_config(&state.home, &name) {
-        Ok(config) => Json(config).into_response(),
-        Err(e) => dataflow_not_found_or_err(e, &name).into_response(),
-    }
-}
 
-/// POST /api/dataflows/:name/config
-pub async fn save_dataflow_config(
-    State(state): State<AppState>,
-    Path(name): Path<String>,
-    Json(config): Json<serde_json::Value>,
-) -> impl IntoResponse {
-    match dm_core::dataflow::save_flow_config(&state.home, &name, &config) {
-        Ok(document) => Json(document).into_response(),
-        Err(e) => err(e).into_response(),
-    }
-}
 
 /// GET /api/dataflows/:name/config-schema
 pub async fn get_dataflow_config_schema(
@@ -213,12 +199,13 @@ pub async fn restore_dataflow_history_version(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct RunDataflowRequest {
     pub yaml: String,
 }
 
 /// POST /api/dataflow/start
+#[utoipa::path(post, path = "/api/dataflow/start", request_body = RunDataflowRequest, responses((status = 200, description = "Dataflow started")))]
 pub async fn start_dataflow(
     State(state): State<AppState>,
     Json(req): Json<RunDataflowRequest>,
@@ -237,6 +224,7 @@ pub async fn start_dataflow(
 }
 
 /// POST /api/dataflow/stop
+#[utoipa::path(post, path = "/api/dataflow/stop", responses((status = 200, description = "Active dataflow stopped")))]
 pub async fn stop_dataflow(State(state): State<AppState>) -> Response {
     match dm_core::runs::get_active_run(&state.home) {
         Ok(Some(run)) => crate::handlers::runs::stop_run(State(state), Path(run.run_id))

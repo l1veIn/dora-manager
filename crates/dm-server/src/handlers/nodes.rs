@@ -5,9 +5,12 @@ use axum::Json;
 use serde::Deserialize;
 
 use crate::handlers::err;
-use crate::AppState;
+use crate::state::AppState;
+
+use utoipa::ToSchema;
 
 /// GET /api/nodes
+#[utoipa::path(get, path = "/api/nodes", responses((status = 200, description = "List of installed nodes")))]
 pub async fn list_nodes(State(state): State<AppState>) -> impl IntoResponse {
     match dm_core::node::list_nodes(&state.home) {
         Ok(nodes) => Json(nodes).into_response(),
@@ -16,6 +19,7 @@ pub async fn list_nodes(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// GET /api/nodes/:id
+#[utoipa::path(get, path = "/api/nodes/{id}", params(("id" = String, Path, description = "Node ID")), responses((status = 200, description = "Node details")))]
 pub async fn node_status(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -27,12 +31,13 @@ pub async fn node_status(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct InstallNodeRequest {
     pub id: String,
 }
 
 /// POST /api/nodes/install
+#[utoipa::path(post, path = "/api/nodes/install", request_body = InstallNodeRequest, responses((status = 200, description = "Installed node")))]
 pub async fn install_node(
     State(state): State<AppState>,
     Json(req): Json<InstallNodeRequest>,
@@ -43,7 +48,7 @@ pub async fn install_node(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct ImportNodeRequest {
     /// Local path or git URL
     pub source: String,
@@ -52,6 +57,7 @@ pub struct ImportNodeRequest {
 }
 
 /// POST /api/nodes/import
+#[utoipa::path(post, path = "/api/nodes/import", request_body = ImportNodeRequest, responses((status = 200, description = "Imported node")))]
 pub async fn import_node(
     State(state): State<AppState>,
     Json(req): Json<ImportNodeRequest>,
@@ -93,12 +99,13 @@ pub async fn import_node(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct UninstallNodeRequest {
     pub id: String,
 }
 
 /// POST /api/nodes/uninstall
+#[utoipa::path(post, path = "/api/nodes/uninstall", request_body = UninstallNodeRequest, responses((status = 200, description = "Uninstall result")))]
 pub async fn uninstall_node(
     State(state): State<AppState>,
     Json(req): Json<UninstallNodeRequest>,
@@ -110,7 +117,7 @@ pub async fn uninstall_node(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CreateNodeRequest {
     pub id: String,
     #[serde(default)]
@@ -118,6 +125,7 @@ pub struct CreateNodeRequest {
 }
 
 /// POST /api/nodes/create
+#[utoipa::path(post, path = "/api/nodes/create", request_body = CreateNodeRequest, responses((status = 200, description = "Created node")))]
 pub async fn create_node(
     State(state): State<AppState>,
     Json(req): Json<CreateNodeRequest>,
@@ -141,6 +149,7 @@ pub async fn node_readme(
 }
 
 /// GET /api/nodes/:id/config
+#[utoipa::path(get, path = "/api/nodes/{id}/config", params(("id" = String, Path, description = "Node ID")), responses((status = 200, description = "Node configuration")))]
 pub async fn get_node_config(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -152,6 +161,7 @@ pub async fn get_node_config(
 }
 
 /// POST /api/nodes/:id/config
+#[utoipa::path(post, path = "/api/nodes/{id}/config", params(("id" = String, Path, description = "Node ID")), responses((status = 200, description = "Config saved")))]
 pub async fn save_node_config(
     State(state): State<AppState>,
     Path(id): Path<String>,

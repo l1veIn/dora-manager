@@ -75,16 +75,27 @@ impl RuntimeBackend for DoraCliBackend {
     fn stop<'a>(&'a self, home: &'a Path, dora_uuid: &'a str) -> BoxFutureResult<'a, ()> {
         Box::pin(async move {
             let args = vec!["stop".to_string(), dora_uuid.to_string()];
-            let (code, stdout, stderr) = dora::run_dora(home, &args, false).await?;
-            if code != 0 {
-                let message = if stderr.trim().is_empty() {
-                    stdout
-                } else {
-                    stderr
-                };
-                bail!(message.trim().to_string());
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(15),
+                dora::run_dora(home, &args, false),
+            )
+            .await;
+
+            match result {
+                Ok(Ok((code, stdout, stderr))) => {
+                    if code != 0 {
+                        let message = if stderr.trim().is_empty() {
+                            stdout
+                        } else {
+                            stderr
+                        };
+                        bail!(message.trim().to_string());
+                    }
+                    Ok(())
+                }
+                Ok(Err(e)) => Err(e),
+                Err(_) => bail!("dora stop timed out after 15s"),
             }
-            Ok(())
         })
     }
 

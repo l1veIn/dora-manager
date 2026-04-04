@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 import signal
@@ -10,7 +9,6 @@ import pyarrow as pa
 import requests
 import websocket
 from dora import Node
-
 
 RUNNING = True
 
@@ -41,22 +39,11 @@ def normalize_output(value):
         return pa.array([value], type=pa.int64())
     if isinstance(value, float):
         return pa.array([value], type=pa.float64())
-    if isinstance(value, list):
-        return pa.array([value])
-    if isinstance(value, dict):
-        return pa.array([json.dumps(value, ensure_ascii=False)])
     if isinstance(value, str):
         return pa.array([value])
     if value is None:
-        return pa.array([None], type=pa.null())
+        return pa.array(["clicked"])
     return pa.array([str(value)])
-
-
-def decode_event_value(widget_def, value):
-    widget_type = (widget_def or {}).get("type", "")
-    if widget_type == "file" and isinstance(value, str):
-        return base64.b64decode(value)
-    return value
 
 
 def server_ws_url(server_url: str, run_id: str, node_id: str, since: int) -> str:
@@ -71,18 +58,19 @@ def main():
     signal.signal(signal.SIGTERM, handle_stop)
     signal.signal(signal.SIGINT, handle_stop)
 
-    node_id = env_str("DM_NODE_ID", "dm-input")
+    node_id = env_str("DM_NODE_ID", "dm-button")
     node = Node()
     run_id = env_str("DM_RUN_ID")
     server_url = env_str("DM_SERVER_URL", "http://127.0.0.1:3210")
     label = env_str("LABEL") or node_id
     poll_interval = env_int("POLL_INTERVAL", 1000)
 
-    widgets_raw = env_str("WIDGETS", "{}")
-    try:
-        widgets = json.loads(widgets_raw) if widgets_raw else {}
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"Invalid WIDGETS config: {exc}")
+    widgets = {
+        "click": {
+            "type": "button",
+            "label": label,
+        }
+    }
 
     requests.post(
         f"{server_url}/api/runs/{run_id}/interaction/input/register",
@@ -105,7 +93,7 @@ def main():
             ws.settimeout(1.0)
         except Exception as exc:
             if RUNNING:
-                print(f"[dm-input] WS connect failed: {exc}", file=sys.stderr, flush=True)
+                print(f"[{node_id}] WS connect failed: {exc}", file=sys.stderr, flush=True)
             time.sleep(max(0.1, poll_interval / 1000))
             continue
 
@@ -117,7 +105,7 @@ def main():
                     continue
 
                 if not raw:
-                    raise RuntimeError("input event websocket closed")
+                    break
 
                 payload = json.loads(raw)
                 if payload.get("type") != "input.event":
@@ -125,13 +113,13 @@ def main():
 
                 event = payload.get("event", {})
                 output_id = event["output_id"]
-                widget_def = widgets.get(output_id, {})
-                value = decode_event_value(widget_def, event["value"])
-                node.send_output(output_id, normalize_output(value))
+
+                if output_id in widgets:
+                    node.send_output(output_id, normalize_output(event.get("value")))
                 since = max(since, int(event.get("seq", since)))
         except Exception as exc:
             if RUNNING:
-                print(f"[dm-input] WS receive failed: {exc}", file=sys.stderr, flush=True)
+                print(f"[{node_id}] WS receive failed: {exc}", file=sys.stderr, flush=True)
         finally:
             if ws is not None:
                 try:

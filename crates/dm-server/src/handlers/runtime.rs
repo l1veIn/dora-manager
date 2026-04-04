@@ -5,14 +5,17 @@ use axum::Json;
 use serde::Deserialize;
 
 use crate::handlers::err;
-use crate::AppState;
+use crate::state::AppState;
 
-#[derive(Deserialize)]
+use utoipa::ToSchema;
+
+#[derive(Deserialize, ToSchema)]
 pub struct InstallRequest {
     pub version: Option<String>,
 }
 
 /// POST /api/install
+#[utoipa::path(post, path = "/api/install", request_body = InstallRequest, responses((status = 200, description = "Installation result")))]
 pub async fn install(
     State(state): State<AppState>,
     Json(req): Json<InstallRequest>,
@@ -23,12 +26,13 @@ pub async fn install(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct UninstallRequest {
     pub version: String,
 }
 
 /// POST /api/uninstall
+#[utoipa::path(post, path = "/api/uninstall", request_body = UninstallRequest, responses((status = 200, description = "Uninstall result")))]
 pub async fn uninstall(
     State(state): State<AppState>,
     Json(req): Json<UninstallRequest>,
@@ -40,12 +44,13 @@ pub async fn uninstall(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct UseRequest {
     pub version: String,
 }
 
 /// POST /api/use
+#[utoipa::path(post, path = "/api/use", request_body = UseRequest, responses((status = 200, description = "Active version set")))]
 pub async fn use_version(
     State(state): State<AppState>,
     Json(req): Json<UseRequest>,
@@ -61,6 +66,7 @@ pub async fn use_version(
 }
 
 /// POST /api/up
+#[utoipa::path(post, path = "/api/up", responses((status = 200, description = "Dora runtime started")))]
 pub async fn up(State(state): State<AppState>) -> impl IntoResponse {
     match dm_core::up(&state.home, false).await {
         Ok(result) => Json(result).into_response(),
@@ -69,6 +75,7 @@ pub async fn up(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// POST /api/down
+#[utoipa::path(post, path = "/api/down", responses((status = 200, description = "Dora runtime stopped")))]
 pub async fn down(State(state): State<AppState>) -> impl IntoResponse {
     match dm_core::down(&state.home, false).await {
         Ok(result) => Json(result).into_response(),

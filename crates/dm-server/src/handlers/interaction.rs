@@ -6,46 +6,47 @@ use axum::Json;
 use serde::Deserialize;
 
 use crate::handlers::err;
-use crate::interaction_service::{
-    self, DisplayMessagesResponse, DisplayUpdate, InputEventWrite, InputRegistration,
-    InteractionMessageService,
-};
-use crate::{AppState, InputEventNotification, InteractionNotification};
+use crate::services;
+use crate::services::input::{InputEventWrite, InputRegistration, InputService};
+use crate::services::stream::{MessageFilter, StreamPush, StreamService};
+use crate::state::{AppState, InputEventNotification, InteractionNotification};
 
-#[derive(Debug, Deserialize)]
-pub struct DisplayUpdateRequest {
+use utoipa::ToSchema;
+
+// ─── Request / Query types ───
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct StreamPushRequest {
     pub node_id: String,
     pub label: String,
     pub kind: Option<String>,
     pub file: Option<String>,
     pub content: Option<serde_json::Value>,
     pub render: String,
-    pub tail: Option<bool>,
-    pub max_lines: Option<usize>,
     pub timestamp: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterInputRequest {
     pub node_id: String,
     pub label: Option<String>,
     pub widgets: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct EmitInputEventRequest {
     pub node_id: String,
     pub output_id: String,
     pub value: serde_json::Value,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ClaimEventsParams {
     pub since: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ListMessagesParams {
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ListStreamMessagesParams {
     pub after_seq: Option<i64>,
     pub before_seq: Option<i64>,
     pub source_id: Option<String>,
@@ -53,22 +54,36 @@ pub struct ListMessagesParams {
     pub desc: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct InputWsParams {
     pub since: Option<i64>,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, ToSchema)]
 pub struct ClaimEventsResponse {
-    pub events: Vec<interaction_service::InputEvent>,
+    pub events: Vec<services::input::InputEvent>,
     pub next_seq: i64,
 }
 
+// ─── Handlers ───
+
+#[utoipa::path(
+    get,
+    path = "/api/runs/{id}/interaction",
+    params(("id" = String, Path, description = "Run ID")),
+    responses((status = 200, description = "Interaction snapshot"))
+)]
 pub async fn get_interaction(
     State(state): State<AppState>,
     AxumPath(run_id): AxumPath<String>,
 ) -> impl IntoResponse {
-    match InteractionMessageService::open(&state.home, &run_id).and_then(|svc| svc.snapshot()) {
+    let result = (|| -> anyhow::Result<serde_json::Value> {
+        let streams = StreamService::open(&state.home, &run_id)?.sources()?;
+        let inputs = InputService::open(&state.home, &run_id)?.bindings()?;
+        Ok(serde_json::json!({ "streams": streams, "inputs": inputs }))
+    })();
+
+    match result {
         Ok(snapshot) => Json(snapshot).into_response(),
         Err(e) => err(e).into_response(),
     }
@@ -93,62 +108,78 @@ pub async fn input_ws(
     })
 }
 
-pub async fn post_display(
+#[utoipa::path(
+    post,
+    path = "/api/runs/{id}/interaction/stream",
+    params(("id" = String, Path, description = "Run ID")),
+    request_body = StreamPushRequest,
+    responses((status = 200, description = "Pushed stream message seq"))
+)]
+pub async fn post_stream(
     State(state): State<AppState>,
     AxumPath(run_id): AxumPath<String>,
-    Json(req): Json<DisplayUpdateRequest>,
+    Json(req): Json<StreamPushRequest>,
 ) -> impl IntoResponse {
     let source_id = req.node_id.clone();
     let result = (|| {
-        let service = InteractionMessageService::open(&state.home, &run_id)?;
-        let kind = req
-            .kind
-            .unwrap_or_else(|| {
-                if req.file.is_some() {
-                    "file".to_string()
-                } else {
-                    "inline".to_string()
-                }
-            });
+        let service = StreamService::open(&state.home, &run_id)?;
+        let kind = req.kind.unwrap_or_else(|| {
+            if req.file.is_some() {
+                "file".to_string()
+            } else {
+                "inline".to_string()
+            }
+        });
         let file = match req.file.as_deref() {
-            Some(file) => Some(interaction_service::normalize_relative_path(file)?),
+            Some(file) => Some(services::normalize_relative_path(file)?),
             None => None,
         };
-        service.upsert_display(DisplayUpdate {
+        service.push(StreamPush {
             node_id: req.node_id,
             label: req.label,
             kind,
             file,
             content: req.content,
             render: req.render,
-            tail: req.tail.unwrap_or(true),
-            max_lines: req.max_lines.unwrap_or(500),
-            timestamp: req.timestamp.unwrap_or_else(interaction_service::now_ts),
+            timestamp: req.timestamp.unwrap_or_else(services::now_ts),
         })
     })();
 
     match result {
-        Ok(result) => {
+        Ok(seq) => {
             let _ = state.interaction_events.send(InteractionNotification {
-                event: "display.updated".to_string(),
+                event: "stream.pushed".to_string(),
                 run_id,
                 source_id: Some(source_id),
-                seq: Some(result.seq),
+                seq: Some(seq),
             });
-            Json(result.snapshot).into_response()
+            Json(serde_json::json!({ "seq": seq })).into_response()
         }
         Err(e) => err(e).into_response(),
     }
 }
 
-pub async fn list_display_messages(
+#[utoipa::path(
+    get,
+    path = "/api/runs/{id}/interaction/stream/messages",
+    params(
+        ("id" = String, Path, description = "Run ID"),
+        ("after_seq" = Option<i64>, Query, description = "Fetch messages after this seq"),
+        ("before_seq" = Option<i64>, Query, description = "Fetch messages before this seq"),
+        ("source_id" = Option<String>, Query, description = "Filter by source node ID"),
+        ("limit" = Option<usize>, Query, description = "Max messages to return"),
+        ("desc" = Option<bool>, Query, description = "Reverse order")
+    ),
+    responses((status = 200, description = "Stream messages with pagination"))
+)]
+pub async fn list_stream_messages(
     State(state): State<AppState>,
     AxumPath(run_id): AxumPath<String>,
-    Query(params): Query<ListMessagesParams>,
+    Query(params): Query<ListStreamMessagesParams>,
 ) -> impl IntoResponse {
-    let result = (|| -> anyhow::Result<DisplayMessagesResponse> {
-        let service = InteractionMessageService::open(&state.home, &run_id)?;
-        service.list_display_messages(&interaction_service::MessageFilter {
+    let result = (|| {
+        let service = StreamService::open(&state.home, &run_id)?;
+        service.list(&MessageFilter {
             after_seq: params.after_seq,
             before_seq: params.before_seq,
             source_id: params.source_id,
@@ -158,11 +189,18 @@ pub async fn list_display_messages(
     })();
 
     match result {
-        Ok(messages) => Json(messages).into_response(),
+        Ok(resp) => Json(resp).into_response(),
         Err(e) => err(e).into_response(),
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/runs/{id}/interaction/input/register",
+    params(("id" = String, Path, description = "Run ID")),
+    request_body = RegisterInputRequest,
+    responses((status = 200, description = "Input registered"))
+)]
 pub async fn register_input(
     State(state): State<AppState>,
     AxumPath(run_id): AxumPath<String>,
@@ -170,8 +208,8 @@ pub async fn register_input(
 ) -> impl IntoResponse {
     let source_id = req.node_id.clone();
     let result = (|| {
-        let service = InteractionMessageService::open(&state.home, &run_id)?;
-        service.register_input(InputRegistration {
+        let service = InputService::open(&state.home, &run_id)?;
+        service.register(InputRegistration {
             node_id: req.node_id.clone(),
             label: req.label.unwrap_or(req.node_id),
             widgets: req.widgets,
@@ -179,53 +217,69 @@ pub async fn register_input(
     })();
 
     match result {
-        Ok(snapshot) => {
+        Ok(()) => {
             let _ = state.interaction_events.send(InteractionNotification {
-                event: "input.binding.updated".to_string(),
+                event: "input.registered".to_string(),
                 run_id,
                 source_id: Some(source_id),
                 seq: None,
             });
-            Json(snapshot).into_response()
+            Json(serde_json::json!({ "ok": true })).into_response()
         }
         Err(e) => err(e).into_response(),
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/runs/{id}/interaction/input/events",
+    params(("id" = String, Path, description = "Run ID")),
+    request_body = EmitInputEventRequest,
+    responses((status = 200, description = "Emitted input event"))
+)]
 pub async fn emit_input_event(
     State(state): State<AppState>,
     AxumPath(run_id): AxumPath<String>,
     Json(req): Json<EmitInputEventRequest>,
 ) -> impl IntoResponse {
-    let source_id = req.node_id.clone();
     let result = (|| {
-        let service = InteractionMessageService::open(&state.home, &run_id)?;
-        service.emit_input_event(InputEventWrite {
+        let service = InputService::open(&state.home, &run_id)?;
+        service.emit(InputEventWrite {
             node_id: req.node_id,
             output_id: req.output_id,
             value: req.value,
-            timestamp: interaction_service::now_ts(),
+            timestamp: services::now_ts(),
         })
     })();
 
     match result {
-        Ok(result) => {
+        Ok(event) => {
             let _ = state.interaction_events.send(InteractionNotification {
                 event: "input.event.created".to_string(),
                 run_id: run_id.clone(),
-                source_id: Some(source_id),
-                seq: Some(result.event.seq),
+                source_id: Some(event.node_id.clone()),
+                seq: Some(event.seq),
             });
             let _ = state.input_events.send(InputEventNotification {
                 run_id,
-                event: result.event,
+                event: event.clone(),
             });
-            Json(result.snapshot).into_response()
+            Json(event).into_response()
         }
         Err(e) => err(e).into_response(),
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/runs/{id}/interaction/input/claim/{node_id}",
+    params(
+        ("id" = String, Path, description = "Run ID"),
+        ("node_id" = String, Path, description = "Input node ID"),
+        ("since" = Option<i64>, Query, description = "Claim events after this seq")
+    ),
+    responses((status = 200, description = "Claimed input events"))
+)]
 pub async fn claim_input_events(
     State(state): State<AppState>,
     AxumPath((run_id, node_id)): AxumPath<(String, String)>,
@@ -233,8 +287,8 @@ pub async fn claim_input_events(
 ) -> impl IntoResponse {
     let since = params.since.unwrap_or(0);
     let result = (|| -> anyhow::Result<ClaimEventsResponse> {
-        let service = InteractionMessageService::open(&state.home, &run_id)?;
-        let events = service.claim_input_events(&node_id, since)?;
+        let service = InputService::open(&state.home, &run_id)?;
+        let events = service.claim(&node_id, since)?;
         let next_seq = events.last().map(|event| event.seq).unwrap_or(since);
         Ok(ClaimEventsResponse { events, next_seq })
     })();
@@ -244,6 +298,8 @@ pub async fn claim_input_events(
         Err(e) => err(e).into_response(),
     }
 }
+
+// ─── WebSocket handlers ───
 
 async fn handle_interaction_ws(mut socket: WebSocket, state: AppState, run_id: String) {
     let mut rx = state.interaction_events.subscribe();
@@ -283,7 +339,7 @@ async fn handle_input_ws(
     since: i64,
 ) {
     let mut rx = state.input_events.subscribe();
-    let service = match InteractionMessageService::open(&state.home, &run_id) {
+    let service = match InputService::open(&state.home, &run_id) {
         Ok(service) => service,
         Err(err) => {
             let _ = socket
@@ -301,7 +357,7 @@ async fn handle_input_ws(
     };
 
     let mut last_seq = since;
-    let replay = match service.claim_input_events(&node_id, since) {
+    let replay = match service.claim(&node_id, since) {
         Ok(events) => events,
         Err(err) => {
             let _ = socket
@@ -351,7 +407,7 @@ async fn handle_input_ws(
 
 async fn send_input_event(
     socket: &mut WebSocket,
-    event: &interaction_service::InputEvent,
+    event: &services::input::InputEvent,
 ) -> Result<(), ()> {
     let payload = serde_json::json!({
         "type": "input.event",
@@ -364,11 +420,25 @@ async fn send_input_event(
         .map_err(|_| ())
 }
 
+// ─── Artifact file serving ───
+
+#[utoipa::path(
+    get,
+    path = "/api/runs/{id}/artifacts/{path}",
+    params(
+        ("id" = String, Path, description = "Run ID"),
+        ("path" = String, Path, description = "Relative artifact path")
+    ),
+    responses(
+        (status = 200, description = "Artifact file content"),
+        (status = 404, description = "File not found")
+    )
+)]
 pub async fn serve_artifact_file(
     State(state): State<AppState>,
     AxumPath((run_id, relative_path)): AxumPath<(String, String)>,
 ) -> impl IntoResponse {
-    let relative = match interaction_service::normalize_relative_path(&relative_path) {
+    let relative = match services::normalize_relative_path(&relative_path) {
         Ok(path) => path,
         Err(err) => return (StatusCode::BAD_REQUEST, err.to_string()).into_response(),
     };

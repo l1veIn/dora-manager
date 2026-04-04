@@ -1,0 +1,84 @@
+{
+  "id": "dm-text-input",
+  "name": "dm-text-input",
+  "version": "0.1.0",
+  "installed_at": "1775297594",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "A text input widget for the Interaction UI. Supports single-line and multiline modes.",
+  "executable": ".venv/bin/dm-text-input",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Interaction",
+    "tags": [
+      "builtin",
+      "interaction",
+      "input"
+    ]
+  },
+  "capabilities": [
+    "configurable"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "value",
+      "name": "value",
+      "direction": "output",
+      "description": "Emits text content on submit.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_text_input/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "default_value": {
+      "default": "",
+      "description": "Initial text value.",
+      "env": "DEFAULT_VALUE"
+    },
+    "label": {
+      "default": "Prompt",
+      "description": "Input label shown in the UI.",
+      "env": "LABEL"
+    },
+    "multiline": {
+      "default": "false",
+      "description": "Use multiline textarea if true.",
+      "env": "MULTILINE"
+    },
+    "placeholder": {
+      "default": "Type something...",
+      "description": "Placeholder text when empty.",
+      "env": "PLACEHOLDER"
+    },
+    "poll_interval": {
+      "default": 1000,
+      "description": "Reconnect interval in milliseconds.",
+      "env": "POLL_INTERVAL"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

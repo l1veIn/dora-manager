@@ -1,5 +1,6 @@
 mod handlers;
-mod interaction_service;
+pub mod services;
+pub mod state;
 #[cfg(test)]
 mod tests;
 
@@ -8,38 +9,69 @@ use std::sync::Arc;
 use axum::routing::{get, post};
 use axum::Router;
 use rust_embed::Embed;
-use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use dm_core::events::EventStore;
-use crate::interaction_service::InputEvent;
+pub use state::{AppState, InputEventNotification, InteractionNotification};
 
 #[derive(Embed)]
 #[folder = "../../web/build"]
 struct WebAssets;
 
-#[derive(Clone)]
-pub struct AppState {
-    pub home: Arc<std::path::PathBuf>,
-    pub events: Arc<EventStore>,
-    pub interaction_events: broadcast::Sender<InteractionNotification>,
-    pub input_events: broadcast::Sender<InputEventNotification>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InteractionNotification {
-    pub event: String,
-    pub run_id: String,
-    pub source_id: Option<String>,
-    pub seq: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InputEventNotification {
-    pub run_id: String,
-    pub event: InputEvent,
-}
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        // System
+        handlers::system::doctor,
+        handlers::system::versions,
+        handlers::system::status,
+        handlers::system::get_config,
+        handlers::system::update_config,
+        // Runtime
+        handlers::runtime::install,
+        handlers::runtime::uninstall,
+        handlers::runtime::use_version,
+        handlers::runtime::up,
+        handlers::runtime::down,
+        // Nodes
+        handlers::nodes::list_nodes,
+        handlers::nodes::node_status,
+        handlers::nodes::install_node,
+        handlers::nodes::import_node,
+        handlers::nodes::uninstall_node,
+        handlers::nodes::create_node,
+        handlers::nodes::get_node_config,
+        handlers::nodes::save_node_config,
+        // Dataflows
+        handlers::dataflow::list_dataflows,
+        handlers::dataflow::get_dataflow,
+        handlers::dataflow::save_dataflow,
+        handlers::dataflow::import_dataflows,
+        handlers::dataflow::delete_dataflow,
+        handlers::dataflow::start_dataflow,
+        handlers::dataflow::stop_dataflow,
+        // Runs
+        handlers::runs::list_runs,
+        handlers::runs::get_active_run,
+        handlers::runs::get_run,
+        handlers::runs::get_run_metrics,
+        handlers::runs::start_run,
+        handlers::runs::stop_run,
+        handlers::runs::delete_runs,
+        // Interaction
+        handlers::interaction::get_interaction,
+        handlers::interaction::post_stream,
+        handlers::interaction::list_stream_messages,
+        handlers::interaction::register_input,
+        handlers::interaction::emit_input_event,
+        handlers::interaction::claim_input_events,
+        handlers::interaction::serve_artifact_file,
+    )
+)]
+struct ApiDoc;
 
 #[tokio::main]
 async fn main() {
@@ -99,17 +131,10 @@ async fn main() {
             post(handlers::save_dataflow_meta),
         )
         .route(
-            "/api/dataflows/{name}/config",
-            get(handlers::get_dataflow_config),
-        )
-        .route(
             "/api/dataflows/{name}/config-schema",
             get(handlers::get_dataflow_config_schema),
         )
-        .route(
-            "/api/dataflows/{name}/config",
-            post(handlers::save_dataflow_config),
-        )
+
         .route(
             "/api/dataflows/{name}/history",
             get(handlers::list_dataflow_history),
@@ -162,12 +187,12 @@ async fn main() {
             get(handlers::interaction_ws),
         )
         .route(
-            "/api/runs/{id}/interaction/messages",
-            get(handlers::list_display_messages),
+            "/api/runs/{id}/interaction/stream/messages",
+            get(handlers::list_stream_messages),
         )
         .route(
-            "/api/runs/{id}/interaction/display",
-            post(handlers::post_display),
+            "/api/runs/{id}/interaction/stream",
+            post(handlers::post_stream),
         )
         .route(
             "/api/runs/{id}/interaction/input/register",
@@ -198,6 +223,8 @@ async fn main() {
         // ─── Middleware ───
         .layer(CorsLayer::permissive())
         .with_state(state.clone())
+        // ─── Swagger UI ───
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         // ─── Static Frontend Assets ───
         .fallback(axum::routing::get(handlers::serve_web));
 

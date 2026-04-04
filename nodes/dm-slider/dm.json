@@ -1,0 +1,79 @@
+{
+  "id": "dm-slider",
+  "name": "dm-slider",
+  "version": "0.1.0",
+  "installed_at": "1775296853",
+  "description": "A slider widget for the Interaction UI. Emits a numerical value on change.",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "executable": ".venv/bin/dm-slider",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Interaction",
+    "tags": ["builtin", "interaction", "input"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "value",
+      "name": "value",
+      "direction": "output",
+      "description": "Emits numerical value on change.",
+      "required": false,
+      "multiple": false,
+      "schema": { "type": { "name": "float64" } }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_slider/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "label": {
+      "default": "Value",
+      "description": "Slider label shown in the UI.",
+      "env": "LABEL"
+    },
+    "min_val": {
+      "default": 0,
+      "description": "Minimum value.",
+      "env": "MIN_VAL"
+    },
+    "max_val": {
+      "default": 100,
+      "description": "Maximum value.",
+      "env": "MAX_VAL"
+    },
+    "step": {
+      "default": 1,
+      "description": "Step interval.",
+      "env": "STEP"
+    },
+    "default_value": {
+      "default": 50,
+      "description": "Default slider value.",
+      "env": "DEFAULT_VALUE"
+    },
+    "poll_interval": {
+      "default": 1000,
+      "description": "Reconnect interval in milliseconds.",
+      "env": "POLL_INTERVAL"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

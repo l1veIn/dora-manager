@@ -5,9 +5,11 @@ use axum::Json;
 use serde::Deserialize;
 
 use crate::handlers::err;
-use crate::AppState;
+use crate::state::AppState;
 
-#[derive(Deserialize)]
+use utoipa::ToSchema;
+
+#[derive(Deserialize, ToSchema)]
 pub struct PaginationParams {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -15,12 +17,12 @@ pub struct PaginationParams {
     pub search: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct LogTailParams {
     pub offset: Option<u64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct StartRunRequest {
     pub yaml: String,
     pub name: Option<String>,
@@ -28,17 +30,19 @@ pub struct StartRunRequest {
     pub view_json: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct DeleteRunsRequest {
     pub run_ids: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct ActiveRunParams {
     pub metrics: Option<bool>,
 }
 
+
 /// GET /api/runs?limit=20&offset=0
+#[utoipa::path(get, path = "/api/runs", params(("limit" = Option<i64>, Query), ("offset" = Option<i64>, Query), ("status" = Option<String>, Query), ("search" = Option<String>, Query)), responses((status = 200, description = "Paginated runs list")))]
 pub async fn list_runs(
     State(state): State<AppState>,
     Query(params): Query<PaginationParams>,
@@ -57,6 +61,7 @@ pub async fn list_runs(
 }
 
 /// GET /api/runs/active
+#[utoipa::path(get, path = "/api/runs/active", params(("metrics" = Option<bool>, Query)), responses((status = 200, description = "Active runs list")))]
 pub async fn get_active_run(
     State(state): State<AppState>,
     Query(params): Query<ActiveRunParams>,
@@ -87,6 +92,7 @@ pub async fn get_active_run(
 }
 
 /// GET /api/runs/:id/metrics
+#[utoipa::path(get, path = "/api/runs/{id}/metrics", params(("id" = String, Path)), responses((status = 200, description = "Run metrics")))]
 pub async fn get_run_metrics(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -128,12 +134,13 @@ pub async fn get_run_view(State(state): State<AppState>, Path(id): Path<String>)
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct RunDetailParams {
     pub include_metrics: Option<bool>,
 }
 
 /// GET /api/runs/:id?include_metrics=true
+#[utoipa::path(get, path = "/api/runs/{id}", params(("id" = String, Path), ("include_metrics" = Option<bool>, Query)), responses((status = 200, description = "Run detail")))]
 pub async fn get_run(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -177,6 +184,7 @@ pub async fn tail_run_logs(
 }
 
 /// POST /api/runs/start
+#[utoipa::path(post, path = "/api/runs/start", request_body = StartRunRequest, responses((status = 200, description = "Run started")))]
 pub async fn start_run(
     State(state): State<AppState>,
     Json(req): Json<StartRunRequest>,
@@ -228,18 +236,35 @@ pub async fn start_run(
 }
 
 /// POST /api/runs/:id/stop
+#[utoipa::path(post, path = "/api/runs/{id}/stop", params(("id" = String, Path)), responses((status = 200, description = "Run stop initiated")))]
 pub async fn stop_run(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    match dm_core::runs::stop_run(&state.home, &id).await {
-        Ok(run) => Json(serde_json::json!({
-            "status": "stopped",
-            "run": run,
-        }))
-        .into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    // Verify the run exists before spawning, so we return 404 for invalid IDs.
+    if dm_core::runs::load_run(&state.home, &id).is_err() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": format!("Run '{}' not found", id) })),
+        )
+            .into_response();
     }
+
+    // Fire-and-forget: run the stop in background so the HTTP response returns immediately.
+    let home = state.home.clone();
+    let run_id = id.clone();
+    tokio::spawn(async move {
+        if let Err(e) = dm_core::runs::stop_run(&home, &run_id).await {
+            eprintln!("[dm-server] Background stop_run({}) failed: {}", run_id, e);
+        }
+    });
+
+    Json(serde_json::json!({
+        "status": "stopping",
+        "run_id": id,
+    }))
+    .into_response()
 }
 
 /// POST /api/runs/delete
+#[utoipa::path(post, path = "/api/runs/delete", request_body = DeleteRunsRequest, responses((status = 200, description = "Deletion result")))]
 pub async fn delete_runs(
     State(state): State<AppState>,
     Json(req): Json<DeleteRunsRequest>,

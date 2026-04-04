@@ -12,7 +12,7 @@
     let { 
         layout = $bindable([]),
         runId,
-        displays = [],
+        streams = [],
         inputs = [],
         nodes = [],
         onEmit,
@@ -20,7 +20,7 @@
     } = $props<{
         layout?: WorkspaceGridItem[];
         runId: string;
-        displays?: any[];
+        streams?: any[];
         inputs?: any[];
         nodes?: any[];
         onEmit?: any;
@@ -129,7 +129,7 @@
                         <!-- Content boundary. Let it fill 100% and break appropriately. -->
                         <div class="w-full h-full relative overflow-hidden break-words">
                             {#if dataItem.widgetType === "stream"}
-                                <DisplayStream node={dataItem} {api} {runId} {displays} {nodes} onConfigChange={() => { layout = gridItems; onLayoutChange(gridItems); }} />
+                                <DisplayStream node={dataItem} {api} {runId} {streams} {nodes} onConfigChange={() => { layout = gridItems; onLayoutChange(gridItems); }} />
                             {:else if dataItem.widgetType === "input"}
                                 <InputBoard node={dataItem} {api} {runId} {inputs} {onEmit} />
                             {:else if dataItem.widgetType === "terminal"}

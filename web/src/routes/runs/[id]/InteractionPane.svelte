@@ -27,12 +27,12 @@
 
     let {
         runId,
-        displays = [],
+        streams = [],
         inputs = [],
         onEmit,
     } = $props<{
         runId: string;
-        displays: DisplayEntry[];
+        streams: DisplayEntry[];
         inputs: InputBinding[];
         onEmit: (nodeId: string, outputId: string, value: any) => Promise<void>;
     }>();
@@ -127,7 +127,7 @@
     }
 
     $effect(() => {
-        for (const entry of displays) {
+        for (const entry of streams) {
             loadDisplay(entry);
         }
     });
@@ -162,8 +162,8 @@
             <p class="text-xs text-muted-foreground">Display nodes and input nodes bridged through dm-server</p>
         </div>
         <div class="flex items-center gap-2">
-            {#if displays.length > 0}
-                <Badge variant="secondary">{displays.length} display</Badge>
+            {#if streams.length > 0}
+                <Badge variant="secondary">{streams.length} stream</Badge>
             {/if}
             {#if inputs.length > 0}
                 <Badge variant="secondary">{inputs.length} input</Badge>
@@ -174,12 +174,12 @@
     <div class="grid md:grid-cols-2 gap-4 p-4 overflow-auto">
         <section class="space-y-4">
             <div class="flex items-center justify-between">
-                <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Displays</h3>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Streams</h3>
             </div>
-            {#if displays.length === 0}
-                <div class="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No display nodes registered for this run.</div>
+            {#if streams.length === 0}
+                <div class="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No stream nodes registered for this run.</div>
             {:else}
-                {#each displays as entry}
+                {#each streams as entry}
                     <div class="rounded-lg border bg-background overflow-hidden">
                         <div class="px-3 py-2 border-b flex items-center justify-between">
                             <div>

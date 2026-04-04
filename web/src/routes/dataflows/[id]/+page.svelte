@@ -23,7 +23,7 @@
     import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import YamlEditorTab from "./components/YamlEditorTab.svelte";
     import MetaTab from "./components/MetaTab.svelte";
-    import ConfigOverridesTab from "./components/ConfigOverridesTab.svelte";
+
     import HistoryTab from "./components/HistoryTab.svelte";
     import GraphEditorTab from "./components/GraphEditorTab.svelte";
 
@@ -172,10 +172,7 @@
                     <FileText class="size-4" />
                     flow.json
                 </Tabs.Trigger>
-                <Tabs.Trigger value="config" class="gap-2">
-                    <Settings class="size-4" />
-                    Config Overrides
-                </Tabs.Trigger>
+
                 <Tabs.Trigger value="history" class="gap-2">
                     <History class="size-4" />
                     History
@@ -210,14 +207,7 @@
                 {/if}
             </Tabs.Content>
 
-            <Tabs.Content
-                value="config"
-                class="flex-1 border rounded-md bg-card shadow-sm flex flex-col min-h-0 overflow-hidden mt-0"
-            >
-                {#if activeTab === "config"}
-                    <ConfigOverridesTab {dataflowName} />
-                {/if}
-            </Tabs.Content>
+
 
             <Tabs.Content
                 value="meta"

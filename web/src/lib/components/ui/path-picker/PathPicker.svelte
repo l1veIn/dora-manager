@@ -13,6 +13,7 @@
         showConfirmBtn = false,
         confirming = false,
         onConfirm = undefined,
+        onValueChange = undefined,
     } = $props<{
         mode?: "file" | "directory";
         id?: string;
@@ -23,6 +24,7 @@
         showConfirmBtn?: boolean;
         confirming?: boolean;
         onConfirm?: (value: string) => void;
+        onValueChange?: (value: string) => void;
     }>();
 
     const isTauri =
@@ -52,7 +54,10 @@
         {disabled}
 
         value={value ?? ""}
-        oninput={(e) => value = (e.currentTarget as HTMLInputElement).value}
+        oninput={(e) => {
+            value = (e.currentTarget as HTMLInputElement).value;
+            if (onValueChange) onValueChange(value);
+        }}
         placeholder={placeholder ?? defaultPlaceholder}
         class="flex-1 font-mono text-xs"
         onkeydown={(e: KeyboardEvent) => {

@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 
 use super::model::{DataflowHistoryEntry, DataflowMeta, FlowMeta};
 use super::paths::{
-    dataflow_dir, dataflow_yaml_path, dataflows_dir, flow_config_path, flow_history_dir,
+    dataflow_dir, dataflow_yaml_path, dataflows_dir, flow_history_dir,
     flow_meta_path, flow_view_path, DATAFLOW_FILE,
 };
 
@@ -83,16 +83,7 @@ pub fn delete_project(home: &Path, name: &str) -> Result<()> {
     fs::remove_dir_all(&path).with_context(|| format!("Failed to delete dataflow '{}'", name))
 }
 
-pub fn read_config(home: &Path, name: &str) -> Result<serde_json::Value> {
-    let path = flow_config_path(&dataflow_dir(home, name));
-    if !path.exists() {
-        return Ok(serde_json::json!({}));
-    }
-    let content = fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read dataflow config '{}'", name))?;
-    serde_json::from_str(&content)
-        .with_context(|| format!("Failed to parse dataflow config '{}'", name))
-}
+
 
 pub fn read_view(home: &Path, name: &str) -> Result<serde_json::Value> {
     let path = flow_view_path(&dataflow_dir(home, name));
@@ -115,18 +106,7 @@ pub fn write_view(home: &Path, name: &str, view: &serde_json::Value) -> Result<(
     .with_context(|| format!("Failed to write {}", path.display()))
 }
 
-pub fn write_config(home: &Path, name: &str, config: &serde_json::Value) -> Result<()> {
-    let dir = dataflow_dir(home, name);
-    fs::create_dir_all(&dir)?;
-    initialize_flow_project(name, &dir)?;
-    let config_path = flow_config_path(&dir);
-    fs::write(
-        &config_path,
-        serde_json::to_string_pretty(config).context("Failed to serialize dataflow config")?,
-    )
-    .with_context(|| format!("Failed to write {}", config_path.display()))?;
-    touch_flow_meta(&dir, name)
-}
+
 
 pub fn read_meta(home: &Path, name: &str) -> Result<FlowMeta> {
     let dir = dataflow_dir(home, name);
@@ -297,11 +277,6 @@ pub fn initialize_flow_project(name: &str, dir: &Path) -> Result<()> {
         .with_context(|| format!("Failed to write {}", meta_path.display()))?;
     }
 
-    let config_path = flow_config_path(dir);
-    if !config_path.exists() {
-        fs::write(&config_path, "{}\n")
-            .with_context(|| format!("Failed to write {}", config_path.display()))?;
-    }
 
     Ok(())
 }
@@ -339,33 +314,6 @@ pub fn touch_flow_meta(dir: &Path, name: &str) -> Result<()> {
         serde_json::to_string_pretty(&meta).context("Failed to serialize flow.json")?,
     )
     .with_context(|| format!("Failed to write {}", meta_path.display()))
-}
-
-pub fn load_flow_config_for_yaml(home: &Path, yaml_path: &Path) -> Option<serde_json::Value> {
-    let parent = yaml_path.parent()?;
-    let dataflows_root = dataflows_dir(home);
-    if !parent.starts_with(&dataflows_root) {
-        return None;
-    }
-    let path = flow_config_path(parent);
-    if !path.exists() {
-        return Some(serde_json::json!({}));
-    }
-
-    let content = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&content).ok()
-}
-
-pub fn select_flow_node_config(
-    flow_config: &serde_json::Value,
-    yaml_node_id: &str,
-    node_id: &str,
-) -> serde_json::Value {
-    flow_config
-        .get(yaml_node_id)
-        .cloned()
-        .or_else(|| flow_config.get(node_id).cloned())
-        .unwrap_or_else(|| serde_json::json!({}))
 }
 
 fn write_history_snapshot(dir: &Path, content: &str) -> Result<()> {

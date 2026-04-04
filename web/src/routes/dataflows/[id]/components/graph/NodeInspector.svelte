@@ -265,7 +265,7 @@
                     </div>
                 {:else if activeTab === 'config'}
                     {#if onUpdateConfig}
-                        <InspectorConfig {node} {onUpdateConfig} />
+                        <InspectorConfig {node} {onUpdateConfig} {dataflowName} />
                     {:else}
                         <div class="text-center p-4 text-xs text-muted-foreground mt-4 border border-dashed rounded bg-muted/10">
                             Config not available.

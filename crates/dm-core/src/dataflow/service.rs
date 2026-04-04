@@ -11,7 +11,7 @@ use super::inspect;
 use super::model::{DataflowHistoryEntry, FlowMeta};
 use super::repo;
 use super::{
-    AggregatedConfigField, AggregatedConfigNode, DataflowConfigAggregation, DataflowConfigDocument,
+    AggregatedConfigField, AggregatedConfigNode, DataflowConfigAggregation,
     DataflowImportFailure, DataflowImportReport, DataflowImportSuccess, DataflowListEntry,
     DataflowProject,
 };
@@ -83,20 +83,6 @@ pub fn delete(home: &Path, name: &str) -> Result<()> {
     result
 }
 
-pub fn get_flow_config(home: &Path, name: &str) -> Result<DataflowConfigDocument> {
-    let config = repo::read_config(home, name)?;
-    let executable = inspect::inspect(home, name)?.summary;
-    Ok(DataflowConfigDocument { config, executable })
-}
-
-pub fn save_flow_config(
-    home: &Path,
-    name: &str,
-    config: &serde_json::Value,
-) -> Result<DataflowConfigDocument> {
-    repo::write_config(home, name, config)?;
-    get_flow_config(home, name)
-}
 
 pub fn get_flow_meta(home: &Path, name: &str) -> Result<FlowMeta> {
     repo::read_meta(home, name)
@@ -117,7 +103,6 @@ pub fn save_flow_view(home: &Path, name: &str, view: &serde_json::Value) -> Resu
 pub fn inspect_config(home: &Path, name: &str) -> Result<DataflowConfigAggregation> {
     let yaml = repo::read_yaml(home, name)?;
     let executable = inspect::inspect_yaml(home, &yaml);
-    let flow_config = repo::read_config(home, name).unwrap_or_else(|_| serde_json::json!({}));
     let graph: serde_yaml::Value = match serde_yaml::from_str(&yaml) {
         Ok(graph) => graph,
         Err(_) => {
@@ -145,7 +130,6 @@ pub fn inspect_config(home: &Path, name: &str) -> Result<DataflowConfigAggregati
                 .get("config")
                 .and_then(|value| serde_json::to_value(value).ok())
                 .unwrap_or_else(|| serde_json::json!({}));
-            let flow_node_config = repo::select_flow_node_config(&flow_config, &yaml_id, node_id);
 
             let Some(node_dir) = resolve_node_dir(home, node_id) else {
                 nodes.push(AggregatedConfigNode {
@@ -186,14 +170,11 @@ pub fn inspect_config(home: &Path, name: &str) -> Result<DataflowConfigAggregati
             {
                 for (field_name, field_schema) in schema_obj {
                     let inline_value = inline_config.get(field_name).cloned();
-                    let flow_value = flow_node_config.get(field_name).cloned();
                     let node_value = node_config.get(field_name).cloned();
                     let default_value = field_schema.get("default").cloned();
                     let (effective_value, effective_source) =
                         if let Some(value) = inline_value.clone() {
                             (Some(value), "inline".to_string())
-                        } else if let Some(value) = flow_value.clone() {
-                            (Some(value), "flow".to_string())
                         } else if let Some(value) = node_value.clone() {
                             (Some(value), "node".to_string())
                         } else if let Some(value) = default_value.clone() {
@@ -207,7 +188,6 @@ pub fn inspect_config(home: &Path, name: &str) -> Result<DataflowConfigAggregati
                         AggregatedConfigField {
                             schema: field_schema.clone(),
                             inline_value,
-                            flow_value,
                             node_value,
                             default_value,
                             effective_value,

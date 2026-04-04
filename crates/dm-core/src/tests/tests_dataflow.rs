@@ -252,7 +252,6 @@ fn test_dataflow_crud() {
 
     assert!(home.join("dataflows/my_flow/dataflow.yml").exists());
     assert!(home.join("dataflows/my_flow/flow.json").exists());
-    assert!(home.join("dataflows/my_flow/config.json").exists());
 
     // 5. Delete it
     crate::dataflow::delete(home, "my_flow").unwrap();
@@ -301,7 +300,6 @@ fn test_migrate_legacy_dataflow_layout() {
         "nodes: []\n"
     );
     assert!(home.join("dataflows/demo/flow.json").exists());
-    assert!(home.join("dataflows/demo/config.json").exists());
 }
 
 #[test]
@@ -318,7 +316,6 @@ fn test_import_dataflow_from_local_yaml_file() {
         "nodes: []\n"
     );
     assert!(home.join("dataflows/imported-flow/flow.json").exists());
-    assert!(home.join("dataflows/imported-flow/config.json").exists());
 }
 
 #[test]
@@ -335,10 +332,6 @@ fn test_import_dataflow_from_local_directory() {
     assert_eq!(
         std::fs::read_to_string(home.join("dataflows/copied-flow/dataflow.yml")).unwrap(),
         "nodes:\n  - id: a\n"
-    );
-    assert_eq!(
-        std::fs::read_to_string(home.join("dataflows/copied-flow/config.json")).unwrap(),
-        "{\n  \"a\": 1\n}\n"
     );
 }
 
@@ -421,17 +414,6 @@ nodes:
 "#,
     )
     .unwrap();
-    crate::dataflow::save_flow_config(
-        home,
-        "cfg-flow",
-        &serde_json::json!({
-            "second": {
-                "mode": "flow-mode"
-            }
-        }),
-    )
-    .unwrap();
-
     let doc = crate::dataflow::inspect_config(home, "cfg-flow").unwrap();
     assert_eq!(doc.nodes.len(), 2);
     let first = &doc.nodes[0];
@@ -445,10 +427,10 @@ nodes:
 
     let second = &doc.nodes[1];
     assert_eq!(second.yaml_id, "second");
-    assert_eq!(second.fields["mode"].effective_source, "flow");
+    assert_eq!(second.fields["mode"].effective_source, "node");
     assert_eq!(
         second.fields["mode"].effective_value,
-        Some(serde_json::json!("flow-mode"))
+        Some(serde_json::json!("node-mode"))
     );
     assert_eq!(
         second.fields["threshold"].effective_value,

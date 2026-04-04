@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 
 use crate::handlers::err;
-use crate::AppState;
+use crate::state::AppState;
 
 /// GET /api/events?source=core&case_id=...&limit=100
 pub async fn query_events(

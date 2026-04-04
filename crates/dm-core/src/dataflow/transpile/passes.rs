@@ -3,7 +3,6 @@ use crate::node::{self, Node};
 use super::context::TranspileContext;
 use super::error::{DiagnosticKind, TranspileDiagnostic};
 use super::model::{DmGraph, DmNode, ManagedNode};
-use super::repo;
 
 // ---------------------------------------------------------------------------
 // Pass 1: Parse — YAML string → DmGraph
@@ -386,8 +385,6 @@ pub(crate) fn merge_config(
 
         let config_defaults =
             node::get_node_config(ctx.home, &managed.node_id).unwrap_or(serde_json::json!({}));
-        let flow_config_for_node =
-            repo::select_flow_node_config(&ctx.flow_config, &managed.yaml_id, &managed.node_id);
 
         for (key, field_schema) in schema_obj {
             let Some(env_name) = field_schema.get("env").and_then(|e| e.as_str()) else {
@@ -397,7 +394,6 @@ pub(crate) fn merge_config(
             let value = managed
                 .inline_config
                 .get(key)
-                .or_else(|| flow_config_for_node.get(key))
                 .or_else(|| config_defaults.get(key))
                 .or_else(|| field_schema.get("default"));
 

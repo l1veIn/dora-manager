@@ -1,0 +1,69 @@
+{
+  "id": "dm-button",
+  "name": "dm-button",
+  "version": "0.1.0",
+  "installed_at": "1775297579",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "A trigger button widget for the Interaction UI. Emits a pulse when clicked.",
+  "executable": ".venv/bin/dm-button",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Interaction",
+    "tags": [
+      "builtin",
+      "interaction",
+      "input"
+    ]
+  },
+  "capabilities": [
+    "configurable"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "click",
+      "name": "click",
+      "direction": "output",
+      "description": "Emits when button is clicked.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_button/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "label": {
+      "default": "Run",
+      "description": "Button label shown in the UI.",
+      "env": "LABEL"
+    },
+    "poll_interval": {
+      "default": 1000,
+      "description": "Reconnect interval in milliseconds.",
+      "env": "POLL_INTERVAL"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

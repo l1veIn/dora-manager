@@ -223,15 +223,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stop_run_failure_marks_run_failed_and_extracts_failure_details() {
+    async fn stop_run_failure_tolerates_when_not_in_runtime_list() {
         let tmp = tempfile::tempdir().unwrap();
         let home = tmp.path();
-        write_running_run(home, "run-stop-fail", Some("uuid-stop-fail"));
+        write_running_run(home, "run-stop-tol", Some("uuid-stop-tol"));
 
+        // stop() fails but list() returns empty → dataflow is gone
         let backend = TestBackend {
             start_result: Ok((Some("unused".to_string()), "started".to_string())),
             stop_result: Err("Node worker failed: boom".to_string()),
             list_result: Ok(Vec::new()),
+            stop_calls: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        let run = service_runtime::stop_run_with_backend(home, "run-stop-tol", &backend)
+            .await
+            .unwrap();
+        assert_eq!(run.status, RunStatus::Stopped);
+        assert_eq!(
+            run.termination_reason,
+            Some(TerminationReason::StoppedByUser)
+        );
+    }
+
+    #[tokio::test]
+    async fn stop_run_failure_marks_run_failed_when_still_running() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+        write_running_run(home, "run-stop-fail", Some("uuid-stop-fail"));
+
+        // stop() fails AND list() still shows it running → true failure
+        let backend = TestBackend {
+            start_result: Ok((Some("unused".to_string()), "started".to_string())),
+            stop_result: Err("Node worker failed: boom".to_string()),
+            list_result: Ok(vec![RuntimeDataflow {
+                id: "uuid-stop-fail".to_string(),
+                status: RunStatus::Running,
+            }]),
             stop_calls: Arc::new(Mutex::new(Vec::new())),
         };
 

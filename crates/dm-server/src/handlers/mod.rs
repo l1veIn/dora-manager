@@ -1,27 +1,27 @@
-mod dataflow;
-mod events;
-mod interaction;
-mod nodes;
-mod run_ws;
-mod runs;
-mod runtime;
-mod system;
-mod web;
+pub(crate) mod dataflow;
+pub(crate) mod events;
+pub(crate) mod interaction;
+pub(crate) mod nodes;
+pub(crate) mod run_ws;
+pub(crate) mod runs;
+pub(crate) mod runtime;
+pub(crate) mod system;
+pub(crate) mod web;
 
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 
 pub use dataflow::{
-    delete_dataflow, get_dataflow, get_dataflow_config, get_dataflow_config_schema,
+    delete_dataflow, get_dataflow, get_dataflow_config_schema,
     get_dataflow_history_version, get_dataflow_meta, get_dataflow_view, import_dataflows,
     inspect_dataflow, list_dataflow_history, list_dataflows, restore_dataflow_history_version,
-    save_dataflow, save_dataflow_config, save_dataflow_meta, save_dataflow_view, start_dataflow,
+    save_dataflow, save_dataflow_meta, save_dataflow_view, start_dataflow,
     stop_dataflow,
 };
 pub use events::{count_events, export_events, ingest_event, query_events};
 pub use interaction::{
     claim_input_events, emit_input_event, get_interaction, input_ws, interaction_ws,
-    list_display_messages, post_display, register_input, serve_artifact_file,
+    list_stream_messages, post_stream, register_input, serve_artifact_file,
 };
 pub use nodes::{
     create_node, get_node_config, get_node_file_content, get_node_files, import_node, install_node,

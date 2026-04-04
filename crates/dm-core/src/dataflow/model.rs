@@ -108,11 +108,7 @@ pub struct DataflowProject {
     pub view: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataflowConfigDocument {
-    pub config: serde_json::Value,
-    pub executable: DataflowExecutableSummary,
-}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataflowImportSuccess {
@@ -138,8 +134,6 @@ pub struct AggregatedConfigField {
     pub schema: serde_json::Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inline_value: Option<serde_json::Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub flow_value: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_value: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

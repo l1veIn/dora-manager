@@ -20,8 +20,8 @@
     let loading = $state(true);
     let error = $state<string | null>(null);
     let metrics = $state<any>(null);
-    let interaction = $state<{ displays: any[]; inputs: any[] }>({
-        displays: [],
+    let interaction = $state<{ streams: any[]; inputs: any[] }>({
+        streams: [],
         inputs: [],
     });
 
@@ -102,7 +102,7 @@
 
     let isRunActive = $derived(run?.status === "running");
     let hasInteraction = $derived(
-        (interaction?.displays?.length ?? 0) > 0 ||
+        (interaction?.streams?.length ?? 0) > 0 ||
             (interaction?.inputs?.length ?? 0) > 0,
     );
 
@@ -319,7 +319,7 @@
                         onLayoutChange={handleLayoutChange}
                         runId={runId || ""} 
                         nodes={run?.nodes || []}
-                        displays={interaction.displays} 
+                        streams={interaction.streams} 
                         inputs={interaction.inputs}
                         onEmit={emitInteraction}
                     />

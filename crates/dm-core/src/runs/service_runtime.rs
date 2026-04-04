@@ -49,6 +49,34 @@ pub(super) async fn stop_run_with_backend<B: RuntimeBackend>(
         }
         Err(err) => {
             sync_run_outputs(home, &mut run)?;
+
+            // Tolerance: if `dora stop` failed but the dataflow is no longer
+            // reported by `dora list`, it was effectively stopped (e.g. all
+            // nodes already exited, timeout, etc.).  Mark as Stopped.
+            let still_running = backend
+                .list(home)
+                .unwrap_or_default()
+                .iter()
+                .any(|item| item.id == dora_uuid && item.status == RunStatus::Running);
+
+            if !still_running {
+                apply_terminal_state(
+                    &mut run,
+                    TerminalStateUpdate {
+                        status: RunStatus::Stopped,
+                        termination_reason: Some(TerminationReason::StoppedByUser),
+                        exit_code: Some(0),
+                        failure_reason: None,
+                        failure_node: None,
+                        failure_message: None,
+                        observed_at: Some(Utc::now().to_rfc3339()),
+                    },
+                );
+                repo::save_run(home, &run)?;
+                return Ok(run);
+            }
+
+            // Truly still running and stop failed — mark as failed
             let (failure_node, failure_message) = parse_failure_details(&err.to_string());
             apply_terminal_state(
                 &mut run,

@@ -48,7 +48,7 @@
     <!-- Bubble Meta Info -->
     <div class="flex items-center gap-1.5 px-2 mb-1">
         <span class="text-[10px] font-mono font-medium tracking-tight text-primary/70">{entry.node_id}</span>
-        <span class="text-[9px] text-muted-foreground/50">{new Date(entry.updated_at || entry.created_at || Date.now()).toLocaleTimeString()}</span>
+        <span class="text-[9px] text-muted-foreground/50">{new Date((entry.created_at || 0) * 1000).toLocaleTimeString()}</span>
         {#if entry.kind === 'file'}
             <span class="text-[9px] text-muted-foreground/40 font-mono" title={entry.file}>
                 (📁 {entry.file})

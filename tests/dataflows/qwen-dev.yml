@@ -1,20 +1,20 @@
 nodes:
-  - id: input
-    node: dm-input
+  - id: mic-enabled
+    node: dm-input-switch
     outputs:
-      - enabled
-      - device_id
+      - value
     config:
-      label: "Microphone Settings"
-      widgets:
-        enabled:
-          type: switch
-          label: "Enable Microphone"
-          default: false
-        device_id:
-          type: input
-          label: "Type Device ID or 'default'"
-          default: "default"
+      label: "Enable Microphone"
+      default_value: "false"
+
+  - id: mic-device-id
+    node: dm-text-input
+    outputs:
+      - value
+    config:
+      label: "Device ID"
+      default_value: "default"
+      placeholder: "Type Device ID or 'default'"
 
   - id: devicelist-display
     node: dm-display
@@ -23,13 +23,12 @@ nodes:
     config:
       label: "Available Microphones"
       render: json
-      tail: false
 
   - id: dm-microphone
     node: dm-microphone
     inputs:
-      enabled: input/enabled
-      device_id: input/device_id
+      enabled: mic-enabled/value
+      device_id: mic-device-id/value
     outputs:
       - audio
       - devices
@@ -71,7 +70,6 @@ nodes:
     config:
       label: "Latest Screenshot"
       render: image
-      tail: false
 
   - id: screen-video
     node: dm-test-media-capture
@@ -103,7 +101,6 @@ nodes:
     config:
       label: "Latest Screen Clip"
       render: video
-      tail: false
 
   # Live screen capture for MJPEG preview (1 fps)
   - id: screen-live
@@ -142,7 +139,6 @@ nodes:
     config:
       label: "Whisper Transcript"
       render: text
-      tail: true
 
   - id: dora-qwen
     node: dora-qwen
@@ -168,7 +164,6 @@ nodes:
     config:
       label: "Qwen Reply"
       render: text
-      tail: true
 
   - id: dora-kokoro-tts
     node: dora-kokoro-tts
@@ -196,7 +191,6 @@ nodes:
     config:
       label: "TTS Reply"
       render: audio
-      tail: false
 
   # Aggregate TTS audio chunks into a complete asset for audio playback/debugging
   - id: tts-queue

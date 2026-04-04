@@ -20,7 +20,6 @@ use crate::events::{EventSource, OperationEvent};
 
 use context::TranspileContext;
 
-use super::repo;
 
 /// Result of a transpilation, containing the dora-compatible YAML.
 #[derive(Debug)]
@@ -47,13 +46,10 @@ pub fn transpile_graph_for_run(
     let result = (|| {
         let content = std::fs::read_to_string(yaml_path)
             .with_context(|| format!("Failed to read graph yaml at {}", yaml_path.display()))?;
-        let flow_config =
-            repo::load_flow_config_for_yaml(home, yaml_path).unwrap_or(serde_json::json!({}));
 
         let ctx = TranspileContext {
             home,
             run_id: _run_id,
-            flow_config,
         };
         let mut diags = Vec::new();
 

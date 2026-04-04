@@ -1,0 +1,74 @@
+{
+  "id": "dm-input-switch",
+  "name": "dm-input-switch",
+  "version": "0.1.0",
+  "installed_at": "1775297583",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "A boolean toggle switch widget for the Interaction UI.",
+  "executable": ".venv/bin/dm-input-switch",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Interaction",
+    "tags": [
+      "builtin",
+      "interaction",
+      "input"
+    ]
+  },
+  "capabilities": [
+    "configurable"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "value",
+      "name": "value",
+      "direction": "output",
+      "description": "Emits true/false on toggle.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "boolean"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_input_switch/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "default_value": {
+      "default": "false",
+      "description": "Default true/false value.",
+      "env": "DEFAULT_VALUE"
+    },
+    "label": {
+      "default": "Toggle",
+      "description": "Switch label shown in the UI.",
+      "env": "LABEL"
+    },
+    "poll_interval": {
+      "default": 1000,
+      "description": "Reconnect interval in milliseconds.",
+      "env": "POLL_INTERVAL"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

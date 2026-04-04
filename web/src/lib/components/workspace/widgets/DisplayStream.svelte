@@ -8,14 +8,14 @@
         node,
         api,
         runId,
-        displays = [],
+        streams = [],
         nodes = [],
         onConfigChange,
     } = $props<{
         node: any;
         api: any;
         runId: string;
-        displays: any[];
+        streams: any[];
         nodes?: any[];
         onConfigChange?: () => void;
     }>();
@@ -41,7 +41,7 @@
         if (!runId || fetching) return;
         fetching = true;
         try {
-            let url = `/runs/${runId}/interaction/messages?limit=50&desc=true`;
+            let url = `/runs/${runId}/interaction/stream/messages?limit=50&desc=true`;
             if (subscribedSourceId) url += `&source_id=${subscribedSourceId}`;
 
             const res: any = await get(url);
@@ -61,7 +61,7 @@
         if (!runId || fetching || !newestSeq) return;
         fetching = true;
         try {
-            let url = `/runs/${runId}/interaction/messages?after_seq=${newestSeq}&limit=50`;
+            let url = `/runs/${runId}/interaction/stream/messages?after_seq=${newestSeq}&limit=50`;
             if (subscribedSourceId) url += `&source_id=${subscribedSourceId}`;
 
             const res: any = await get(url);
@@ -86,7 +86,7 @@
         let previousHeight = container ? container.scrollHeight : 0;
 
         try {
-            let url = `/runs/${runId}/interaction/messages?before_seq=${oldestSeq}&limit=50&desc=true`;
+            let url = `/runs/${runId}/interaction/stream/messages?before_seq=${oldestSeq}&limit=50&desc=true`;
             if (subscribedSourceId) url += `&source_id=${subscribedSourceId}`;
 
             const res: any = await get(url);
@@ -148,7 +148,7 @@
 
     // Ping mechanism triggered by backend displays variable update
     $effect(() => {
-        if (displays) {
+        if (streams) {
             untrack(() => {
                 if (allMessages.length > 0) {
                     loadNewMessages();
@@ -179,7 +179,7 @@
                 onchange={handleSourceChange}
             >
                 <option value="">(All Sources)</option>
-                {#each displays as dItem (dItem.node_id)}
+                {#each streams as dItem (dItem.node_id)}
                     <option value={dItem.node_id}>{dItem.node_id}</option>
                 {/each}
             </select>

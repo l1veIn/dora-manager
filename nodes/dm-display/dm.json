@@ -7,7 +7,7 @@
     "build": "pip install -e .",
     "github": null
   },
-  "description": "Notify dm-server that a stored artifact should be displayed in the current run UI.",
+  "description": "Relay display messages to dm-server for the current run UI. Supports inline content (text/json) via the data port and artifact files via the path port.",
   "executable": ".venv/bin/dm-display",
   "maintainers": [
     {
@@ -71,30 +71,10 @@
       "description": "Display label shown in the UI.",
       "env": "LABEL"
     },
-    "max_lines": {
-      "default": 500,
-      "description": "Maximum lines returned for tailed text displays.",
-      "env": "MAX_LINES"
-    },
-    "poll_interval": {
-      "default": 2000,
-      "description": "Polling interval in milliseconds for static sources.",
-      "env": "POLL_INTERVAL"
-    },
     "render": {
       "default": "auto",
       "description": "Render mode: auto, text, image, audio, video, json, markdown. For data input, auto resolves to text/json.",
       "env": "RENDER"
-    },
-    "source": {
-      "default": null,
-      "description": "Static source file relative to runs/:id/out/.",
-      "env": "SOURCE"
-    },
-    "tail": {
-      "default": true,
-      "description": "Whether text-like files should be tailed.",
-      "env": "TAIL"
     }
   },
   "dynamic_ports": false,
