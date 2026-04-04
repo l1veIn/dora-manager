@@ -18,7 +18,9 @@ use dm_core::runs::{run_logs_dir, run_out_dir};
 enum WsMessage {
     Ping,
     Metrics { data: Vec<dm_core::runs::NodeMetrics> },
+    #[serde(rename_all = "camelCase")]
     Logs { node_id: String, lines: Vec<String> },
+    #[serde(rename_all = "camelCase")]
     Io { node_id: String, lines: Vec<String> },
     Status { status: String },
 }
