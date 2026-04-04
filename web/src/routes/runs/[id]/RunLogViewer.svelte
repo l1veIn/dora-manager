@@ -106,6 +106,29 @@
         autoScroll = isAtBottom;
     }
 
+    function escapeHtml(unsafe: string) {
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
+    let formattedLog = $derived.by(() => {
+        if (!logContent) return "";
+        return logContent
+            .split('\n')
+            .map(line => {
+                const escaped = escapeHtml(line);
+                if (escaped.includes("[DM-IO]")) {
+                    return `<span class="text-sky-500">${escaped}</span>`;
+                }
+                return escaped;
+            })
+            .join('\n');
+    });
+
     $effect(() => {
         stopPolling();
         logContent = "";
@@ -218,7 +241,11 @@
             <div
                 class="p-4 font-mono text-[13px] whitespace-pre-wrap break-all leading-relaxed text-foreground selection:bg-muted"
             >
-                {logContent === "" ? "(NO LOG OUTPUT)" : logContent}
+                {#if logContent === ""}
+                    (NO LOG OUTPUT)
+                {:else}
+                    {@html formattedLog}
+                {/if}
             </div>
         {/if}
     </div>
