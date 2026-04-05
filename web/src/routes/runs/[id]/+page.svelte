@@ -10,9 +10,14 @@
     import RunFailureBanner from "./RunFailureBanner.svelte";
     import RunSummaryCard from "./RunSummaryCard.svelte";
     import RunNodeList from "./RunNodeList.svelte";
-    
+
     import Workspace from "$lib/components/workspace/Workspace.svelte";
-    import { type WorkspaceGridItem, getDefaultLayout, mutateTreeInjectTerminal, generateId } from "$lib/components/workspace/types";
+    import {
+        type WorkspaceGridItem,
+        getDefaultLayout,
+        mutateTreeInjectTerminal,
+        generateId,
+    } from "$lib/components/workspace/types";
 
     let runId = $derived($page.params.id);
 
@@ -37,7 +42,10 @@
     function handleLayoutChange(newLayout: WorkspaceGridItem[]) {
         workspaceLayout = newLayout;
         if (run?.name && browser) {
-            localStorage.setItem(`dm-workspace-layout-${run.name}`, JSON.stringify(newLayout));
+            localStorage.setItem(
+                `dm-workspace-layout-${run.name}`,
+                JSON.stringify(newLayout),
+            );
         }
     }
 
@@ -52,21 +60,29 @@
                 id: generateId(),
                 widgetType: type,
                 config: {},
-                x: 0, y: maxY, w: 6, h: 4
-            }
+                x: 0,
+                y: maxY,
+                w: 6,
+                h: 4,
+            },
         ];
         handleLayoutChange(workspaceLayout);
     }
 
     function openNodeTerminal(id: string) {
         selectedNodeId = id;
-        
+
         // Find existing terminal for this node
-        let targetTx = workspaceLayout.find(item => item.widgetType === "terminal" && item.config?.nodeId === id);
-        
+        let targetTx = workspaceLayout.find(
+            (item) =>
+                item.widgetType === "terminal" && item.config?.nodeId === id,
+        );
+
         if (!targetTx) {
             // Find any existing terminal to recycle
-            let anyTx = workspaceLayout.find(item => item.widgetType === "terminal");
+            let anyTx = workspaceLayout.find(
+                (item) => item.widgetType === "terminal",
+            );
             if (anyTx) {
                 if (!anyTx.config) anyTx.config = {};
                 anyTx.config.nodeId = id;
@@ -76,24 +92,50 @@
                 // Append a new terminal
                 workspaceLayout = mutateTreeInjectTerminal(workspaceLayout, id);
                 handleLayoutChange(workspaceLayout);
-                targetTx = workspaceLayout.find(item => item.widgetType === "terminal" && item.config?.nodeId === id);
+                targetTx = workspaceLayout.find(
+                    (item) =>
+                        item.widgetType === "terminal" &&
+                        item.config?.nodeId === id,
+                );
             }
         }
-        
+
         if (targetTx) {
             const txId = targetTx.id;
             setTimeout(() => {
-                const el = document.querySelector(`[gs-id="${txId}"]`) as HTMLElement;
+                const el = document.querySelector(
+                    `[gs-id="${txId}"]`,
+                ) as HTMLElement;
                 if (el) {
                     // Focus & animate frame jump
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    const wrapper = el.querySelector('.grid-stack-item-content > div') as HTMLElement;
+                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    const wrapper = el.querySelector(
+                        ".grid-stack-item-content > div",
+                    ) as HTMLElement;
                     if (wrapper) {
-                        wrapper.classList.remove('ring-offset-2', 'ring-2', 'ring-primary/80');
+                        wrapper.classList.remove(
+                            "ring-offset-2",
+                            "ring-2",
+                            "ring-primary/80",
+                        );
                         // forced reflow trick
                         void wrapper.offsetWidth;
-                        wrapper.classList.add('transition-all', 'duration-500', 'ring-offset-2', 'ring-2', 'ring-primary/80');
-                        setTimeout(() => wrapper.classList.remove('ring-offset-2', 'ring-2', 'ring-primary/80'), 1500);
+                        wrapper.classList.add(
+                            "transition-all",
+                            "duration-500",
+                            "ring-offset-2",
+                            "ring-2",
+                            "ring-primary/80",
+                        );
+                        setTimeout(
+                            () =>
+                                wrapper.classList.remove(
+                                    "ring-offset-2",
+                                    "ring-2",
+                                    "ring-primary/80",
+                                ),
+                            1500,
+                        );
                     }
                 }
             }, 100); // slight delay to allow Svelte DOM flush for new components
@@ -119,14 +161,18 @@
             if (run?.nodes?.length > 0 && !workspaceLoaded) {
                 // Restore layout on first run load
                 workspaceLoaded = true;
-                const saved = localStorage.getItem(`dm-workspace-layout-${run.name}`);
+                const saved = localStorage.getItem(
+                    `dm-workspace-layout-${run.name}`,
+                );
                 if (saved) {
-                    try { 
-                        const parsed = JSON.parse(saved); 
+                    try {
+                        const parsed = JSON.parse(saved);
                         if (Array.isArray(parsed)) {
                             workspaceLayout = parsed;
                         } else {
-                            console.warn("Discarding old Workspace layout version from LocalStorage");
+                            console.warn(
+                                "Discarding old Workspace layout version from LocalStorage",
+                            );
                         }
                     } catch (e) {}
                 }
@@ -158,7 +204,11 @@
         return interactionRefreshInFlight;
     }
 
-    async function emitInteraction(nodeId: string, outputId: string, value: any) {
+    async function emitInteraction(
+        nodeId: string,
+        outputId: string,
+        value: any,
+    ) {
         if (!runId) return;
         await post(`/runs/${runId}/interaction/input/events`, {
             node_id: nodeId,
@@ -302,24 +352,46 @@
             </aside>
 
             <!-- Workspace Content Area -->
-            <div class="flex-1 min-w-0 bg-background flex flex-col relative text-foreground h-full overflow-hidden">
-                <div class="shrink-0 h-10 border-b flex items-center justify-between px-4 bg-muted/10 shadow-sm z-10">
-                    <div class="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                        Dashboard
+            <div
+                class="flex-1 min-w-0 bg-background flex flex-col relative text-foreground h-full overflow-hidden"
+            >
+                <div
+                    class="shrink-0 h-10 border-b flex items-center justify-between px-4 bg-muted/10 shadow-sm z-10"
+                >
+                    <div
+                        class="text-sm font-medium flex items-center gap-2 text-muted-foreground"
+                    >
+                        Workspace
                     </div>
                     <div class="flex items-center gap-2">
-                        <Button variant="outline" size="sm" class="h-7 text-xs" onclick={() => addWidget("stream")}>⊕ Stream</Button>
-                        <Button variant="outline" size="sm" class="h-7 text-xs" onclick={() => addWidget("input")}>⊕ Input</Button>
-                        <Button variant="outline" size="sm" class="h-7 text-xs" onclick={() => addWidget("terminal")}>⊕ Terminal</Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="h-7 text-xs"
+                            onclick={() => addWidget("stream")}>⊕ Stream</Button
+                        >
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="h-7 text-xs"
+                            onclick={() => addWidget("input")}>⊕ Input</Button
+                        >
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="h-7 text-xs"
+                            onclick={() => addWidget("terminal")}
+                            >⊕ Terminal</Button
+                        >
                     </div>
                 </div>
                 <div class="flex-1 min-h-0 relative">
-                    <Workspace 
+                    <Workspace
                         bind:layout={workspaceLayout}
                         onLayoutChange={handleLayoutChange}
-                        runId={runId || ""} 
+                        runId={runId || ""}
                         nodes={run?.nodes || []}
-                        streams={interaction.streams} 
+                        streams={interaction.streams}
                         inputs={interaction.inputs}
                         onEmit={emitInteraction}
                     />
