@@ -23,6 +23,8 @@ rust-embed.workspace = true
 mime_guess.workspace = true
 chrono.workspace = true
 rusqlite.workspace = true
+zip.workspace = true
+futures-util.workspace = true
 utoipa = { version = "5.4.0", features = ["axum_extras"] }
 utoipa-axum = "0.2.0"
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }

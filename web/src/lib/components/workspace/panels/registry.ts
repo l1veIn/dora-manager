@@ -1,6 +1,7 @@
 import MessagePanel from "./message/MessagePanel.svelte";
 import InputPanel from "./input/InputPanel.svelte";
 import ChartPanel from "./chart/ChartPanel.svelte";
+import VideoPanel from "./video/VideoPanel.svelte";
 import TerminalPanel from "./terminal/TerminalPanel.svelte";
 import type { PanelDefinition } from "./types";
 import type { PanelKind } from "../types";
@@ -41,6 +42,26 @@ export const panelRegistry: Record<PanelKind, PanelDefinition> = {
         supportedTags: ["table"],
         defaultConfig: { nodes: ["*"], tags: ["table"] },
         component: MessagePanel,
+    },
+    video: {
+        kind: "video",
+        title: "Plyr",
+        dotClass: "bg-rose-500",
+        sourceMode: "snapshot",
+        supportedTags: ["stream"],
+        defaultConfig: {
+            mode: "manual",
+            nodeId: "*",
+            selectedSourceId: "",
+            src: "",
+            sourceType: "hls",
+            autoplay: false,
+            muted: true,
+            poster: "",
+            nodes: ["*"],
+            tags: ["stream"],
+        },
+        component: VideoPanel,
     },
     terminal: {
         kind: "terminal",

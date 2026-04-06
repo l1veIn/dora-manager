@@ -1,0 +1,132 @@
+{
+  "id": "dm-screen-capture",
+  "name": "dm-screen-capture",
+  "version": "0.1.0",
+  "installed_at": "1775469013",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Capture screen frames and emit them as Arrow image payloads inside Dora.",
+  "executable": ".venv/bin/dm-screen-capture",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Media",
+    "tags": [
+      "screen",
+      "capture",
+      "image"
+    ]
+  },
+  "capabilities": [
+    "configurable"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "trigger",
+      "name": "trigger",
+      "direction": "input",
+      "description": "Optional trigger input for one-shot capture mode.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "null"
+        }
+      }
+    },
+    {
+      "id": "frame",
+      "name": "frame",
+      "direction": "output",
+      "description": "Encoded image frame bytes.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "description": "PNG or JPEG encoded image bytes",
+        "type": {
+          "bitWidth": 8,
+          "isSigned": false,
+          "name": "int"
+        }
+      }
+    },
+    {
+      "id": "meta",
+      "name": "meta",
+      "direction": "output",
+      "description": "Frame metadata emitted as JSON.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "description": "JSON-encoded frame metadata",
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_screen_capture/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "capture_target": {
+      "default": "desktop",
+      "env": "CAPTURE_TARGET"
+    },
+    "ffmpeg_path": {
+      "default": "ffmpeg",
+      "env": "FFMPEG_PATH"
+    },
+    "height": {
+      "default": 720,
+      "env": "HEIGHT"
+    },
+    "interval_sec": {
+      "default": 1,
+      "env": "INTERVAL_SEC"
+    },
+    "mode": {
+      "default": "repeat",
+      "env": "MODE",
+      "x-widget": {
+        "options": [
+          "once",
+          "repeat",
+          "triggered"
+        ],
+        "type": "select"
+      }
+    },
+    "output_format": {
+      "default": "png",
+      "env": "OUTPUT_FORMAT",
+      "x-widget": {
+        "options": [
+          "png",
+          "jpeg"
+        ],
+        "type": "select"
+      }
+    },
+    "width": {
+      "default": 1280,
+      "env": "WIDTH"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

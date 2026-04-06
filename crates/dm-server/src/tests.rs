@@ -9,6 +9,8 @@ use tempfile::TempDir;
 use tokio::sync::broadcast;
 
 use crate::handlers;
+use crate::handlers::runs::StartRunRequest;
+use crate::services::media::MediaRuntime;
 use crate::state::AppState;
 
 const FAKE_DORA_UUID: &str = "019cc181-adad-7654-aa78-63502362337b";
@@ -21,6 +23,7 @@ fn test_state() -> (TempDir, AppState) {
         home: Arc::new(home),
         events: Arc::new(events),
         messages: broadcast::channel(64).0,
+        media: MediaRuntime::new(tmp.path(), dm_core::config::DmConfig::default()),
     };
     (tmp, state)
 }
@@ -82,6 +85,7 @@ esac
         home,
         &dm_core::config::DmConfig {
             active_version: Some(active_version.to_string()),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -149,6 +153,7 @@ esac
         home,
         &dm_core::config::DmConfig {
             active_version: Some(active_version.to_string()),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -192,6 +197,14 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         serde_json::to_string_pretty(&meta).unwrap(),
     )
     .unwrap();
+}
+
+fn mark_node_as_media_capable(home: &std::path::Path, id: &str) {
+    let path = dm_core::node::dm_json_path(home, id);
+    let content = std::fs::read_to_string(&path).unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(&content).unwrap();
+    json["capabilities"] = serde_json::json!(["configurable", "media"]);
+    std::fs::write(path, serde_json::to_string_pretty(&json).unwrap()).unwrap();
 }
 
 fn setup_run(home: &std::path::Path, run_id: &str) {
@@ -256,6 +269,46 @@ async fn update_config_persists_active_version() {
 
     let cfg = dm_core::config::load_config(&state.home).unwrap();
     assert_eq!(cfg.active_version.as_deref(), Some("0.4.1"));
+}
+
+#[tokio::test]
+async fn update_config_persists_media_settings() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::update_config(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "media": {
+                    "enabled": true,
+                    "backend": "media_mtx",
+                    "mediamtx": {
+                        "path": "/tmp/mediamtx",
+                        "version": "1.11.3",
+                        "auto_download": false,
+                        "api_port": 9997,
+                        "rtsp_port": 8554,
+                        "hls_port": 8888,
+                        "webrtc_port": 8889,
+                        "host": "127.0.0.1",
+                        "public_host": "localhost",
+                        "public_webrtc_url": null,
+                        "public_hls_url": null
+                    }
+                }
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let cfg = dm_core::config::load_config(&state.home).unwrap();
+    assert!(cfg.media.enabled);
+    assert_eq!(cfg.media.mediamtx.version.as_deref(), Some("1.11.3"));
+    assert!(!cfg.media.mediamtx.auto_download);
+    assert_eq!(cfg.media.mediamtx.path.as_deref(), Some("/tmp/mediamtx"));
 }
 
 #[tokio::test]
@@ -431,8 +484,6 @@ async fn dataflow_meta_and_config_handlers_roundtrip() {
     let meta_json: serde_json::Value = serde_json::from_str(&meta_body).unwrap();
     assert_eq!(meta_json["name"], "Demo Flow");
     assert_eq!(meta_json["type"], "chat");
-
-
 }
 
 #[tokio::test]
@@ -1110,6 +1161,37 @@ async fn start_dataflow_returns_error_for_invalid_yaml_when_runtime_is_up() {
 }
 
 #[tokio::test]
+async fn start_run_rejects_media_nodes_when_backend_is_unavailable() {
+    let (_tmp, state) = test_state();
+    setup_fake_dora_home(&state.home, "0.4.1");
+    setup_installed_node(&state.home, "dm-stream-publish");
+    mark_node_as_media_capable(&state.home, "dm-stream-publish");
+
+    let yaml = r#"
+nodes:
+  - id: publish
+    node: dm-stream-publish
+"#;
+
+    let resp = handlers::start_run(
+        State(state),
+        Json(StartRunRequest {
+            yaml: yaml.to_string(),
+            name: Some("media-flow".to_string()),
+            force: Some(false),
+            view_json: None,
+        }),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    assert!(body.contains("requires dm-server media support"));
+    assert!(body.contains("dm-stream-publish"));
+}
+
+#[tokio::test]
 async fn start_run_returns_conflict_for_same_active_dataflow() {
     let (_tmp, state) = test_state();
     setup_fake_dora_home_with_active_file(&state.home, "0.4.1");
@@ -1657,10 +1739,13 @@ async fn widgets_and_input_messages_roundtrip() {
     let claim = handlers::list_messages(
         State(state.clone()),
         Path("run-input".to_string()),
-        Query(serde_json::from_value(serde_json::json!({
-            "after_seq": 0,
-            "tag": "input"
-        })).unwrap()),
+        Query(
+            serde_json::from_value(serde_json::json!({
+                "after_seq": 0,
+                "tag": "input"
+            }))
+            .unwrap(),
+        ),
     )
     .await
     .into_response();
@@ -1687,6 +1772,68 @@ async fn widgets_and_input_messages_roundtrip() {
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["inputs"].as_array().unwrap().len(), 1);
     assert_eq!(json["inputs"][0]["current_values"]["text"], "world");
+}
+
+#[tokio::test]
+async fn stream_messages_are_exposed_via_stream_api() {
+    let (_tmp, state) = test_state();
+    setup_run(&state.home, "run-streams");
+
+    let resp = handlers::push_message(
+        State(state.clone()),
+        Path("run-streams".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "from": "screen-recorder",
+                "tag": "stream",
+                "payload": {
+                    "kind": "video",
+                    "stream_id": "screen-recorder/main",
+                    "label": "Desktop",
+                    "path": "runs/demo/screen-recorder/main",
+                    "live": true,
+                    "codec": "h264",
+                    "width": 1280,
+                    "height": 720,
+                    "fps": 15,
+                    "transport": {
+                        "publish": "rtsp",
+                        "play": ["webrtc", "hls"]
+                    }
+                }
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let list = handlers::list_streams(State(state.clone()), Path("run-streams".to_string()))
+        .await
+        .into_response();
+    assert_eq!(list.status(), axum::http::StatusCode::OK);
+    let body = body_text(list).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["streams"].as_array().unwrap().len(), 1);
+    assert_eq!(json["streams"][0]["stream_id"], "screen-recorder/main");
+    assert_eq!(json["streams"][0]["kind"], "video");
+    assert!(json["streams"][0]["viewer"].is_null());
+
+    let get = handlers::get_stream(
+        State(state),
+        Path((
+            "run-streams".to_string(),
+            "screen-recorder/main".to_string(),
+        )),
+    )
+    .await
+    .into_response();
+    assert_eq!(get.status(), axum::http::StatusCode::OK);
+    let body = body_text(get).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["label"], "Desktop");
+    assert_eq!(json["path"], "runs/demo/screen-recorder/main");
 }
 
 #[tokio::test]

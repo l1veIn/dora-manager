@@ -22,7 +22,7 @@
         id="widget-{outputId}"
         bind:value
         placeholder={xw.placeholder || `Enter ${label}...`}
-        class="w-full pr-10 rounded-lg bg-background shadow-sm"
+        class="h-10 w-full rounded-md border-border/70 bg-background pr-9 text-sm shadow-none"
         {disabled}
         oninput={() => onValueChange(value)}
         onkeydown={(e: KeyboardEvent) => {
@@ -33,12 +33,12 @@
         }}
     />
     <Button
-        size="icon" variant="ghost" class="absolute right-1 top-1 h-8 w-8 text-muted-foreground hover:text-foreground"
+        size="icon" variant="ghost" class="absolute right-0.5 top-0.5 h-9 w-9 text-muted-foreground hover:text-foreground"
         disabled={disabled || sending || !value?.toString().trim()}
         onclick={() => onSend()} title="Send {label}"
     >
         {#if sending}
-            <div class="h-3.5 w-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <div class="h-3 w-3 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
         {:else}
             <Send class="h-3.5 w-3.5" />
         {/if}

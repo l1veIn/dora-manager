@@ -5,10 +5,10 @@ use std::time::Duration;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path as AxumPath, State};
 use axum::response::Response;
+use notify::{EventKind, RecursiveMode, Watcher};
 use serde::Serialize;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::mpsc;
-use notify::{Watcher, RecursiveMode, EventKind};
 
 use crate::state::AppState;
 use dm_core::runs::{run_logs_dir, run_out_dir};
@@ -17,12 +17,22 @@ use dm_core::runs::{run_logs_dir, run_out_dir};
 #[serde(tag = "type", rename_all = "camelCase")]
 enum WsMessage {
     Ping,
-    Metrics { data: Vec<dm_core::runs::NodeMetrics> },
+    Metrics {
+        data: Vec<dm_core::runs::NodeMetrics>,
+    },
     #[serde(rename_all = "camelCase")]
-    Logs { node_id: String, lines: Vec<String> },
+    Logs {
+        node_id: String,
+        lines: Vec<String>,
+    },
     #[serde(rename_all = "camelCase")]
-    Io { node_id: String, lines: Vec<String> },
-    Status { status: String },
+    Io {
+        node_id: String,
+        lines: Vec<String>,
+    },
+    Status {
+        status: String,
+    },
 }
 
 pub async fn run_ws(
@@ -52,9 +62,7 @@ fn node_id_from_filename(filename: &str, is_live: bool) -> Option<String> {
             .and_then(|s| s.strip_suffix(".txt"))
             .map(|s| s.to_string())
     } else {
-        filename
-            .strip_suffix(".log")
-            .map(|s| s.to_string())
+        filename.strip_suffix(".log").map(|s| s.to_string())
     }
 }
 
@@ -71,7 +79,8 @@ async fn handle_run_ws(mut socket: WebSocket, state: AppState, run_id: String) {
                 }
             }
         }
-    }).unwrap();
+    })
+    .unwrap();
 
     let (mut current_logs_dir, mut is_live) = resolve_logs_dir(&state.home, &run_id);
     if current_logs_dir.exists() {
@@ -158,19 +167,21 @@ async fn read_and_push_logs(
 
                         let lines: Vec<&str> = buffer.lines().collect();
                         if !lines.is_empty() {
-                            let general_lines: Vec<String> = lines.iter()
-                                .map(|s| s.to_string())
-                                .collect();
+                            let general_lines: Vec<String> =
+                                lines.iter().map(|s| s.to_string()).collect();
 
                             if !general_lines.is_empty() {
                                 let msg = WsMessage::Logs {
                                     node_id: node_id.clone(),
                                     lines: general_lines,
                                 };
-                                if send_msg(socket, &msg).await.is_err() { return false; }
+                                if send_msg(socket, &msg).await.is_err() {
+                                    return false;
+                                }
                             }
 
-                            let io_lines: Vec<String> = lines.into_iter()
+                            let io_lines: Vec<String> = lines
+                                .into_iter()
                                 .filter(|l| l.contains("[DM-IO]"))
                                 .map(|l| l.to_string())
                                 .collect();
@@ -180,7 +191,9 @@ async fn read_and_push_logs(
                                     node_id,
                                     lines: io_lines,
                                 };
-                                if send_msg(socket, &msg).await.is_err() { return false; }
+                                if send_msg(socket, &msg).await.is_err() {
+                                    return false;
+                                }
                             }
                         }
                     }
@@ -191,19 +204,23 @@ async fn read_and_push_logs(
     true
 }
 
-async fn push_metrics_and_status(
-    socket: &mut WebSocket,
-    state: &AppState,
-    run_id: &str,
-) -> bool {
+async fn push_metrics_and_status(socket: &mut WebSocket, state: &AppState, run_id: &str) -> bool {
     if let Ok(run_detail) = dm_core::runs::get_run(&state.home, run_id) {
-        let status_msg = WsMessage::Status { status: run_detail.summary.status.clone() };
-        if send_msg(socket, &status_msg).await.is_err() { return false; }
+        let status_msg = WsMessage::Status {
+            status: run_detail.summary.status.clone(),
+        };
+        if send_msg(socket, &status_msg).await.is_err() {
+            return false;
+        }
 
         if "Running" == run_detail.summary.status {
             if let Ok(Some(metrics)) = dm_core::runs::get_run_metrics(&state.home, run_id) {
-                let metrics_msg = WsMessage::Metrics { data: metrics.nodes };
-                if send_msg(socket, &metrics_msg).await.is_err() { return false; }
+                let metrics_msg = WsMessage::Metrics {
+                    data: metrics.nodes,
+                };
+                if send_msg(socket, &metrics_msg).await.is_err() {
+                    return false;
+                }
             }
         }
     }

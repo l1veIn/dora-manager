@@ -13,7 +13,7 @@
     let { outputId, xw, value, defaultValue, disabled, onValueChange }: Props = $props();
 </script>
 
-<div class="flex items-center space-x-4 border shadow-sm rounded-lg p-3 bg-muted/20">
+<div class="flex items-center gap-3 rounded-md border border-border/70 bg-muted/10 px-3 py-2.5">
     <Slider
         id="widget-{outputId}"
         {disabled}
@@ -25,7 +25,7 @@
         onValueChange={(v: number) => onValueChange(v)}
         class="flex-1"
     />
-    <span class="text-xs font-mono w-10 text-right text-muted-foreground border rounded bg-background px-1 py-0.5 shadow-sm">
+    <span class="w-8 text-right font-mono text-[11px] text-muted-foreground">
         {(value !== undefined ? value : defaultValue) ?? 0}
     </span>
 </div>

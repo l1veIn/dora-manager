@@ -5,11 +5,14 @@ use tokio::sync::broadcast;
 
 use dm_core::events::EventStore;
 
+use crate::services::media::MediaRuntime;
+
 #[derive(Clone)]
 pub struct AppState {
     pub home: Arc<std::path::PathBuf>,
     pub events: Arc<EventStore>,
     pub messages: broadcast::Sender<MessageNotification>,
+    pub media: Arc<MediaRuntime>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

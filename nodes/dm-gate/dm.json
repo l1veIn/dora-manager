@@ -1,0 +1,71 @@
+{
+  "id": "dm-gate",
+  "name": "dm-gate",
+  "version": "0.1.0",
+  "installed_at": "1775475600",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Pass through values only while enabled is true.",
+  "executable": ".venv/bin/dm-gate",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Logic",
+    "tags": ["logic", "gate", "bool"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "enabled",
+      "name": "enabled",
+      "direction": "input",
+      "description": "Boolean enable input.",
+      "required": true,
+      "multiple": false,
+      "schema": { "type": { "name": "bool" } }
+    },
+    {
+      "id": "value",
+      "name": "value",
+      "direction": "input",
+      "description": "Trigger/value to pass through.",
+      "required": true,
+      "multiple": false,
+      "schema": { "type": { "name": "null" }, "description": "Payload is forwarded unchanged; timer ticks are supported." }
+    },
+    {
+      "id": "value",
+      "name": "value",
+      "direction": "output",
+      "description": "Forwarded value.",
+      "required": true,
+      "multiple": false,
+      "schema": { "type": { "name": "null" } }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_gate/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "emit_on_enable": {
+      "default": "false",
+      "env": "EMIT_ON_ENABLE"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

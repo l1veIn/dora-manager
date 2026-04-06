@@ -27,6 +27,7 @@ fn setup_fake_home(versions: &[&str], active: Option<&str>) -> TempDir {
     if let Some(ver) = active {
         let cfg = config::DmConfig {
             active_version: Some(ver.to_string()),
+            ..Default::default()
         };
         config::save_config(&home, &cfg).unwrap();
     }
@@ -90,6 +91,7 @@ async fn doctor_active_but_missing_binary() {
     // Set active version but don't create the binary
     let cfg = config::DmConfig {
         active_version: Some("0.4.1".into()),
+        ..Default::default()
     };
     config::save_config(&home, &cfg).unwrap();
 
@@ -312,6 +314,7 @@ async fn active_dora_bin_missing_binary() {
     // Set active version but don't create the binary
     let cfg = config::DmConfig {
         active_version: Some("0.4.1".into()),
+        ..Default::default()
     };
     config::save_config(&home, &cfg).unwrap();
 

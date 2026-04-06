@@ -15,12 +15,12 @@
 
 <Button
     variant={xw.variant ?? "default"}
-    class="w-full"
+    class="h-9 w-full rounded-md text-sm shadow-none"
     {disabled}
     onclick={() => onSend(xw.value || "clicked")}
 >
     {#if sending}
-        <div class="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+        <div class="mr-2 h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin"></div>
     {/if}
     {label}
 </Button>

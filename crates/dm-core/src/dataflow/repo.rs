@@ -5,8 +5,8 @@ use anyhow::{Context, Result};
 
 use super::model::{DataflowHistoryEntry, DataflowMeta, FlowMeta};
 use super::paths::{
-    dataflow_dir, dataflow_yaml_path, dataflows_dir, flow_history_dir,
-    flow_meta_path, flow_view_path, DATAFLOW_FILE,
+    dataflow_dir, dataflow_yaml_path, dataflows_dir, flow_history_dir, flow_meta_path,
+    flow_view_path, DATAFLOW_FILE,
 };
 
 pub fn list_projects(home: &Path) -> Result<Vec<DataflowMeta>> {
@@ -83,8 +83,6 @@ pub fn delete_project(home: &Path, name: &str) -> Result<()> {
     fs::remove_dir_all(&path).with_context(|| format!("Failed to delete dataflow '{}'", name))
 }
 
-
-
 pub fn read_view(home: &Path, name: &str) -> Result<serde_json::Value> {
     let path = flow_view_path(&dataflow_dir(home, name));
     if !path.exists() {
@@ -105,8 +103,6 @@ pub fn write_view(home: &Path, name: &str, view: &serde_json::Value) -> Result<(
     )
     .with_context(|| format!("Failed to write {}", path.display()))
 }
-
-
 
 pub fn read_meta(home: &Path, name: &str) -> Result<FlowMeta> {
     let dir = dataflow_dir(home, name);
@@ -276,7 +272,6 @@ pub fn initialize_flow_project(name: &str, dir: &Path) -> Result<()> {
         )
         .with_context(|| format!("Failed to write {}", meta_path.display()))?;
     }
-
 
     Ok(())
 }

@@ -1,0 +1,16 @@
+[project]
+name = "dm-gate"
+version = "0.1.0"
+description = "Logic node that forwards values only when enabled"
+requires-python = ">=3.10"
+dependencies = [
+  "dora-rs>=0.4.1,<0.5.0",
+  "pyarrow>=21.0.0",
+]
+
+[project.scripts]
+dm-gate = "dm_gate.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

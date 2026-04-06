@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::node::{resolve_dm_json_path, resolve_node_dir};
+use crate::node::{resolve_dm_json_path, resolve_node_dir, Node};
 
 use super::model::{
     DataflowExecutableDetail, DataflowExecutableStatus, DataflowExecutableSummary,
@@ -29,6 +29,9 @@ pub fn inspect_yaml(home: &Path, yaml: &str) -> DataflowExecutableDetail {
                 missing_node_count: 0,
                 missing_nodes: Vec::new(),
                 invalid_yaml: true,
+                requires_media_backend: false,
+                media_node_count: 0,
+                media_nodes: Vec::new(),
                 error: Some(err.to_string()),
             },
             nodes: Vec::new(),
@@ -39,6 +42,7 @@ pub fn inspect_yaml(home: &Path, yaml: &str) -> DataflowExecutableDetail {
 fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDetail {
     let mut nodes = Vec::new();
     let mut missing_nodes = BTreeSet::new();
+    let mut media_nodes = BTreeSet::new();
     let mut resolved_node_count = 0usize;
 
     if let Some(entries) = graph.get("nodes").and_then(|n| n.as_sequence()) {
@@ -51,6 +55,9 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
             if let Some(node_id) = entry.get("node").and_then(|value| value.as_str()) {
                 let resolved = resolve_node_dir(home, node_id).is_some();
                 let configurable = resolved && resolve_dm_json_path(home, node_id).is_some();
+                if resolved && node_requires_media_backend(home, node_id) {
+                    media_nodes.insert(node_id.to_string());
+                }
                 if resolved {
                     resolved_node_count += 1;
                 } else {
@@ -85,6 +92,8 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
     let can_configure = missing_nodes.is_empty();
     let declared_node_count = nodes.len();
     let missing_node_count = missing_nodes.len();
+    let media_nodes: Vec<String> = media_nodes.into_iter().collect();
+    let media_node_count = media_nodes.len();
 
     DataflowExecutableDetail {
         summary: DataflowExecutableSummary {
@@ -96,8 +105,26 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
             missing_node_count,
             missing_nodes,
             invalid_yaml: false,
+            requires_media_backend: media_node_count > 0,
+            media_node_count,
+            media_nodes,
             error: None,
         },
         nodes,
     }
+}
+
+fn node_requires_media_backend(home: &Path, node_id: &str) -> bool {
+    let Some(path) = resolve_dm_json_path(home, node_id) else {
+        return false;
+    };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    let Ok(node) = serde_json::from_str::<Node>(&content) else {
+        return false;
+    };
+    node.capabilities
+        .iter()
+        .any(|capability| capability == "media")
 }

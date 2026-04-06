@@ -35,6 +35,37 @@ pub struct MessageSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct StreamViewer {
+    pub preferred: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub webrtc_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hls_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct StreamDescriptor {
+    pub stream_id: String,
+    pub from: String,
+    pub kind: String,
+    pub label: String,
+    pub path: String,
+    pub live: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codec: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps: Option<u32>,
+    pub seq: i64,
+    pub updated_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub viewer: Option<StreamViewer>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct InteractionBinding {
     pub node_id: String,
     pub label: String,
@@ -164,7 +195,9 @@ impl MessageService {
                 None => true,
             })
             .filter(|msg| match filter.target_to.as_ref() {
-                Some(target_to) => msg.payload.get("to").and_then(Value::as_str) == Some(target_to.as_str()),
+                Some(target_to) => {
+                    msg.payload.get("to").and_then(Value::as_str) == Some(target_to.as_str())
+                }
                 None => true,
             })
             .collect();
@@ -297,6 +330,14 @@ impl MessageService {
         }
 
         Ok((streams, inputs))
+    }
+
+    pub fn stream_snapshots(&self) -> Result<Vec<MessageSnapshot>> {
+        Ok(self
+            .snapshots()?
+            .into_iter()
+            .filter(|snapshot| snapshot.tag == "stream")
+            .collect())
     }
 
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, Connection>> {

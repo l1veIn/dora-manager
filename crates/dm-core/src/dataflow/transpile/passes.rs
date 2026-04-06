@@ -104,7 +104,8 @@ pub(crate) fn validate_reserved(
     _ctx: &TranspileContext,
     _graph: &DmGraph,
     _diags: &mut Vec<TranspileDiagnostic>,
-) {}
+) {
+}
 
 // ---------------------------------------------------------------------------
 // Pass 1.6: Validate Port Schemas — check connection type compatibility

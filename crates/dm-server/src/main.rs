@@ -28,6 +28,8 @@ struct WebAssets;
         handlers::system::doctor,
         handlers::system::versions,
         handlers::system::status,
+        handlers::system::media_status,
+        handlers::system::install_media,
         handlers::system::get_config,
         handlers::system::update_config,
         // Runtime
@@ -66,6 +68,8 @@ struct WebAssets;
         handlers::messages::push_message,
         handlers::messages::list_messages,
         handlers::messages::get_snapshots,
+        handlers::messages::list_streams,
+        handlers::messages::get_stream,
         handlers::messages::serve_artifact_file,
     )
 )]
@@ -76,11 +80,17 @@ async fn main() {
     let home = dm_core::config::resolve_home(None).expect("Failed to resolve dm home");
 
     let events = EventStore::open(&home).expect("Failed to open event store");
+    let config = dm_core::config::load_config(&home).expect("Failed to load dm config");
+    let media = services::media::MediaRuntime::new(&home, config);
+    if let Err(err) = media.initialize().await {
+        eprintln!("[dm-server] media runtime init failed: {err}");
+    }
 
     let state = AppState {
         home: Arc::new(home),
         events: Arc::new(events),
         messages: broadcast::channel(512).0,
+        media,
     };
 
     let app = Router::new()
@@ -88,6 +98,8 @@ async fn main() {
         .route("/api/doctor", get(handlers::doctor))
         .route("/api/versions", get(handlers::versions))
         .route("/api/status", get(handlers::status))
+        .route("/api/media/status", get(handlers::media_status))
+        .route("/api/media/install", post(handlers::install_media))
         .route("/api/config", get(handlers::get_config))
         .route("/api/config", post(handlers::update_config))
         .route("/api/install", post(handlers::install))
@@ -131,7 +143,6 @@ async fn main() {
             "/api/dataflows/{name}/config-schema",
             get(handlers::get_dataflow_config_schema),
         )
-
         .route(
             "/api/dataflows/{name}/history",
             get(handlers::list_dataflow_history),
@@ -184,6 +195,11 @@ async fn main() {
         .route(
             "/api/runs/{id}/messages/snapshots",
             get(handlers::get_snapshots),
+        )
+        .route("/api/runs/{id}/streams", get(handlers::list_streams))
+        .route(
+            "/api/runs/{id}/streams/{stream_id}",
+            get(handlers::get_stream),
         )
         .route("/api/runs/{id}/messages/ws", get(handlers::messages_ws))
         .route(

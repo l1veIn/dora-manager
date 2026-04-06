@@ -5,6 +5,7 @@ use axum::Json;
 use serde::Deserialize;
 
 use crate::handlers::err;
+use crate::services::media::MediaBackendStatus;
 use crate::state::AppState;
 
 use utoipa::ToSchema;
@@ -39,7 +40,6 @@ pub struct DeleteRunsRequest {
 pub struct ActiveRunParams {
     pub metrics: Option<bool>,
 }
-
 
 /// GET /api/runs?limit=20&offset=0
 #[utoipa::path(get, path = "/api/runs", params(("limit" = Option<i64>, Query), ("offset" = Option<i64>, Query), ("status" = Option<String>, Query), ("search" = Option<String>, Query)), responses((status = 200, description = "Paginated runs list")))]
@@ -127,7 +127,10 @@ pub async fn get_run_transpiled(
 }
 
 /// GET /api/runs/:id/view
-pub async fn get_run_view(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+pub async fn get_run_view(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
     match dm_core::runs::read_run_view(&state.home, &id) {
         Ok(content) => content.into_response(),
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
@@ -189,6 +192,23 @@ pub async fn start_run(
     State(state): State<AppState>,
     Json(req): Json<StartRunRequest>,
 ) -> impl IntoResponse {
+    let executable = dm_core::dataflow::inspect_yaml(&state.home, &req.yaml);
+    if executable.summary.requires_media_backend {
+        let media_status = state.media.status().await;
+        if !matches!(media_status.status, MediaBackendStatus::Ready) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "This dataflow requires dm-server media support, but the media backend is not ready.",
+                    "media_status": media_status,
+                    "media_nodes": executable.summary.media_nodes,
+                    "guidance": "Open Settings > Media, enable MediaMTX or configure a binary path, then restart dm-server."
+                })),
+            )
+                .into_response();
+        }
+    }
+
     if let Err(e) = dm_core::ensure_runtime_up(&state.home, false).await {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,

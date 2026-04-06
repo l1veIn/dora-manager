@@ -1,0 +1,16 @@
+[project]
+name = "dm-check-ffmpeg"
+version = "0.1.0"
+description = "Readiness node that checks whether ffmpeg is available"
+requires-python = ">=3.10"
+dependencies = [
+  "dora-rs>=0.4.1,<0.5.0",
+  "pyarrow>=21.0.0",
+]
+
+[project.scripts]
+dm-check-ffmpeg = "dm_check_ffmpeg.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

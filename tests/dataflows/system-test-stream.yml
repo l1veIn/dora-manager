@@ -1,0 +1,76 @@
+nodes:
+  - id: ffmpeg-ready
+    node: dm-check-ffmpeg
+    outputs:
+      - ok
+      - details
+    config:
+      mode: repeat
+      interval_sec: 5
+
+  - id: media-ready
+    node: dm-check-media-backend
+    outputs:
+      - ok
+      - details
+    config:
+      mode: repeat
+      interval_sec: 5
+
+  - id: stream-ready
+    node: dm-and
+    inputs:
+      a: ffmpeg-ready/ok
+      b: media-ready/ok
+    outputs:
+      - ok
+      - details
+    config:
+      expected_inputs: "a,b"
+
+  - id: stream-tick-gate
+    node: dm-gate
+    inputs:
+      enabled: stream-ready/ok
+      value: dora/timer/millis/2000
+    outputs:
+      - value
+
+  - id: screen-live
+    node: dm-screen-capture
+    inputs:
+      trigger: stream-tick-gate/value
+    outputs:
+      - frame
+      - meta
+    config:
+      mode: triggered
+      output_format: png
+      width: 1280
+      height: 720
+
+  - id: screen-live-publish
+    node: dm-stream-publish
+    inputs:
+      frame: screen-live/frame
+    outputs:
+      - stream_id
+      - meta
+    config:
+      label: "System Test Stream"
+      stream_name: main
+      fps: 5
+      width: 1280
+      height: 720
+
+  - id: frame-observer
+    node: dm-test-observer
+    inputs:
+      ffmpeg_ready: ffmpeg-ready/details
+      media_ready: media-ready/details
+      stream_ready: stream-ready/details
+      frame_meta: screen-live/meta
+      publish_meta: screen-live-publish/meta
+    outputs:
+      - summary_text
+      - summary_json

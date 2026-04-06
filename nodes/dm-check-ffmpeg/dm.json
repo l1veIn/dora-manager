@@ -1,0 +1,83 @@
+{
+  "id": "dm-check-ffmpeg",
+  "name": "dm-check-ffmpeg",
+  "version": "0.1.0",
+  "installed_at": "1775475600",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Check whether ffmpeg is available on the local machine.",
+  "executable": ".venv/bin/dm-check-ffmpeg",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Logic",
+    "tags": ["check", "ffmpeg", "readiness"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "trigger",
+      "name": "trigger",
+      "direction": "input",
+      "description": "Optional trigger input.",
+      "required": false,
+      "multiple": false,
+      "schema": { "type": { "name": "null" } }
+    },
+    {
+      "id": "ok",
+      "name": "ok",
+      "direction": "output",
+      "description": "Whether ffmpeg is available.",
+      "required": true,
+      "multiple": false,
+      "schema": { "type": { "name": "bool" } }
+    },
+    {
+      "id": "details",
+      "name": "details",
+      "direction": "output",
+      "description": "JSON details of the latest readiness check.",
+      "required": true,
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" } }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_check_ffmpeg/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "ffmpeg_path": {
+      "default": "ffmpeg",
+      "env": "FFMPEG_PATH"
+    },
+    "interval_sec": {
+      "default": 5,
+      "env": "INTERVAL_SEC"
+    },
+    "mode": {
+      "default": "once",
+      "env": "MODE",
+      "x-widget": {
+        "type": "select",
+        "options": ["once", "repeat", "triggered"]
+      }
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

@@ -1,0 +1,17 @@
+[project]
+name = "dm-check-media-backend"
+version = "0.1.0"
+description = "Readiness node that checks dm-server media backend status"
+requires-python = ">=3.10"
+dependencies = [
+  "dora-rs>=0.4.1,<0.5.0",
+  "pyarrow>=21.0.0",
+  "requests>=2.32.0",
+]
+
+[project.scripts]
+dm-check-media-backend = "dm_check_media_backend.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

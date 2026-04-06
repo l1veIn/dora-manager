@@ -7,7 +7,8 @@ use serde::Deserialize;
 
 use crate::handlers::err;
 use crate::services;
-use crate::services::message::{MessageFilter, MessageService};
+use crate::services::media::{MediaBackendStatus, MediaStatus};
+use crate::services::message::{MessageFilter, MessageService, StreamDescriptor, StreamViewer};
 use crate::state::{AppState, MessageNotification};
 
 use utoipa::ToSchema;
@@ -47,7 +48,8 @@ pub async fn get_interaction(
     AxumPath(run_id): AxumPath<String>,
 ) -> impl IntoResponse {
     let result = (|| -> anyhow::Result<serde_json::Value> {
-        let (streams, inputs) = MessageService::open(&state.home, &run_id)?.interaction_summary()?;
+        let (streams, inputs) =
+            MessageService::open(&state.home, &run_id)?.interaction_summary()?;
         Ok(serde_json::json!({ "streams": streams, "inputs": inputs }))
     })();
 
@@ -146,6 +148,74 @@ pub async fn get_snapshots(
 
     match result {
         Ok(resp) => Json(resp).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/runs/{id}/streams",
+    params(("id" = String, Path, description = "Run ID")),
+    responses((status = 200, description = "Resolved stream descriptors"))
+)]
+pub async fn list_streams(
+    State(state): State<AppState>,
+    AxumPath(run_id): AxumPath<String>,
+) -> impl IntoResponse {
+    let media_status = state.media.status().await;
+    let result = (|| {
+        let service = MessageService::open(&state.home, &run_id)?;
+        let snapshots = service.stream_snapshots()?;
+        snapshots
+            .into_iter()
+            .map(|snapshot| stream_descriptor_from_snapshot(&state, &media_status, snapshot))
+            .collect::<anyhow::Result<Vec<_>>>()
+    })();
+
+    match result {
+        Ok(streams) => Json(serde_json::json!({ "streams": streams })).into_response(),
+        Err(e) => err(e).into_response(),
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/runs/{id}/streams/{stream_id}",
+    params(
+        ("id" = String, Path, description = "Run ID"),
+        ("stream_id" = String, Path, description = "Stream ID")
+    ),
+    responses(
+        (status = 200, description = "Single stream descriptor"),
+        (status = 404, description = "Stream not found")
+    )
+)]
+pub async fn get_stream(
+    State(state): State<AppState>,
+    AxumPath((run_id, stream_id)): AxumPath<(String, String)>,
+) -> impl IntoResponse {
+    let media_status = state.media.status().await;
+    let result = (|| {
+        let service = MessageService::open(&state.home, &run_id)?;
+        let snapshot = service
+            .stream_snapshots()?
+            .into_iter()
+            .find(|snapshot| {
+                snapshot
+                    .payload
+                    .get("stream_id")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(stream_id.as_str())
+            })
+            .ok_or_else(|| anyhow::anyhow!("Stream not found"))?;
+        stream_descriptor_from_snapshot(&state, &media_status, snapshot)
+    })();
+
+    match result {
+        Ok(stream) => Json(stream).into_response(),
+        Err(e) if e.to_string() == "Stream not found" => {
+            (StatusCode::NOT_FOUND, e.to_string()).into_response()
+        }
         Err(e) => err(e).into_response(),
     }
 }
@@ -289,7 +359,10 @@ async fn handle_node_ws(
     }
 }
 
-async fn send_node_message(socket: &mut WebSocket, event: &crate::services::message::Message) -> Result<(), ()> {
+async fn send_node_message(
+    socket: &mut WebSocket,
+    event: &crate::services::message::Message,
+) -> Result<(), ()> {
     socket
         .send(Message::Text(
             serde_json::to_string(event).map_err(|_| ())?.into(),
@@ -299,18 +372,24 @@ async fn send_node_message(socket: &mut WebSocket, event: &crate::services::mess
 }
 
 fn split_csv(value: Option<String>) -> Option<Vec<String>> {
-    value.map(|raw| {
-        raw.split(',')
-            .map(str::trim)
-            .filter(|item| !item.is_empty())
-            .map(ToString::to_string)
-            .collect()
-    }).filter(|items: &Vec<String>| !items.is_empty())
+    value
+        .map(|raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(ToString::to_string)
+                .collect()
+        })
+        .filter(|items: &Vec<String>| !items.is_empty())
 }
 
 fn normalize_payload(tag: &str, payload: serde_json::Value) -> anyhow::Result<serde_json::Value> {
     if tag == "input" {
         return Ok(payload);
+    }
+
+    if tag == "stream" {
+        return normalize_stream_payload(payload);
     }
 
     if let Some(file) = payload.get("file").and_then(serde_json::Value::as_str) {
@@ -326,6 +405,114 @@ fn normalize_payload(tag: &str, payload: serde_json::Value) -> anyhow::Result<se
     }
 
     Ok(payload)
+}
+
+fn normalize_stream_payload(payload: serde_json::Value) -> anyhow::Result<serde_json::Value> {
+    let mut object = payload
+        .as_object()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("Stream payload must be an object"))?;
+
+    let path = object
+        .get("path")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'path'"))?
+        .to_string();
+    let stream_id = object
+        .get("stream_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'stream_id'"))?
+        .to_string();
+    let kind = object
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'kind'"))?
+        .to_string();
+
+    object.insert(
+        "path".to_string(),
+        serde_json::Value::String(services::normalize_relative_path(&path)?),
+    );
+    object.insert(
+        "stream_id".to_string(),
+        serde_json::Value::String(stream_id),
+    );
+    object.insert("kind".to_string(), serde_json::Value::String(kind));
+    if !object.contains_key("live") {
+        object.insert("live".to_string(), serde_json::Value::Bool(true));
+    }
+
+    Ok(serde_json::Value::Object(object))
+}
+
+fn stream_descriptor_from_snapshot(
+    state: &AppState,
+    media_status: &MediaStatus,
+    snapshot: crate::services::message::MessageSnapshot,
+) -> anyhow::Result<StreamDescriptor> {
+    let payload = snapshot.payload;
+    let stream_id = payload
+        .get("stream_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Invalid stream snapshot: missing stream_id"))?;
+    let path = payload
+        .get("path")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Invalid stream snapshot: missing path"))?;
+    let kind = payload
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("video")
+        .to_string();
+    let label = payload
+        .get("label")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(&snapshot.node_id)
+        .to_string();
+
+    let viewer = match media_status.status {
+        MediaBackendStatus::Ready => Some(StreamViewer {
+            preferred: "webrtc".to_string(),
+            webrtc_url: Some(format!("{}/{}", state.media.webrtc_base_url(), path)),
+            hls_url: Some(format!(
+                "{}/{}/index.m3u8",
+                state.media.hls_base_url(),
+                path
+            )),
+        }),
+        _ => None,
+    };
+
+    Ok(StreamDescriptor {
+        stream_id: stream_id.to_string(),
+        from: snapshot.node_id.clone(),
+        kind,
+        label,
+        path: path.to_string(),
+        live: payload
+            .get("live")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true),
+        codec: payload
+            .get("codec")
+            .and_then(serde_json::Value::as_str)
+            .map(ToString::to_string),
+        width: payload
+            .get("width")
+            .and_then(serde_json::Value::as_u64)
+            .map(|v| v as u32),
+        height: payload
+            .get("height")
+            .and_then(serde_json::Value::as_u64)
+            .map(|v| v as u32),
+        fps: payload
+            .get("fps")
+            .and_then(serde_json::Value::as_u64)
+            .map(|v| v as u32),
+        seq: snapshot.seq,
+        updated_at: snapshot.updated_at,
+        viewer,
+    })
 }
 
 #[utoipa::path(

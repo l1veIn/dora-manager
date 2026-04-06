@@ -1,0 +1,123 @@
+{
+  "id": "dm-stream-publish",
+  "name": "dm-stream-publish",
+  "version": "0.1.0",
+  "installed_at": "1775469029",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Publish frame streams from Dora to the dm-server media backend and emit stream metadata.",
+  "executable": ".venv/bin/dm-stream-publish",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Media",
+    "tags": [
+      "stream",
+      "publish",
+      "video"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    "media"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "frame",
+      "name": "frame",
+      "direction": "input",
+      "description": "Encoded image frame input.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "description": "PNG or JPEG encoded image bytes",
+        "type": {
+          "bitWidth": 8,
+          "isSigned": false,
+          "name": "int"
+        }
+      }
+    },
+    {
+      "id": "stream_id",
+      "name": "stream_id",
+      "direction": "output",
+      "description": "Published stream identifier.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    },
+    {
+      "id": "meta",
+      "name": "meta",
+      "direction": "output",
+      "description": "Published stream metadata as JSON.",
+      "required": true,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_stream_publish/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "codec": {
+      "default": "h264",
+      "env": "CODEC",
+      "x-widget": {
+        "options": [
+          "h264"
+        ],
+        "type": "select"
+      }
+    },
+    "ffmpeg_path": {
+      "default": "ffmpeg",
+      "env": "FFMPEG_PATH"
+    },
+    "fps": {
+      "default": 5,
+      "env": "FPS"
+    },
+    "height": {
+      "default": 720,
+      "env": "HEIGHT"
+    },
+    "label": {
+      "default": "Live Stream",
+      "env": "LABEL"
+    },
+    "stream_name": {
+      "default": "main",
+      "env": "STREAM_NAME"
+    },
+    "width": {
+      "default": 1280,
+      "env": "WIDTH"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

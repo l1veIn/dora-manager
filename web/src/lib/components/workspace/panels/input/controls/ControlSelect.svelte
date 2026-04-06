@@ -23,7 +23,7 @@
 </script>
 
 <Select.Root type="single" value={String(value ?? defaultValue)} onValueChange={(v) => onValueChange(v)}>
-    <Select.Trigger class="w-full bg-background shadow-sm" {disabled}>
+    <Select.Trigger class="h-10 w-full rounded-md border-border/70 bg-background px-3 text-sm shadow-none" {disabled}>
         {displayValue}
     </Select.Trigger>
     <Select.Content>

@@ -235,8 +235,14 @@ pub async fn start_run_from_file_with_strategy(
     file_path: &Path,
     strategy: StartConflictStrategy,
 ) -> Result<StartRunResult> {
-    start_run_from_file_with_source_and_strategy(home, file_path, None, RunSource::Unknown, strategy)
-        .await
+    start_run_from_file_with_source_and_strategy(
+        home,
+        file_path,
+        None,
+        RunSource::Unknown,
+        strategy,
+    )
+    .await
 }
 
 pub async fn start_run_from_file_with_source_and_strategy(
@@ -253,6 +259,13 @@ pub async fn start_run_from_file_with_source_and_strategy(
         .unwrap_or_default()
         .to_string_lossy()
         .to_string();
-    start_run_from_yaml_with_source_and_strategy(home, &yaml, &dataflow_name, view_json, source, strategy)
-        .await
+    start_run_from_yaml_with_source_and_strategy(
+        home,
+        &yaml,
+        &dataflow_name,
+        view_json,
+        source,
+        strategy,
+    )
+    .await
 }

@@ -76,6 +76,7 @@ fn save_and_load_config_roundtrip() {
 
     let cfg = DmConfig {
         active_version: Some("0.4.1".into()),
+        ..Default::default()
     };
     save_config(&home, &cfg).unwrap();
 
@@ -92,6 +93,7 @@ fn save_config_creates_directory() {
 
     let cfg = DmConfig {
         active_version: Some("1.0.0".into()),
+        ..Default::default()
     };
     save_config(&home, &cfg).unwrap();
 
@@ -108,11 +110,13 @@ fn save_config_overwrites_existing() {
 
     let cfg1 = DmConfig {
         active_version: Some("0.3.0".into()),
+        ..Default::default()
     };
     save_config(&home, &cfg1).unwrap();
 
     let cfg2 = DmConfig {
         active_version: Some("0.4.1".into()),
+        ..Default::default()
     };
     save_config(&home, &cfg2).unwrap();
 
@@ -133,6 +137,7 @@ fn config_toml_format_is_valid() {
 
     let cfg = DmConfig {
         active_version: Some("0.4.1".into()),
+        ..Default::default()
     };
     save_config(&home, &cfg).unwrap();
 

@@ -952,6 +952,7 @@ dependencies = [
  "axum",
  "chrono",
  "dm-core",
+ "futures-util",
  "mime_guess",
  "notify",
  "reqwest",
@@ -966,6 +967,7 @@ dependencies = [
  "utoipa",
  "utoipa-axum",
  "utoipa-swagger-ui",
+ "zip 2.4.2",
 ]
 
 [[package]]

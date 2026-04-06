@@ -1,0 +1,16 @@
+[project]
+name = "dm-screen-capture"
+version = "0.1.0"
+description = "Screen capture node that emits encoded image frames into Dora"
+requires-python = ">=3.10"
+dependencies = [
+  "dora-rs>=0.4.1,<0.5.0",
+  "pyarrow>=21.0.0",
+]
+
+[project.scripts]
+dm-screen-capture = "dm_screen_capture.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

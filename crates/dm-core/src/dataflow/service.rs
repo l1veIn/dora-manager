@@ -11,9 +11,8 @@ use super::inspect;
 use super::model::{DataflowHistoryEntry, FlowMeta};
 use super::repo;
 use super::{
-    AggregatedConfigField, AggregatedConfigNode, DataflowConfigAggregation,
-    DataflowImportFailure, DataflowImportReport, DataflowImportSuccess, DataflowListEntry,
-    DataflowProject,
+    AggregatedConfigField, AggregatedConfigNode, DataflowConfigAggregation, DataflowImportFailure,
+    DataflowImportReport, DataflowImportSuccess, DataflowListEntry, DataflowProject,
 };
 
 pub fn list(home: &Path) -> Result<Vec<DataflowListEntry>> {
@@ -82,7 +81,6 @@ pub fn delete(home: &Path, name: &str) -> Result<()> {
     op.emit_result(&result);
     result
 }
-
 
 pub fn get_flow_meta(home: &Path, name: &str) -> Result<FlowMeta> {
     repo::read_meta(home, name)
@@ -280,6 +278,9 @@ pub async fn import_sources(home: &Path, sources: &[String]) -> DataflowImportRe
                         missing_node_count: 0,
                         missing_nodes: Vec::new(),
                         invalid_yaml: true,
+                        requires_media_backend: false,
+                        media_node_count: 0,
+                        media_nodes: Vec::new(),
                         error: Some(err.to_string()),
                     },
                 };

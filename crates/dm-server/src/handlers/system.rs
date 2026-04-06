@@ -1,4 +1,5 @@
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::Deserialize;
@@ -35,6 +36,25 @@ pub async fn status(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
+/// GET /api/media/status
+#[utoipa::path(get, path = "/api/media/status", responses((status = 200, description = "Media backend status")))]
+pub async fn media_status(State(state): State<AppState>) -> impl IntoResponse {
+    Json(state.media.status().await).into_response()
+}
+
+/// POST /api/media/install
+#[utoipa::path(post, path = "/api/media/install", responses((status = 200, description = "Media backend installed or resolved")))]
+pub async fn install_media(State(state): State<AppState>) -> impl IntoResponse {
+    match state.media.install().await {
+        Ok(status) => Json(status).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 /// GET /api/config
 #[utoipa::path(get, path = "/api/config", responses((status = 200, description = "DM configuration")))]
 pub async fn get_config(State(state): State<AppState>) -> impl IntoResponse {
@@ -47,6 +67,7 @@ pub async fn get_config(State(state): State<AppState>) -> impl IntoResponse {
 #[derive(Deserialize, ToSchema)]
 pub struct ConfigUpdate {
     pub active_version: Option<String>,
+    pub media: Option<serde_json::Value>,
 }
 
 /// POST /api/config
@@ -62,6 +83,21 @@ pub async fn update_config(
 
     if let Some(ver) = req.active_version {
         cfg.active_version = Some(ver);
+    }
+
+    if let Some(media) = req.media {
+        match serde_json::from_value::<dm_core::config::MediaConfig>(media) {
+            Ok(media) => cfg.media = media,
+            Err(err) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({
+                        "error": format!("invalid media config: {}", err)
+                    })),
+                )
+                    .into_response()
+            }
+        }
     }
 
     match dm_core::config::save_config(&state.home, &cfg) {

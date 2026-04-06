@@ -25,6 +25,7 @@
     let dataflows = $state<any[]>([]);
     let loading = $state(true);
     let searchQuery = $state("");
+    let mediaStatus = $state<any>(null);
 
     // Dialog state
     let isCreateDialogOpen = $state(false);
@@ -37,7 +38,12 @@
     async function fetchDataflows() {
         loading = true;
         try {
-            dataflows = (await get("/dataflows")) || [];
+            const [dataflowList, status] = (await Promise.all([
+                get("/dataflows"),
+                get("/media/status").catch(() => null),
+            ])) as [any[], any];
+            dataflows = dataflowList || [];
+            mediaStatus = status;
         } catch (e: any) {
             toast.error(`Failed to load dataflows: ${e.message}`);
         } finally {
@@ -93,6 +99,14 @@
     }
 
     async function runDataflowFromList(name: string, force = false) {
+        const dataflowMeta = dataflows.find((item) => item.name === name);
+        if (mediaBlocked(dataflowMeta?.executable)) {
+            toast.error(
+                "This dataflow requires dm-server media support. Open Settings > Media first.",
+            );
+            return;
+        }
+
         if (!force) {
             try {
                 const result = (await get(`/runs/active`)) as any;
@@ -135,6 +149,13 @@
                 .includes(searchQuery.toLowerCase()),
         ),
     );
+
+    function mediaBlocked(executable: any) {
+        return (
+            executable?.requires_media_backend &&
+            mediaStatus?.status !== "ready"
+        );
+    }
 </script>
 
 <!-- LIST VIEW -->
@@ -225,6 +246,14 @@
                                             /> Missing Nodes
                                         {/if}
                                     </Badge>
+                                {:else if mediaBlocked(df.executable)}
+                                    <Badge
+                                        variant="outline"
+                                        class="font-mono text-[10px] bg-amber-50 text-amber-800 border-amber-200"
+                                    >
+                                        <AlertTriangle class="size-3 mr-1" />
+                                        Media Required
+                                    </Badge>
                                 {/if}
                             </div>
                             <div
@@ -242,6 +271,11 @@
                                         >{df.executable.resolved_node_count} nodes</span
                                     >
                                 {/if}
+                                {#if mediaBlocked(df.executable)}
+                                    &middot; <span class="text-amber-700">
+                                        Configure media backend in Settings
+                                    </span>
+                                {/if}
                             </div>
                         </div>
                     </div>
@@ -249,8 +283,11 @@
                         <Button
                             variant="outline"
                             size="sm"
-                            disabled={df.executable && !df.executable.can_run}
+                            disabled={(df.executable && !df.executable.can_run) || mediaBlocked(df.executable)}
                             onclick={() => runDataflowFromList(df.name)}
+                            title={mediaBlocked(df.executable)
+                                ? "This dataflow needs dm-server media support. Open Settings > Media."
+                                : ""}
                         >
                             <Play class="size-4 mr-1" /> Run
                         </Button>

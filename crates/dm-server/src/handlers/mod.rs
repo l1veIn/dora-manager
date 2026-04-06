@@ -12,16 +12,15 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 
 pub use dataflow::{
-    delete_dataflow, get_dataflow, get_dataflow_config_schema,
-    get_dataflow_history_version, get_dataflow_meta, get_dataflow_view, import_dataflows,
-    inspect_dataflow, list_dataflow_history, list_dataflows, restore_dataflow_history_version,
-    save_dataflow, save_dataflow_meta, save_dataflow_view, start_dataflow,
-    stop_dataflow,
+    delete_dataflow, get_dataflow, get_dataflow_config_schema, get_dataflow_history_version,
+    get_dataflow_meta, get_dataflow_view, import_dataflows, inspect_dataflow,
+    list_dataflow_history, list_dataflows, restore_dataflow_history_version, save_dataflow,
+    save_dataflow_meta, save_dataflow_view, start_dataflow, stop_dataflow,
 };
 pub use events::{count_events, export_events, ingest_event, query_events};
 pub use messages::{
-    get_interaction, get_snapshots, list_messages, messages_ws, node_ws, push_message,
-    serve_artifact_file,
+    get_interaction, get_snapshots, get_stream, list_messages, list_streams, messages_ws, node_ws,
+    push_message, serve_artifact_file,
 };
 pub use nodes::{
     create_node, get_node_config, get_node_file_content, get_node_files, import_node, install_node,
@@ -33,7 +32,9 @@ pub use runs::{
     get_run_transpiled, get_run_view, list_runs, start_run, stop_run, tail_run_logs,
 };
 pub use runtime::{down, install, uninstall, up, use_version};
-pub use system::{doctor, get_config, status, update_config, versions};
+pub use system::{
+    doctor, get_config, install_media, media_status, status, update_config, versions,
+};
 pub use web::serve_web;
 
 pub(crate) fn err(e: impl std::fmt::Display) -> impl IntoResponse {

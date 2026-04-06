@@ -1,0 +1,102 @@
+{
+  "id": "dm-and",
+  "name": "dm-and",
+  "version": "0.1.0",
+  "installed_at": "1775475600",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Emit true only when all known inputs are true.",
+  "executable": ".venv/bin/dm-and",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Logic",
+    "tags": ["logic", "bool", "and"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "a",
+      "name": "a",
+      "direction": "input",
+      "description": "Boolean input a.",
+      "required": false,
+      "multiple": false,
+      "schema": { "type": { "name": "bool" } }
+    },
+    {
+      "id": "b",
+      "name": "b",
+      "direction": "input",
+      "description": "Boolean input b.",
+      "required": false,
+      "multiple": false,
+      "schema": { "type": { "name": "bool" } }
+    },
+    {
+      "id": "c",
+      "name": "c",
+      "direction": "input",
+      "description": "Boolean input c.",
+      "required": false,
+      "multiple": false,
+      "schema": { "type": { "name": "bool" } }
+    },
+    {
+      "id": "d",
+      "name": "d",
+      "direction": "input",
+      "description": "Boolean input d.",
+      "required": false,
+      "multiple": false,
+      "schema": { "type": { "name": "bool" } }
+    },
+    {
+      "id": "ok",
+      "name": "ok",
+      "direction": "output",
+      "description": "Combined readiness result.",
+      "required": true,
+      "multiple": false,
+      "schema": { "type": { "name": "bool" } }
+    },
+    {
+      "id": "details",
+      "name": "details",
+      "direction": "output",
+      "description": "JSON details of the latest AND evaluation.",
+      "required": true,
+      "multiple": false,
+      "schema": { "type": { "name": "utf8" } }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_and/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "expected_inputs": {
+      "default": "a,b",
+      "env": "EXPECTED_INPUTS"
+    },
+    "require_all_seen": {
+      "default": "true",
+      "env": "REQUIRE_ALL_SEEN"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

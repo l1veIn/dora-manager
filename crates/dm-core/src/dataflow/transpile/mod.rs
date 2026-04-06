@@ -20,7 +20,6 @@ use crate::events::{EventSource, OperationEvent};
 
 use context::TranspileContext;
 
-
 /// Result of a transpilation, containing the dora-compatible YAML.
 #[derive(Debug)]
 pub struct TranspileResult {
@@ -72,7 +71,9 @@ pub fn transpile_graph_for_run(
         }
 
         // Emit
-        Ok(TranspileResult { yaml: passes::emit(&graph) })
+        Ok(TranspileResult {
+            yaml: passes::emit(&graph),
+        })
     })();
 
     op.emit_result(&result);

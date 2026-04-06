@@ -5,7 +5,7 @@ export function generateId(): string {
 
 import { getPanelDefinition } from "./panels/registry";
 
-export type PanelKind = "message" | "input" | "chart" | "table" | "terminal";
+export type PanelKind = "message" | "input" | "chart" | "table" | "video" | "terminal";
 
 export type MessagePanelConfig = {
     nodes?: string[];
@@ -18,6 +18,19 @@ export type InputPanelConfig = {
     tags?: string[];
     nodeId?: string;
     gridCols?: 1 | 2 | 3;
+};
+
+export type VideoPanelConfig = {
+    mode?: "manual" | "message";
+    nodeId?: string;
+    selectedSourceId?: string;
+    src?: string;
+    sourceType?: "auto" | "hls" | "video" | "audio";
+    autoplay?: boolean;
+    muted?: boolean;
+    poster?: string;
+    nodes?: string[];
+    tags?: string[];
 };
 
 export type TerminalPanelConfig = {

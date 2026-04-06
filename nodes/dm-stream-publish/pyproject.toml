@@ -1,0 +1,17 @@
+[project]
+name = "dm-stream-publish"
+version = "0.1.0"
+description = "Publish image frame streams from Dora into the DM media backend"
+requires-python = ">=3.10"
+dependencies = [
+  "dora-rs>=0.4.1,<0.5.0",
+  "pyarrow>=21.0.0",
+  "requests>=2.32.0",
+]
+
+[project.scripts]
+dm-stream-publish = "dm_stream_publish.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

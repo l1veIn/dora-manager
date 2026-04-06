@@ -69,6 +69,10 @@
         return Object.entries(binding.payload?.widgets ?? {}) as Array<[string, any]>;
     }
 
+    function shouldShowWidgetLabel(binding: any) {
+        return widgetEntries(binding).length > 1;
+    }
+
     function initialValue(binding: any, outputId: string, widget: any) {
         const key = widgetKey(binding.node_id, outputId);
         if (draftValues[key] !== undefined) return draftValues[key];
@@ -197,17 +201,21 @@
         </div>
     {/if}
 
-    <div class={`grid gap-4 ${gridClass}`}>
+    <div class={`grid gap-3 ${gridClass}`}>
         {#each widgetSnapshots as binding}
-            <div class="rounded-lg border bg-background overflow-hidden shadow-sm">
-                <div class="px-3 py-2 border-b bg-muted/20">
-                    <div class="font-medium text-sm">{binding.payload?.label || binding.node_id}</div>
-                    <div class="text-[11px] text-muted-foreground font-mono">{binding.node_id}</div>
+            <div class="rounded-lg border bg-background/95 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <div class="px-3 pt-2.5 pb-1.5">
+                    <div class="truncate font-medium text-[13px] leading-5">{binding.payload?.label || binding.node_id}</div>
+                    <div class="truncate text-[10px] text-muted-foreground/80 font-mono leading-4">{binding.node_id}</div>
                 </div>
-                <div class="p-3 space-y-4">
+                <div class="px-3 pb-3 space-y-2.5">
                     {#each widgetEntries(binding) as [outputId, widget]}
-                        <div class="space-y-2">
-                            <div class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{widget.label ?? outputId}</div>
+                        <div class="space-y-1">
+                            {#if shouldShowWidgetLabel(binding)}
+                                <div class="text-[9px] font-medium text-muted-foreground/75 uppercase tracking-[0.18em]">
+                                    {widget.label ?? outputId}
+                                </div>
+                            {/if}
                             {#if widget.type === "textarea"}
                                 <ControlTextarea {outputId} xw={widget} label={widget.label ?? outputId} value={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
                             {:else if widget.type === "input"}

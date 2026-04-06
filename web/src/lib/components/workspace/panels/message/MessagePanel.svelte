@@ -29,6 +29,7 @@
 
     let container = $state<HTMLElement | null>(null);
     let isUserScrolling = $state(false);
+    let lastInitialLoadToken = $state<number | null>(null);
 
     let availableNodes = $derived(
         context.snapshots
@@ -48,6 +49,7 @@
 
     function applyFilters() {
         history.reset();
+        lastInitialLoadToken = null;
         onConfigChange?.();
         history.loadInitial(() => scrollToBottom(true));
     }
@@ -109,13 +111,14 @@
     }
 
     $effect(() => {
-        context.refreshToken;
+        const refreshToken = context.refreshToken;
         untrack(() => {
             if (history.messages.length > 0) {
                 history.loadNew(() => {
                     if (!isUserScrolling) scrollToBottom();
                 });
-            } else {
+            } else if (lastInitialLoadToken !== refreshToken) {
+                lastInitialLoadToken = refreshToken;
                 history.loadInitial(() => scrollToBottom(true));
             }
         });

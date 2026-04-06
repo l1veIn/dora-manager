@@ -108,7 +108,9 @@ nodes:
     )
     .unwrap();
 
-    let out = transpile_graph_for_run(home, &yaml_path, "run-123").unwrap().yaml;
+    let out = transpile_graph_for_run(home, &yaml_path, "run-123")
+        .unwrap()
+        .yaml;
     let nodes = out["nodes"].as_sequence().unwrap();
     let node = nodes[0].as_mapping().unwrap();
     let env = node
@@ -141,7 +143,8 @@ fn transpile_graph_skips_null_config_defaults() {
     setup_managed_node(home, "test-node", ".venv/bin/test-node");
 
     let dir = node_dir(home, "test-node");
-    let mut meta: Node = serde_json::from_str(&fs::read_to_string(dir.join("dm.json")).unwrap()).unwrap();
+    let mut meta: Node =
+        serde_json::from_str(&fs::read_to_string(dir.join("dm.json")).unwrap()).unwrap();
     meta.config_schema = Some(serde_json::json!({
         "source": {
             "default": null,
@@ -152,7 +155,11 @@ fn transpile_graph_skips_null_config_defaults() {
             "env": "LABEL"
         }
     }));
-    fs::write(dir.join("dm.json"), serde_json::to_string_pretty(&meta).unwrap()).unwrap();
+    fs::write(
+        dir.join("dm.json"),
+        serde_json::to_string_pretty(&meta).unwrap(),
+    )
+    .unwrap();
 
     let yaml_path = home.join("graph.yml");
     fs::write(
@@ -165,7 +172,9 @@ nodes:
     )
     .unwrap();
 
-    let out = transpile_graph_for_run(home, &yaml_path, "run-123").unwrap().yaml;
+    let out = transpile_graph_for_run(home, &yaml_path, "run-123")
+        .unwrap()
+        .yaml;
     let nodes = out["nodes"].as_sequence().unwrap();
     let node = nodes[0].as_mapping().unwrap();
     let env = node

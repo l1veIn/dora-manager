@@ -1,3 +1,4 @@
+pub mod media;
 pub mod message;
 
 use std::path::{Component, Path, PathBuf};

@@ -25,6 +25,8 @@
     let polling = $state(false);
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     let currentOffset = $state(0);
+    let tailInFlight = $state(false);
+    let activeLogKey = $state("");
 
     let logContainer = $state<HTMLElement | null>(null);
     let autoScroll = $state(true);
@@ -45,7 +47,8 @@
     }
 
     async function tailLog() {
-        if (!runId || !nodeId) return;
+        if (!runId || !nodeId || tailInFlight) return;
+        tailInFlight = true;
         try {
             const chunk: any = await get(
                 `/runs/${runId}/logs/${nodeId}/tail?offset=${currentOffset}`,
@@ -64,8 +67,9 @@
                 if (autoScroll) scrollToBottom();
             }
         } catch (e) {
-            console.error("Log tailing failed", e);
             stopPolling();
+        } finally {
+            tailInFlight = false;
         }
     }
 
@@ -130,21 +134,39 @@
     });
 
     $effect(() => {
-        stopPolling();
-        logContent = "";
-        currentOffset = 0;
+        const nextKey = runId && nodeId ? `${runId}:${nodeId}` : "";
 
-        if (runId && nodeId) {
-            fetchFullLog().then(() => {
-                if (isRunActive) {
-                    startPolling();
-                }
-            });
+        if (nextKey !== activeLogKey) {
+            activeLogKey = nextKey;
+            stopPolling();
+            logContent = "";
+            currentOffset = 0;
+
+            if (runId && nodeId) {
+                fetchFullLog().then(() => {
+                    if (isRunActive) {
+                        startPolling();
+                    }
+                });
+            }
         }
 
         return () => {
             stopPolling();
         };
+    });
+
+    $effect(() => {
+        if (!runId || !nodeId) {
+            stopPolling();
+            return;
+        }
+
+        if (isRunActive) {
+            startPolling();
+        } else {
+            stopPolling();
+        }
     });
 </script>
 

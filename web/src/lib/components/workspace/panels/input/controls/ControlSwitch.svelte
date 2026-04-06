@@ -13,14 +13,14 @@
     let { outputId, xw, value, disabled, onValueChange }: Props = $props();
 </script>
 
-<div class="flex items-center space-x-2 border shadow-sm rounded-lg p-3 bg-muted/20 hover:bg-muted/30 transition-colors">
+<div class="flex items-center gap-2 rounded-md border border-border/70 bg-muted/10 px-3 py-2">
     <Switch
         id="widget-{outputId}"
         {disabled}
         checked={!!value}
         onCheckedChange={(v) => onValueChange(v)}
     />
-    <Label for="widget-{outputId}" class="font-medium cursor-pointer flex-1 text-sm">
+    <Label for="widget-{outputId}" class="flex-1 cursor-pointer text-sm font-medium">
         {xw.switchLabel || `Enable`}
     </Label>
 </div>

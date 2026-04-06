@@ -43,10 +43,11 @@
     let latestInputSeq = $state(0);
     let messageRefreshToken = $state(0);
     let isRunSidebarOpen = $state(true);
-    const panelOptions: Array<{ type: "chart" | "message" | "input" | "terminal"; label: string }> = [
+    const panelOptions: Array<{ type: "chart" | "message" | "input" | "video" | "terminal"; label: string }> = [
         { type: "message", label: "Message" },
         { type: "input", label: "Input" },
         { type: "chart", label: "Chart" },
+        { type: "video", label: "Plyr" },
         { type: "terminal", label: "Terminal" },
     ];
 
@@ -73,7 +74,7 @@
         }
     }
 
-    function addWidget(type: "message" | "input" | "chart" | "terminal") {
+    function addWidget(type: "message" | "input" | "chart" | "video" | "terminal") {
         let maxY = 0;
         for (let item of workspaceLayout) {
             maxY = Math.max(maxY, item.y + item.h);

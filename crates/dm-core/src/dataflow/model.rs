@@ -64,6 +64,12 @@ pub struct DataflowExecutableSummary {
     pub missing_nodes: Vec<String>,
     #[serde(default)]
     pub invalid_yaml: bool,
+    #[serde(default)]
+    pub requires_media_backend: bool,
+    #[serde(default)]
+    pub media_node_count: usize,
+    #[serde(default)]
+    pub media_nodes: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -107,8 +113,6 @@ pub struct DataflowProject {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<serde_json::Value>,
 }
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataflowImportSuccess {

@@ -29,6 +29,7 @@
 
     let dataflowName = $derived(page.params.id as string);
     let dataflow = $state<any>(null);
+    let mediaStatus = $state<any>(null);
     let loading = $state(true);
     let isRunConflictDialogOpen = $state(false);
     let activeTab = $state("graph");
@@ -36,8 +37,12 @@
     async function loadDataflow() {
         loading = true;
         try {
-            const res = await get(`/dataflows/${dataflowName}`);
+            const [res, status] = await Promise.all([
+                get(`/dataflows/${dataflowName}`),
+                get("/media/status").catch(() => null),
+            ]);
             dataflow = res;
+            mediaStatus = status;
         } catch (e: any) {
             toast.error(`Failed to load workspace: ${e.message}`);
             goto("/dataflows");
@@ -52,6 +57,15 @@
 
     async function handleRun(force = false) {
         if (!dataflow?.executable?.can_run) return;
+        if (
+            dataflow?.executable?.requires_media_backend &&
+            mediaStatus?.status !== "ready"
+        ) {
+            toast.error(
+                "This dataflow requires dm-server media support. Open Settings > Media first.",
+            );
+            return;
+        }
 
         if (!force) {
             try {
@@ -130,6 +144,18 @@
                         Ready
                     </Badge>
                 {/if}
+                {#if dataflow?.executable?.requires_media_backend}
+                    <Badge
+                        variant="outline"
+                        class={mediaStatus?.status === "ready"
+                            ? "bg-sky-50 text-sky-700 border-sky-200"
+                            : "bg-amber-50 text-amber-800 border-amber-200"}
+                    >
+                        {mediaStatus?.status === "ready"
+                            ? "Media Ready"
+                            : "Media Required"}
+                    </Badge>
+                {/if}
             </div>
             {#if dataflow?.meta?.description}
                 <p class="text-muted-foreground mt-1 max-w-2xl text-sm">
@@ -142,7 +168,9 @@
             <div class="flex items-center gap-2">
                 <Button
                     class="gap-2"
-                    disabled={!dataflow?.executable?.can_run}
+                    disabled={!dataflow?.executable?.can_run ||
+                        (dataflow?.executable?.requires_media_backend &&
+                            mediaStatus?.status !== "ready")}
                     onclick={() => handleRun()}
                 >
                     <Play class="size-4" /> Run
@@ -157,6 +185,20 @@
             <Skeleton class="h-[60vh] w-full rounded-lg" />
         </div>
     {:else if dataflow}
+        {#if dataflow?.executable?.requires_media_backend && mediaStatus?.status !== "ready"}
+            <div
+                class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            >
+                This dataflow uses media-capable nodes:
+                <span class="font-mono"
+                    >{dataflow.executable.media_nodes?.join(", ")}</span
+                >.
+                Configure MediaMTX in <a class="font-medium underline" href="/settings"
+                    >Settings</a
+                > and restart `dm-server` before running it.
+            </div>
+        {/if}
+
         <!-- Workspace Main Content -->
         <Tabs.Root value="graph" onValueChange={(v) => { activeTab = v; }} class="flex-1 flex flex-col min-h-0">
             <Tabs.List class="w-fit mb-4">

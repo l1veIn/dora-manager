@@ -102,15 +102,64 @@ nodes:
       label: "Latest Screen Clip"
       render: video
 
-  # Live screen capture for MJPEG preview (1 fps)
-  - id: screen-live
-    node: dm-test-media-capture
+  # Live screen stream via dm-server media backend
+  - id: screen-live-ffmpeg-ready
+    node: dm-check-ffmpeg
     outputs:
-      - image
+      - ok
     config:
-      mode: repeat_screenshot
+      mode: repeat
+      interval_sec: 10
+
+  - id: screen-live-media-ready
+    node: dm-check-media-backend
+    outputs:
+      - ok
+    config:
+      mode: repeat
+      interval_sec: 10
+
+  - id: screen-live-ready
+    node: dm-and
+    inputs:
+      a: screen-live-ffmpeg-ready/ok
+      b: screen-live-media-ready/ok
+    outputs:
+      - ok
+    config:
+      expected_inputs: "a,b"
+
+  - id: screen-live-gate
+    node: dm-gate
+    inputs:
+      enabled: screen-live-ready/ok
+      value: dora/timer/millis/1000
+    outputs:
+      - value
+
+  - id: screen-live
+    node: dm-screen-capture
+    inputs:
+      trigger: screen-live-gate/value
+    outputs:
+      - frame
+    config:
+      mode: triggered
       output_format: png
-      interval_sec: 1
+      width: 1280
+      height: 720
+
+  - id: screen-live-publish
+    node: dm-stream-publish
+    inputs:
+      frame: screen-live/frame
+    outputs:
+      - stream_id
+      - meta
+    config:
+      label: "Live Screen"
+      fps: 5
+      stream_name: live
 
   - id: dora-distil-whisper
     node: dora-distil-whisper
@@ -205,13 +254,3 @@ nodes:
       max_size_time: 0
       flush_on: signal
       flush_timeout: 2000000000
-
-  # MJPEG live preview endpoint at http://localhost:4567/stream
-  - id: preview
-    node: dm-mjpeg
-    inputs:
-      frame: screen-live/image
-    config:
-      port: 4567
-      quality: 75
-      max_fps: 1
