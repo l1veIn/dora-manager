@@ -5,30 +5,42 @@
     
     import type { WorkspaceGridItem } from "./types";
     import RootWidgetWrapper from "./widgets/RootWidgetWrapper.svelte";
-    import DisplayStream from "./widgets/DisplayStream.svelte";
-    import InputBoard from "./widgets/InputBoard.svelte";
-    import WidgetTerminal from "./widgets/WidgetTerminal.svelte";
+    import { getPanelDefinition } from "./panels/registry";
+    import type { PanelContext } from "./panels/types";
 
     let { 
         layout = $bindable([]),
         runId,
-        streams = [],
-        inputs = [],
+        snapshots = [],
+        inputValues = {},
         nodes = [],
         onEmit,
-        onLayoutChange = () => {}
+        onLayoutChange = () => {},
+        refreshToken = 0,
+        isRunActive = false,
     } = $props<{
         layout?: WorkspaceGridItem[];
         runId: string;
-        streams?: any[];
-        inputs?: any[];
+        snapshots?: any[];
+        inputValues?: Record<string, any>;
         nodes?: any[];
         onEmit?: any;
         onLayoutChange?: (newLayout: WorkspaceGridItem[]) => void;
+        refreshToken?: number;
+        isRunActive?: boolean;
     }>();
 
     let gridServer: GridStack;
     let gridContainer: HTMLDivElement;
+    let panelContext = $derived<PanelContext>({
+        runId,
+        snapshots,
+        inputValues,
+        nodes,
+        refreshToken,
+        isRunActive,
+        emitMessage: onEmit ?? (async () => {}),
+    });
 
     // We maintain an independent flat state proxy for the DOM items.
     let gridItems = $state<WorkspaceGridItem[]>(layout || []);
@@ -113,30 +125,33 @@
             }
         };
     }
+
 </script>
 
 <div class="h-full w-full overflow-y-auto overflow-x-hidden bg-muted/10 relative pb-10">
     <div bind:this={gridContainer} class="grid-stack w-full h-full">
         <!-- Render existing items initially mapped from Grid stack schema attributes gs-x, gs-y... -->
         {#each gridItems as dataItem (dataItem.id)}
+            {@const definition = getPanelDefinition(dataItem.widgetType)}
+            {@const PanelComponent = definition.component}
             <div 
                 class="grid-stack-item cursor-default" 
                 use:gridWidget={dataItem}
             >
                 <div class="grid-stack-item-content p-0.5 lg:p-1 overflow-hidden pointer-events-auto">
                     <!-- Standard inner wrapper provides visual chrome, buttons, title bar. -->
-                    <RootWidgetWrapper node={dataItem} {api}>
+                    <RootWidgetWrapper item={dataItem} {definition} {api}>
                         <!-- Content boundary. Let it fill 100% and break appropriately. -->
                         <div class="w-full h-full relative overflow-hidden break-words">
-                            {#if dataItem.widgetType === "stream"}
-                                <DisplayStream node={dataItem} {api} {runId} {streams} {nodes} onConfigChange={() => { layout = gridItems; onLayoutChange(gridItems); }} />
-                            {:else if dataItem.widgetType === "input"}
-                                <InputBoard node={dataItem} {api} {runId} {inputs} {onEmit} />
-                            {:else if dataItem.widgetType === "terminal"}
-                                <WidgetTerminal node={dataItem} {api} {runId} {nodes} onConfigChange={() => { layout = gridItems; onLayoutChange(gridItems); }} />
-                            {:else}
-                                <div class="p-4 text-muted-foreground">Unsupported widget type: {dataItem.widgetType}</div>
-                            {/if}
+                            <PanelComponent
+                                item={dataItem}
+                                {api}
+                                context={panelContext}
+                                onConfigChange={() => {
+                                    layout = gridItems;
+                                    onLayoutChange(gridItems);
+                                }}
+                            />
                         </div>
                     </RootWidgetWrapper>
                 </div>

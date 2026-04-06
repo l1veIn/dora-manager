@@ -1,6 +1,7 @@
 <script lang="ts">
 	import "$lib/i18n";
 	import { ModeWatcher } from "mode-watcher";
+	import { browser } from "$app/environment";
 	import "../app.css";
 
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
@@ -12,6 +13,20 @@
 	let { children } = $props();
 
 	let isEditorRoute = $derived(page.url?.pathname?.endsWith('/editor') ?? false);
+	let appSidebarOpen = $state(true);
+
+	$effect(() => {
+		if (!browser) return;
+		const saved = localStorage.getItem("dm-app-sidebar-open");
+		if (saved !== null) {
+			appSidebarOpen = saved === "true";
+		}
+	});
+
+	$effect(() => {
+		if (!browser) return;
+		localStorage.setItem("dm-app-sidebar-open", String(appSidebarOpen));
+	});
 </script>
 
 <ModeWatcher />
@@ -22,7 +37,7 @@
 		{@render children()}
 	</div>
 {:else}
-	<Sidebar.Provider>
+	<Sidebar.Provider bind:open={appSidebarOpen}>
 		<AppSidebar />
 		<main
 			class="flex-1 w-full h-screen max-h-screen overflow-hidden flex flex-col min-w-0"

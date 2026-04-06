@@ -1,7 +1,8 @@
 <script lang="ts">
     import { X, Maximize2, Minimize2 } from "lucide-svelte";
     import { Button } from "$lib/components/ui/button/index.js";
-    let { node, api, children } = $props<{ node: any; api: any; children: any }>();
+    import type { PanelDefinition } from "../panels/types";
+    let { item, definition, api, children } = $props<{ item: any; definition: PanelDefinition; api: any; children: any }>();
 
     let isMaximized = $state(false);
 
@@ -17,20 +18,11 @@
     <div 
         class="flex flex-col w-full h-full bg-background relative overflow-hidden border rounded-md shadow-sm transition-transform {isMaximized ? 'shadow-2xl rounded-lg scale-[1.01]' : ''}"
         role="presentation"
-        ondblclick={toggleMaximize}
     >
         <!-- Drag Handle (Title Bar) -->
-        <div class="grid-drag-handle h-8 flex shrink-0 items-center justify-between px-2 border-b bg-muted/40 cursor-grab active:cursor-grabbing hover:bg-muted/60 transition-colors" title="Double click to maximize">
+        <div class="grid-drag-handle h-8 flex shrink-0 items-center justify-between px-2 border-b bg-muted/40 cursor-grab active:cursor-grabbing hover:bg-muted/60 transition-colors" title="Double click to maximize" ondblclick={toggleMaximize} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleMaximize(); } }} role="button" tabindex="0" aria-label={isMaximized ? "Restore panel" : "Maximize panel"}>
             <div class="text-xs font-medium truncate flex-1 flex gap-2 items-center text-muted-foreground pointer-events-none">
-                {#if node.widgetType === "stream"}
-                    <div class="w-2 h-2 rounded-full bg-blue-500"></div> Stream
-                {:else if node.widgetType === "input"}
-                    <div class="w-2 h-2 rounded-full bg-orange-500"></div> Input
-                {:else if node.widgetType === "terminal"}
-                    <div class="w-2 h-2 rounded-full bg-zinc-800 dark:bg-zinc-200"></div> Terminal
-                {:else}
-                    <div class="w-2 h-2 rounded-full bg-muted-foreground"></div> Widget
-                {/if}
+                <div class={`w-2 h-2 rounded-full ${definition.dotClass}`}></div> {definition.title}
             </div>
             <div class="flex items-center gap-0">
                 <Button variant="ghost" size="icon" class="h-6 w-6" title={isMaximized ? "Restore" : "Maximize"} onclick={(e) => { e.stopPropagation(); toggleMaximize(); }}>
@@ -40,7 +32,7 @@
                         <Maximize2 class="h-3 w-3" />
                     {/if}
                 </Button>
-                <Button variant="ghost" size="icon" class="h-6 w-6 hover:bg-destructive/10 hover:text-destructive" title="Close Panel" onclick={(e) => { e.stopPropagation(); api.close(node.id); }}>
+                <Button variant="ghost" size="icon" class="h-6 w-6 hover:bg-destructive/10 hover:text-destructive" title="Close Panel" onclick={(e) => { e.stopPropagation(); api.close(item.id); }}>
                     <X class="h-3.5 w-3.5" />
                 </Button>
             </div>

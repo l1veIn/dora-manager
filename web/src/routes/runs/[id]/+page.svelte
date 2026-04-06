@@ -5,6 +5,8 @@
     import { get, post } from "$lib/api";
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button/index.js";
+    import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
+    import { Plus, PanelLeftClose, PanelLeftOpen } from "lucide-svelte";
 
     import RunHeader from "./RunHeader.svelte";
     import RunFailureBanner from "./RunFailureBanner.svelte";
@@ -12,11 +14,13 @@
     import RunNodeList from "./RunNodeList.svelte";
 
     import Workspace from "$lib/components/workspace/Workspace.svelte";
+    import { getPanelDefinition } from "$lib/components/workspace/panels/registry";
     import {
         type WorkspaceGridItem,
         getDefaultLayout,
         mutateTreeInjectTerminal,
         generateId,
+        normalizeWorkspaceLayout,
     } from "$lib/components/workspace/types";
 
     let runId = $derived($page.params.id);
@@ -25,18 +29,30 @@
     let loading = $state(true);
     let error = $state<string | null>(null);
     let metrics = $state<any>(null);
-    let interaction = $state<{ streams: any[]; inputs: any[] }>({
-        streams: [],
-        inputs: [],
-    });
+    let snapshots = $state<any[]>([]);
+    let inputValues = $state<Record<string, any>>({});
 
     let selectedNodeId = $state<string>("");
     let workspaceLayout = $state<WorkspaceGridItem[]>(getDefaultLayout());
     let workspaceLoaded = false;
     let stoppingRun = $state(false);
-    let interactionSocket: WebSocket | null = null;
-    let reconnectInteractionSocket: ReturnType<typeof setTimeout> | null = null;
-    let interactionRefreshInFlight: Promise<void> | null = null;
+    let messageSocket: WebSocket | null = null;
+    let reconnectMessageSocket: ReturnType<typeof setTimeout> | null = null;
+    let snapshotRefreshInFlight: Promise<void> | null = null;
+    let inputValuesRefreshInFlight: Promise<void> | null = null;
+    let latestInputSeq = $state(0);
+    let messageRefreshToken = $state(0);
+    let isRunSidebarOpen = $state(true);
+    const panelOptions: Array<{ type: "chart" | "message" | "input" | "terminal"; label: string }> = [
+        { type: "message", label: "Message" },
+        { type: "input", label: "Input" },
+        { type: "chart", label: "Chart" },
+        { type: "terminal", label: "Terminal" },
+    ];
+
+    function sidebarStorageKey() {
+        return run?.name ? `dm-run-sidebar-open-${run.name}` : null;
+    }
 
     // Layout persistence
     function handleLayoutChange(newLayout: WorkspaceGridItem[]) {
@@ -49,7 +65,15 @@
         }
     }
 
-    function addWidget(type: "stream" | "input" | "terminal") {
+    function toggleRunSidebar() {
+        isRunSidebarOpen = !isRunSidebarOpen;
+        const key = sidebarStorageKey();
+        if (key && browser) {
+            localStorage.setItem(key, String(isRunSidebarOpen));
+        }
+    }
+
+    function addWidget(type: "message" | "input" | "chart" | "terminal") {
         let maxY = 0;
         for (let item of workspaceLayout) {
             maxY = Math.max(maxY, item.y + item.h);
@@ -59,7 +83,7 @@
             {
                 id: generateId(),
                 widgetType: type,
-                config: {},
+                config: { ...getPanelDefinition(type).defaultConfig },
                 x: 0,
                 y: maxY,
                 w: 6,
@@ -143,10 +167,7 @@
     }
 
     let isRunActive = $derived(run?.status === "running");
-    let hasInteraction = $derived(
-        (interaction?.streams?.length ?? 0) > 0 ||
-            (interaction?.inputs?.length ?? 0) > 0,
-    );
+    let hasInteraction = $derived((snapshots?.length ?? 0) > 0);
 
     // ── Data fetching ──
 
@@ -168,13 +189,21 @@
                     try {
                         const parsed = JSON.parse(saved);
                         if (Array.isArray(parsed)) {
-                            workspaceLayout = parsed;
+                            workspaceLayout = normalizeWorkspaceLayout(parsed);
                         } else {
                             console.warn(
                                 "Discarding old Workspace layout version from LocalStorage",
                             );
                         }
                     } catch (e) {}
+                }
+
+                const sidebarKey = sidebarStorageKey();
+                if (browser && sidebarKey) {
+                    const savedSidebar = localStorage.getItem(sidebarKey);
+                    if (savedSidebar !== null) {
+                        isRunSidebarOpen = savedSidebar === "true";
+                    }
                 }
             }
         } catch (e: any) {
@@ -185,37 +214,84 @@
         }
     }
 
-    async function fetchInteraction() {
+    async function fetchSnapshots() {
         if (!runId) return;
-        if (interactionRefreshInFlight) {
-            return interactionRefreshInFlight;
+        if (snapshotRefreshInFlight) {
+            return snapshotRefreshInFlight;
         }
 
-        interactionRefreshInFlight = (async () => {
+        snapshotRefreshInFlight = (async () => {
             try {
-                interaction = await get(`/runs/${runId}/interaction`);
+                snapshots = await get(`/runs/${runId}/messages/snapshots`);
             } catch (e) {
-                console.error("Failed to fetch interaction state", e);
+                console.error("Failed to fetch message snapshots", e);
             } finally {
-                interactionRefreshInFlight = null;
+                snapshotRefreshInFlight = null;
             }
         })();
 
-        return interactionRefreshInFlight;
+        return snapshotRefreshInFlight;
     }
 
-    async function emitInteraction(
-        nodeId: string,
-        outputId: string,
-        value: any,
-    ) {
+    async function fetchInputValues() {
         if (!runId) return;
-        await post(`/runs/${runId}/interaction/input/events`, {
-            node_id: nodeId,
-            output_id: outputId,
-            value,
-        });
-        await fetchInteraction();
+        if (inputValuesRefreshInFlight) {
+            return inputValuesRefreshInFlight;
+        }
+
+        inputValuesRefreshInFlight = (async () => {
+            try {
+                const response: any = await get(`/runs/${runId}/messages?tag=input&limit=5000`);
+                const nextValues: Record<string, any> = {};
+                latestInputSeq = 0;
+                for (const message of response.messages ?? []) {
+                    const key = `${message.payload?.to}:${message.payload?.output_id}`;
+                    nextValues[key] = message.payload?.value;
+                    latestInputSeq = Math.max(latestInputSeq, message.seq ?? 0);
+                }
+                inputValues = nextValues;
+            } catch (e) {
+                console.error("Failed to fetch input values", e);
+            } finally {
+                inputValuesRefreshInFlight = null;
+            }
+        })();
+
+        return inputValuesRefreshInFlight;
+    }
+
+    async function fetchNewInputValues() {
+        if (!runId) return;
+        try {
+            const response: any = await get(
+                `/runs/${runId}/messages?tag=input&after_seq=${latestInputSeq}&limit=500`,
+            );
+            if ((response.messages ?? []).length === 0) {
+                return;
+            }
+            inputValues = { ...inputValues };
+            for (const message of response.messages ?? []) {
+                const key = `${message.payload?.to}:${message.payload?.output_id}`;
+                inputValues[key] = message.payload?.value;
+                latestInputSeq = Math.max(latestInputSeq, message.seq ?? 0);
+            }
+        } catch (e) {
+            console.error("Failed to fetch incremental input values", e);
+        }
+    }
+
+    async function emitMessage(message: {
+        from: string;
+        tag: string;
+        payload: any;
+        timestamp?: number;
+    }) {
+        if (!runId) return;
+        await post(`/runs/${runId}/messages`, message);
+        if (message.tag === "input") {
+            await fetchNewInputValues();
+        }
+        messageRefreshToken += 1;
     }
 
     async function stopRun() {
@@ -241,59 +317,65 @@
 
     let mainPolling: ReturnType<typeof setInterval> | null = null;
 
-    function scheduleInteractionSocketReconnect() {
-        if (!browser || reconnectInteractionSocket || !runId) return;
-        reconnectInteractionSocket = setTimeout(() => {
-            reconnectInteractionSocket = null;
-            connectInteractionSocket();
+    function scheduleMessageSocketReconnect() {
+        if (!browser || reconnectMessageSocket || !runId) return;
+        reconnectMessageSocket = setTimeout(() => {
+            reconnectMessageSocket = null;
+            connectMessageSocket();
         }, 1000);
     }
 
-    function closeInteractionSocket() {
-        if (reconnectInteractionSocket) {
-            clearTimeout(reconnectInteractionSocket);
-            reconnectInteractionSocket = null;
+    function closeMessageSocket() {
+        if (reconnectMessageSocket) {
+            clearTimeout(reconnectMessageSocket);
+            reconnectMessageSocket = null;
         }
-        if (interactionSocket) {
-            interactionSocket.onopen = null;
-            interactionSocket.onmessage = null;
-            interactionSocket.onerror = null;
-            interactionSocket.onclose = null;
-            interactionSocket.close();
-            interactionSocket = null;
+        if (messageSocket) {
+            messageSocket.onopen = null;
+            messageSocket.onmessage = null;
+            messageSocket.onerror = null;
+            messageSocket.onclose = null;
+            messageSocket.close();
+            messageSocket = null;
         }
     }
 
-    function connectInteractionSocket() {
+    function connectMessageSocket() {
         if (!browser || !runId) return;
 
-        closeInteractionSocket();
+        closeMessageSocket();
 
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const socket = new WebSocket(
-            `${protocol}//${window.location.host}/api/runs/${runId}/interaction/ws`,
+            `${protocol}//${window.location.host}/api/runs/${runId}/messages/ws`,
         );
 
-        socket.onmessage = async () => {
-            await fetchInteraction();
+        socket.onmessage = async (event) => {
+            const notification = JSON.parse(event.data);
+            await fetchSnapshots();
+            if (notification.tag === "input") {
+                await fetchNewInputValues();
+            }
+            messageRefreshToken += 1;
         };
         socket.onerror = () => {
             socket.close();
         };
         socket.onclose = () => {
-            if (interactionSocket === socket) {
-                interactionSocket = null;
+            if (messageSocket === socket) {
+                messageSocket = null;
             }
-            scheduleInteractionSocketReconnect();
+            scheduleMessageSocketReconnect();
         };
 
-        interactionSocket = socket;
+        messageSocket = socket;
     }
 
     onMount(() => {
         fetchRunDetail();
-        fetchInteraction();
-        connectInteractionSocket();
+        fetchSnapshots();
+        fetchInputValues();
+        connectMessageSocket();
         mainPolling = setInterval(() => {
             if (isRunActive) {
                 fetchRunDetail();
@@ -305,7 +387,7 @@
 
     onDestroy(() => {
         if (mainPolling) clearInterval(mainPolling);
-        closeInteractionSocket();
+        closeMessageSocket();
     });
 </script>
 
@@ -337,52 +419,74 @@
             />
         {/if}
 
-        <div class="flex-1 min-h-0 flex w-full">
+        <div class="relative flex-1 min-h-0 flex w-full">
             <!-- Left Pane: Navigation & Status Sidebar -->
-            <aside
-                class="w-[300px] shrink-0 border-r bg-muted/10 flex flex-col overflow-y-auto"
-            >
-                <RunSummaryCard {run} {metrics} />
-                <RunNodeList
-                    nodes={run.nodes || []}
-                    {metrics}
-                    bind:selectedNodeId
-                    onNodeSelect={openNodeTerminal}
-                />
-            </aside>
+            {#if isRunSidebarOpen}
+                <aside
+                    class="w-[300px] shrink-0 border-r bg-muted/10 flex flex-col overflow-y-auto"
+                >
+                    <RunSummaryCard {run} {metrics} />
+                    <RunNodeList
+                        nodes={run.nodes || []}
+                        {metrics}
+                        bind:selectedNodeId
+                        onNodeSelect={openNodeTerminal}
+                    />
+                </aside>
+            {/if}
 
             <!-- Workspace Content Area -->
             <div
-                class="flex-1 min-w-0 bg-background flex flex-col relative text-foreground h-full overflow-hidden"
+                class="min-w-0 bg-background flex flex-col relative text-foreground overflow-hidden flex-1 h-full"
             >
                 <div
                     class="shrink-0 h-10 border-b flex items-center justify-between px-4 bg-muted/10 shadow-sm z-10"
                 >
-                    <div
-                        class="text-sm font-medium flex items-center gap-2 text-muted-foreground"
-                    >
-                        Workspace
-                    </div>
                     <div class="flex items-center gap-2">
                         <Button
-                            variant="outline"
-                            size="sm"
-                            class="h-7 text-xs"
-                            onclick={() => addWidget("stream")}>⊕ Stream</Button
+                            variant="ghost"
+                            size="icon"
+                            class="h-7 w-7"
+                            title={isRunSidebarOpen ? "Hide run sidebar" : "Show run sidebar"}
+                            onclick={toggleRunSidebar}
                         >
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            class="h-7 text-xs"
-                            onclick={() => addWidget("input")}>⊕ Input</Button
+                            {#if isRunSidebarOpen}
+                                <PanelLeftClose class="size-4" />
+                            {:else}
+                                <PanelLeftOpen class="size-4" />
+                            {/if}
+                        </Button>
+                        <div
+                            class="text-sm font-medium flex items-center gap-2 text-muted-foreground"
                         >
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            class="h-7 text-xs"
-                            onclick={() => addWidget("terminal")}
-                            >⊕ Terminal</Button
-                        >
+                            Workspace
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <DropdownMenu.Root>
+                            <DropdownMenu.Trigger>
+                                {#snippet child({ props })}
+                                    <Button
+                                        {...props}
+                                        variant="outline"
+                                        size="sm"
+                                        class="h-7 gap-1.5 text-xs"
+                                    >
+                                        <Plus class="size-3.5" />
+                                        Add Panel
+                                    </Button>
+                                {/snippet}
+                            </DropdownMenu.Trigger>
+                            <DropdownMenu.Content align="end" class="w-44">
+                                <DropdownMenu.Label>Add Panel</DropdownMenu.Label>
+                                <DropdownMenu.Separator />
+                                {#each panelOptions as option}
+                                    <DropdownMenu.Item onclick={() => addWidget(option.type)}>
+                                        {option.label}
+                                    </DropdownMenu.Item>
+                                {/each}
+                            </DropdownMenu.Content>
+                        </DropdownMenu.Root>
                     </div>
                 </div>
                 <div class="flex-1 min-h-0 relative">
@@ -391,9 +495,11 @@
                         onLayoutChange={handleLayoutChange}
                         runId={runId || ""}
                         nodes={run?.nodes || []}
-                        streams={interaction.streams}
-                        inputs={interaction.inputs}
-                        onEmit={emitInteraction}
+                        {snapshots}
+                        {inputValues}
+                        onEmit={emitMessage}
+                        refreshToken={messageRefreshToken}
+                        {isRunActive}
                     />
                 </div>
             </div>

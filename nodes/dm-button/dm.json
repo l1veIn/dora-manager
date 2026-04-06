@@ -51,6 +51,10 @@
     "tests": [],
     "examples": []
   },
+  "interaction": {
+    "emit": ["widgets"],
+    "on": true
+  },
   "examples": [],
   "config_schema": {
     "label": {

@@ -20,8 +20,7 @@ fn test_state() -> (TempDir, AppState) {
     let state = AppState {
         home: Arc::new(home),
         events: Arc::new(events),
-        interaction_events: broadcast::channel(64).0,
-        input_events: broadcast::channel(64).0,
+        messages: broadcast::channel(64).0,
     };
     (tmp, state)
 }
@@ -1467,22 +1466,22 @@ async fn serve_web_unknown_path_falls_back_to_index() {
 }
 
 #[tokio::test]
-async fn interaction_stream_roundtrip_persists_state() {
+async fn messages_roundtrip_persists_file_state() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-display");
 
-    let resp = handlers::post_stream(
+    let resp = handlers::push_message(
         State(state.clone()),
         Path("run-display".to_string()),
         Json(
             serde_json::from_value(serde_json::json!({
-                "node_id": "show-chat",
-                "label": "Chat",
-                "kind": "file",
-                "file": "logs/chat.log",
-                "render": "text",
-                "tail": true,
-                "max_lines": 200
+                "from": "show-chat",
+                "tag": "text",
+                "payload": {
+                    "label": "Chat",
+                    "kind": "file",
+                    "file": "logs/chat.log"
+                }
             }))
             .unwrap(),
         ),
@@ -1503,22 +1502,22 @@ async fn interaction_stream_roundtrip_persists_state() {
 }
 
 #[tokio::test]
-async fn interaction_inline_stream_roundtrip_persists_content() {
+async fn messages_roundtrip_persists_inline_content() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-inline-display");
 
-    let resp = handlers::post_stream(
+    let resp = handlers::push_message(
         State(state.clone()),
         Path("run-inline-display".to_string()),
         Json(
             serde_json::from_value(serde_json::json!({
-                "node_id": "show-reply",
-                "label": "Reply",
-                "kind": "inline",
-                "content": "hello world",
-                "render": "text",
-                "tail": true,
-                "max_lines": 200
+                "from": "show-reply",
+                "tag": "text",
+                "payload": {
+                    "label": "Reply",
+                    "kind": "inline",
+                    "content": "hello world"
+                }
             }))
             .unwrap(),
         ),
@@ -1539,20 +1538,22 @@ async fn interaction_inline_stream_roundtrip_persists_content() {
 }
 
 #[tokio::test]
-async fn interaction_messages_query_returns_history() {
+async fn messages_query_returns_history() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-message-history");
 
-    let _ = handlers::post_stream(
+    let _ = handlers::push_message(
         State(state.clone()),
         Path("run-message-history".to_string()),
         Json(
             serde_json::from_value(serde_json::json!({
-                "node_id": "reply",
-                "label": "Reply",
-                "kind": "inline",
-                "content": "hello",
-                "render": "text"
+                "from": "reply",
+                "tag": "text",
+                "payload": {
+                    "label": "Reply",
+                    "kind": "inline",
+                    "content": "hello"
+                }
             }))
             .unwrap(),
         ),
@@ -1560,16 +1561,18 @@ async fn interaction_messages_query_returns_history() {
     .await
     .into_response();
 
-    let _ = handlers::post_stream(
+    let _ = handlers::push_message(
         State(state.clone()),
         Path("run-message-history".to_string()),
         Json(
             serde_json::from_value(serde_json::json!({
-                "node_id": "reply",
-                "label": "Reply",
-                "kind": "inline",
-                "content": "world",
-                "render": "text"
+                "from": "reply",
+                "tag": "text",
+                "payload": {
+                    "label": "Reply",
+                    "kind": "inline",
+                    "content": "world"
+                }
             }))
             .unwrap(),
         ),
@@ -1577,13 +1580,13 @@ async fn interaction_messages_query_returns_history() {
     .await
     .into_response();
 
-    let resp = handlers::list_stream_messages(
+    let resp = handlers::list_messages(
         State(state),
         Path("run-message-history".to_string()),
         Query(
             serde_json::from_value(serde_json::json!({
                 "after_seq": 0,
-                "source_id": "reply",
+                "from": "reply",
                 "limit": 10
             }))
             .unwrap(),
@@ -1596,28 +1599,31 @@ async fn interaction_messages_query_returns_history() {
     let body = body_text(resp).await;
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["messages"].as_array().unwrap().len(), 2);
-    assert_eq!(json["messages"][0]["content"], "hello");
-    assert_eq!(json["messages"][1]["content"], "world");
+    assert_eq!(json["messages"][0]["payload"]["content"], "hello");
+    assert_eq!(json["messages"][1]["payload"]["content"], "world");
     assert_eq!(json["next_seq"], 2);
 }
 
 #[tokio::test]
-async fn interaction_input_registration_and_claim_roundtrip() {
+async fn widgets_and_input_messages_roundtrip() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-input");
 
-    let register = handlers::register_input(
+    let register = handlers::push_message(
         State(state.clone()),
         Path("run-input".to_string()),
         Json(
             serde_json::from_value(serde_json::json!({
-                "node_id": "prompt",
-                "label": "Prompt",
-                "widgets": {
-                    "text": {
-                        "type": "textarea",
-                        "label": "Prompt",
-                        "default": "hello"
+                "from": "prompt",
+                "tag": "widgets",
+                "payload": {
+                    "label": "Prompt",
+                    "widgets": {
+                        "text": {
+                            "type": "textarea",
+                            "label": "Prompt",
+                            "default": "hello"
+                        }
                     }
                 }
             }))
@@ -1628,14 +1634,18 @@ async fn interaction_input_registration_and_claim_roundtrip() {
     .into_response();
     assert_eq!(register.status(), axum::http::StatusCode::OK);
 
-    let emit = handlers::emit_input_event(
+    let emit = handlers::push_message(
         State(state.clone()),
         Path("run-input".to_string()),
         Json(
             serde_json::from_value(serde_json::json!({
-                "node_id": "prompt",
-                "output_id": "text",
-                "value": "world"
+                "from": "web",
+                "tag": "input",
+                "payload": {
+                    "to": "prompt",
+                    "output_id": "text",
+                    "value": "world"
+                }
             }))
             .unwrap(),
         ),
@@ -1644,10 +1654,13 @@ async fn interaction_input_registration_and_claim_roundtrip() {
     .into_response();
     assert_eq!(emit.status(), axum::http::StatusCode::OK);
 
-    let claim = handlers::claim_input_events(
-        State(state),
-        Path(("run-input".to_string(), "prompt".to_string())),
-        Query(serde_json::from_value(serde_json::json!({ "since": 0 })).unwrap()),
+    let claim = handlers::list_messages(
+        State(state.clone()),
+        Path("run-input".to_string()),
+        Query(serde_json::from_value(serde_json::json!({
+            "after_seq": 0,
+            "tag": "input"
+        })).unwrap()),
     )
     .await
     .into_response();
@@ -1655,8 +1668,25 @@ async fn interaction_input_registration_and_claim_roundtrip() {
 
     let body = body_text(claim).await;
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(json["events"].as_array().unwrap().len(), 1);
-    assert_eq!(json["events"][0]["value"], "world");
+    assert_eq!(json["messages"].as_array().unwrap().len(), 1);
+    assert_eq!(json["messages"][0]["payload"]["value"], "world");
+
+    let snapshots = handlers::get_snapshots(State(state.clone()), Path("run-input".to_string()))
+        .await
+        .into_response();
+    assert_eq!(snapshots.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(snapshots).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json.as_array().unwrap().len(), 2);
+
+    let interaction = handlers::get_interaction(State(state), Path("run-input".to_string()))
+        .await
+        .into_response();
+    let body = body_text(interaction).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["inputs"].as_array().unwrap().len(), 1);
+    assert_eq!(json["inputs"][0]["current_values"]["text"], "world");
 }
 
 #[tokio::test]

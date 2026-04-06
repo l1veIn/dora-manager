@@ -21,10 +21,13 @@
     ];
 </script>
 
-<Sidebar.Root variant="inset">
+<Sidebar.Root variant="inset" class="border-r border-sidebar-border/80">
     <Sidebar.Header>
-        <div class="px-4 py-2 font-bold text-lg text-primary tracking-tight">
-            Dora Manager
+        <div class="flex items-center justify-between gap-2 px-4 py-2">
+            <div class="font-bold text-lg text-primary tracking-tight">
+                Dora Manager
+            </div>
+            <Sidebar.Trigger class="size-7" />
         </div>
     </Sidebar.Header>
 
@@ -55,4 +58,6 @@
     <Sidebar.Footer>
         <AppFooter />
     </Sidebar.Footer>
+
+    <Sidebar.Rail />
 </Sidebar.Root>

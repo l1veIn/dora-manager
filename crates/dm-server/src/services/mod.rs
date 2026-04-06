@@ -1,5 +1,4 @@
-pub mod input;
-pub mod stream;
+pub mod message;
 
 use std::path::{Component, Path, PathBuf};
 
@@ -43,21 +42,6 @@ pub(crate) fn parse_json_sql(raw: &str) -> rusqlite::Result<serde_json::Value> {
     serde_json::from_str(raw).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
     })
-}
-
-pub(crate) fn parse_optional_json(
-    value: Option<String>,
-) -> rusqlite::Result<Option<serde_json::Value>> {
-    value.map(|raw| parse_json_sql(&raw)).transpose()
-}
-
-pub(crate) fn optional_json_string(
-    value: Option<&serde_json::Value>,
-) -> Result<Option<String>> {
-    value
-        .map(serde_json::to_string)
-        .transpose()
-        .map_err(Into::into)
 }
 
 pub(crate) fn collect_rows<T>(

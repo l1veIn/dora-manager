@@ -64,6 +64,9 @@
     "tests": [],
     "examples": []
   },
+  "interaction": {
+    "emit": ["text", "image", "json", "markdown", "audio", "video"]
+  },
   "examples": [],
   "config_schema": {
     "label": {

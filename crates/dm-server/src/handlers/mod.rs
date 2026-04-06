@@ -1,6 +1,6 @@
 pub(crate) mod dataflow;
 pub(crate) mod events;
-pub(crate) mod interaction;
+pub(crate) mod messages;
 pub(crate) mod nodes;
 pub(crate) mod run_ws;
 pub(crate) mod runs;
@@ -19,9 +19,9 @@ pub use dataflow::{
     stop_dataflow,
 };
 pub use events::{count_events, export_events, ingest_event, query_events};
-pub use interaction::{
-    claim_input_events, emit_input_event, get_interaction, input_ws, interaction_ws,
-    list_stream_messages, post_stream, register_input, serve_artifact_file,
+pub use messages::{
+    get_interaction, get_snapshots, list_messages, messages_ws, node_ws, push_message,
+    serve_artifact_file,
 };
 pub use nodes::{
     create_node, get_node_config, get_node_file_content, get_node_files, import_node, install_node,

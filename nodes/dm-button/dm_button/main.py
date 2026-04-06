@@ -46,12 +46,35 @@ def normalize_output(value):
     return pa.array([str(value)])
 
 
-def server_ws_url(server_url: str, run_id: str, node_id: str, since: int) -> str:
+def emit(server_url: str, run_id: str, node_id: str, tag: str, payload: dict):
+    requests.post(
+        f"{server_url}/api/runs/{run_id}/messages",
+        json={
+            "from": node_id,
+            "tag": tag,
+            "payload": payload,
+            "timestamp": int(time.time()),
+        },
+        timeout=2,
+    ).raise_for_status()
+
+
+def messages_ws_url(server_url: str, run_id: str, node_id: str, since: int) -> str:
     parsed = urlparse(server_url)
     scheme = "wss" if parsed.scheme == "https" else "ws"
-    path = f"/api/runs/{run_id}/interaction/input/ws/{node_id}"
+    path = f"/api/runs/{run_id}/messages/ws/{node_id}"
     query = urlencode({"since": since})
     return urlunparse((scheme, parsed.netloc, path, "", query, ""))
+
+
+def on_message(node, widgets: dict, message: dict):
+    if message.get("tag") != "input":
+        return
+
+    payload = message.get("payload", {})
+    output_id = payload.get("output_id")
+    if output_id in widgets:
+        node.send_output(output_id, normalize_output(payload.get("value")))
 
 
 def main():
@@ -72,22 +95,23 @@ def main():
         }
     }
 
-    requests.post(
-        f"{server_url}/api/runs/{run_id}/interaction/input/register",
-        json={
-            "node_id": node_id,
+    emit(
+        server_url,
+        run_id,
+        node_id,
+        "widgets",
+        {
             "label": label,
             "widgets": widgets,
         },
-        timeout=2,
-    ).raise_for_status()
+    )
 
     since = 0
     while RUNNING:
         ws = None
         try:
             ws = websocket.create_connection(
-                server_ws_url(server_url, run_id, node_id, since),
+                messages_ws_url(server_url, run_id, node_id, since),
                 timeout=2,
             )
             ws.settimeout(1.0)
@@ -107,16 +131,9 @@ def main():
                 if not raw:
                     break
 
-                payload = json.loads(raw)
-                if payload.get("type") != "input.event":
-                    continue
-
-                event = payload.get("event", {})
-                output_id = event["output_id"]
-
-                if output_id in widgets:
-                    node.send_output(output_id, normalize_output(event.get("value")))
-                since = max(since, int(event.get("seq", since)))
+                message = json.loads(raw)
+                on_message(node, widgets, message)
+                since = max(since, int(message.get("seq", since)))
         except Exception as exc:
             if RUNNING:
                 print(f"[{node_id}] WS receive failed: {exc}", file=sys.stderr, flush=True)

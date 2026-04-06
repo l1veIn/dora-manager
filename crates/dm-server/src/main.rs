@@ -15,7 +15,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use dm_core::events::EventStore;
-pub use state::{AppState, InputEventNotification, InteractionNotification};
+pub use state::{AppState, MessageNotification};
 
 #[derive(Embed)]
 #[folder = "../../web/build"]
@@ -62,13 +62,11 @@ struct WebAssets;
         handlers::runs::stop_run,
         handlers::runs::delete_runs,
         // Interaction
-        handlers::interaction::get_interaction,
-        handlers::interaction::post_stream,
-        handlers::interaction::list_stream_messages,
-        handlers::interaction::register_input,
-        handlers::interaction::emit_input_event,
-        handlers::interaction::claim_input_events,
-        handlers::interaction::serve_artifact_file,
+        handlers::messages::get_interaction,
+        handlers::messages::push_message,
+        handlers::messages::list_messages,
+        handlers::messages::get_snapshots,
+        handlers::messages::serve_artifact_file,
     )
 )]
 struct ApiDoc;
@@ -82,8 +80,7 @@ async fn main() {
     let state = AppState {
         home: Arc::new(home),
         events: Arc::new(events),
-        interaction_events: broadcast::channel(512).0,
-        input_events: broadcast::channel(512).0,
+        messages: broadcast::channel(512).0,
     };
 
     let app = Router::new()
@@ -182,33 +179,16 @@ async fn main() {
             get(handlers::tail_run_logs),
         )
         .route("/api/runs/{id}/interaction", get(handlers::get_interaction))
+        .route("/api/runs/{id}/messages", get(handlers::list_messages))
+        .route("/api/runs/{id}/messages", post(handlers::push_message))
         .route(
-            "/api/runs/{id}/interaction/ws",
-            get(handlers::interaction_ws),
+            "/api/runs/{id}/messages/snapshots",
+            get(handlers::get_snapshots),
         )
+        .route("/api/runs/{id}/messages/ws", get(handlers::messages_ws))
         .route(
-            "/api/runs/{id}/interaction/stream/messages",
-            get(handlers::list_stream_messages),
-        )
-        .route(
-            "/api/runs/{id}/interaction/stream",
-            post(handlers::post_stream),
-        )
-        .route(
-            "/api/runs/{id}/interaction/input/register",
-            post(handlers::register_input),
-        )
-        .route(
-            "/api/runs/{id}/interaction/input/events",
-            post(handlers::emit_input_event),
-        )
-        .route(
-            "/api/runs/{id}/interaction/input/claim/{node_id}",
-            get(handlers::claim_input_events),
-        )
-        .route(
-            "/api/runs/{id}/interaction/input/ws/{node_id}",
-            get(handlers::input_ws),
+            "/api/runs/{id}/messages/ws/{node_id}",
+            get(handlers::node_ws),
         )
         .route(
             "/api/runs/{id}/artifacts/{*path}",

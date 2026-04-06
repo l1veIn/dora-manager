@@ -113,30 +113,13 @@ def normalize_inline_content(content, render: str):
     return str(content)
 
 
-def notify(server_url: str, run_id: str, node_id: str, label: str, rel_path: str, render: str):
+def emit(server_url: str, run_id: str, node_id: str, tag: str, payload: dict):
     requests.post(
-        f"{server_url}/api/runs/{run_id}/interaction/stream",
+        f"{server_url}/api/runs/{run_id}/messages",
         json={
-            "node_id": node_id,
-            "label": label,
-            "kind": "file",
-            "file": rel_path,
-            "render": render,
-            "timestamp": int(time.time()),
-        },
-        timeout=2,
-    ).raise_for_status()
-
-
-def notify_inline(server_url: str, run_id: str, node_id: str, label: str, content, render: str):
-    requests.post(
-        f"{server_url}/api/runs/{run_id}/interaction/stream",
-        json={
-            "node_id": node_id,
-            "label": label,
-            "kind": "inline",
-            "content": content,
-            "render": render,
+            "from": node_id,
+            "tag": tag,
+            "payload": payload,
             "timestamp": int(time.time()),
         },
         timeout=2,
@@ -165,13 +148,33 @@ def main():
             if event["id"] == "path":
                 rel_path = normalize_relative(extract_path(event["value"]), run_out_dir)
                 render = resolve_render(rel_path, render_mode)
-                notify(server_url, run_id, node_id, label, rel_path, render)
+                emit(
+                    server_url,
+                    run_id,
+                    node_id,
+                    render,
+                    {
+                        "label": label,
+                        "kind": "file",
+                        "file": rel_path,
+                    },
+                )
                 print(f"[DM-IO] DISPLAY {render} -> {rel_path}", flush=True)
             elif event["id"] == "data":
                 content = extract_data(event["value"])
                 render = resolve_inline_render(content, render_mode)
                 normalized = normalize_inline_content(content, render)
-                notify_inline(server_url, run_id, node_id, label, normalized, render)
+                emit(
+                    server_url,
+                    run_id,
+                    node_id,
+                    render,
+                    {
+                        "label": label,
+                        "kind": "inline",
+                        "content": normalized,
+                    },
+                )
                 print(f"[DM-IO] DISPLAY {render} -> <inline>", flush=True)
         except Exception as exc:
             print(f"[dm-display] Server notify failed: {exc}", file=sys.stderr, flush=True)
