@@ -1,3 +1,4 @@
+#[cfg(not(target_os = "windows"))]
 use std::fs;
 
 use assert_cmd::cargo::cargo_bin_cmd;
