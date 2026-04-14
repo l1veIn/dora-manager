@@ -347,6 +347,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn get_python_package_version_reads_version_output() {
         let dir = tempdir().unwrap();
         let python = dir.path().join("bin/python");
@@ -380,6 +381,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn install_local_python_node_uses_uv_and_recreates_existing_venv() {
         let _guard = env_lock();
         let dir = tempdir().unwrap();
@@ -404,6 +406,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn install_python_node_uses_uv_and_reads_installed_version() {
         let _guard = env_lock();
         let dir = tempdir().unwrap();
@@ -430,6 +433,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn install_node_updates_dm_json_for_local_python_installs() {
         let _guard = env_lock();
         let dir = tempdir().unwrap();
@@ -464,6 +468,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn install_node_supports_local_cargo_path_builds() {
         let _guard = env_lock();
         let dir = tempdir().unwrap();

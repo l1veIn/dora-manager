@@ -109,6 +109,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn install_from_source_errors_when_git_clone_fails() {
         let _guard = env_lock();
         let dir = tempdir().unwrap();
@@ -134,6 +135,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn install_from_source_errors_when_build_fails_and_cleans_build_dir() {
         let _guard = env_lock();
         let dir = tempdir().unwrap();
@@ -160,6 +162,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn install_from_source_copies_built_binary_and_removes_build_dir() {
         let _guard = env_lock();
         let dir = tempdir().unwrap();

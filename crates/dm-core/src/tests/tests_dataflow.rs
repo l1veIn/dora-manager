@@ -47,6 +47,7 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn transpile_graph_resolves_executable_path() {
     let tmp = tempdir().unwrap();
     let home = tmp.path();
@@ -92,6 +93,7 @@ nodes:
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn transpile_graph_injects_generic_runtime_env() {
     let tmp = tempdir().unwrap();
     let home = tmp.path();
