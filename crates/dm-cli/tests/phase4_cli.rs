@@ -122,6 +122,7 @@ fn node_uninstall_missing_node_shows_friendly_error() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn start_reports_parse_error_for_invalid_yaml() {
     let home = tempdir().unwrap();
     setup_fake_runtime(home.path(), "0.4.1");
@@ -157,6 +158,7 @@ fn start_fails_gracefully_when_no_dora_installed() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn start_creates_run_and_runs_list_shows_it() {
     let home = tempdir().unwrap();
     setup_fake_runtime(home.path(), "0.4.1");
@@ -186,6 +188,7 @@ fn start_creates_run_and_runs_list_shows_it() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn runs_logs_and_stop_work_for_started_run() {
     let home = tempdir().unwrap();
     setup_fake_runtime(home.path(), "0.4.1");
@@ -244,6 +247,7 @@ fn runs_logs_and_stop_work_for_started_run() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn start_rejects_conflicting_active_run_without_force() {
     let home = tempdir().unwrap();
     setup_fake_runtime(home.path(), "0.4.1");
@@ -273,6 +277,7 @@ fn start_rejects_conflicting_active_run_without_force() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn runs_refresh_marks_stale_running_run_as_stopped() {
     let home = tempdir().unwrap();
     setup_fake_runtime(home.path(), "0.4.1");
