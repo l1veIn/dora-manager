@@ -288,6 +288,7 @@ mod tests {
         install_python_node, package_spec_from_build, Node,
     };
 
+    #[cfg(not(target_os = "windows"))]
     fn write_executable(path: &Path, content: &str) {
         fs::write(path, content).unwrap();
         #[cfg(unix)]

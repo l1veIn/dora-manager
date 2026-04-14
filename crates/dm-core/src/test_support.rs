@@ -1,4 +1,4 @@
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 use std::ffi::OsString;
 #[cfg(test)]
 use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -12,10 +12,10 @@ pub(crate) fn env_lock() -> MutexGuard<'static, ()> {
         .unwrap_or_else(|err| err.into_inner())
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 pub(crate) struct PathGuard(Option<OsString>);
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 impl Drop for PathGuard {
     fn drop(&mut self) {
         if let Some(path) = self.0.take() {
@@ -26,14 +26,14 @@ impl Drop for PathGuard {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 pub(crate) fn set_path(value: impl Into<OsString>) -> PathGuard {
     let original = std::env::var_os("PATH");
     std::env::set_var("PATH", value.into());
     PathGuard(original)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 pub(crate) fn clear_path() -> PathGuard {
     let original = std::env::var_os("PATH");
     std::env::set_var("PATH", "");

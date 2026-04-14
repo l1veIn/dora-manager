@@ -97,6 +97,7 @@ mod tests {
 
     use super::install_from_source;
 
+    #[cfg(not(target_os = "windows"))]
     fn write_executable(path: &Path, content: &str) {
         fs::write(path, content).unwrap();
         #[cfg(unix)]
