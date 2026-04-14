@@ -36,7 +36,7 @@ pub async fn doctor(home: &Path) -> Result<DoctorReport> {
         installed.sort_by(|a, b| a.version.cmp(&b.version));
 
         let active_binary_ok = if let Some(ref ver) = cfg.active_version {
-            let bin = config::versions_dir(home).join(ver).join("dora");
+            let bin = config::dora_bin_path(&config::versions_dir(home).join(ver));
             bin.exists()
         } else {
             false

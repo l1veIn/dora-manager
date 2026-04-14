@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build:
+    name: Build Release (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            archive_ext: tar.gz
+            binary_suffix: ""
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            archive_ext: tar.gz
+            binary_suffix: ""
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            archive_ext: zip
+            binary_suffix: ".exe"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Frontend ──────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: web
+
+      # ── Rust Release Build ────────────────────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}-release
+
+      - name: Build release binaries
+        run: cargo build --release --workspace --target ${{ matrix.target }}
+
+      # ── Package ───────────────────────────────────────────────────────
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME}"
+          ARCHIVE_NAME="dora-manager-${VERSION}-${{ matrix.target }}.tar.gz"
+          mkdir -p "dora-manager-${VERSION}"
+          if [ -f "target/${{ matrix.target }}/release/dm${{ matrix.binary_suffix }}" ]; then
+            cp "target/${{ matrix.target }}/release/dm${{ matrix.binary_suffix }}" "dora-manager-${VERSION}/"
+          fi
+          if [ -f "target/${{ matrix.target }}/release/dm-server${{ matrix.binary_suffix }}" ]; then
+            cp "target/${{ matrix.target }}/release/dm-server${{ matrix.binary_suffix }}" "dora-manager-${VERSION}/"
+          fi
+          cp -r web/build "dora-manager-${VERSION}/web_build"
+          tar czf "${ARCHIVE_NAME}" "dora-manager-${VERSION}"
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $Version = "${env:GITHUB_REF_NAME}"
+          $ArchiveName = "dora-manager-${Version}-${{ matrix.target }}.zip"
+          $StageDir = "dora-manager-${Version}"
+          New-Item -ItemType Directory -Force -Path $StageDir
+          if (Test-Path "target/${{ matrix.target }}/release/dm.exe") {
+            Copy-Item "target/${{ matrix.target }}/release/dm.exe" $StageDir/
+          }
+          if (Test-Path "target/${{ matrix.target }}/release/dm-server.exe") {
+            Copy-Item "target/${{ matrix.target }}/release/dm-server.exe" $StageDir/
+          }
+          Copy-Item -Recurse web/build "$StageDir/web_build"
+          Compress-Archive -Path "$StageDir/*" -DestinationPath $ArchiveName
+          echo "ARCHIVE_NAME=$ArchiveName" >> $env:GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: ${{ env.ARCHIVE_NAME }}
+          retention-days: 1
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          sha256sum dora-manager-*.* > checksums-sha256.txt
+          cat checksums-sha256.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dora-manager-*.tar.gz
+            dora-manager-*.zip
+            checksums-sha256.txt

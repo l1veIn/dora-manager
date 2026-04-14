@@ -23,7 +23,7 @@ pub fn active_dora_bin(home: &Path) -> Result<PathBuf> {
     let version = cfg
         .active_version
         .ok_or_else(|| anyhow::anyhow!("No active dora version. Run `dm install` first."))?;
-    let bin = config::versions_dir(home).join(&version).join("dora");
+    let bin = config::dora_bin_path(&config::versions_dir(home).join(&version));
     if !bin.exists() {
         anyhow::bail!(
             "dora binary not found at {}. Run `dm install {}` to fix.",

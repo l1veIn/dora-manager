@@ -34,7 +34,7 @@ pub async fn install(
     let tag = release.tag_name.trim_start_matches('v').to_string();
 
     let target_dir = config::versions_dir(home).join(&tag);
-    if target_dir.join("dora").exists() {
+    if config::dora_bin_path(&target_dir).exists() {
         return Ok(InstallResult {
             version: tag,
             method: InstallMethod::Binary,
@@ -203,7 +203,7 @@ mod tests {
             .unwrap();
         server.join().unwrap();
 
-        assert!(target_dir.join("dora").exists());
+        assert!(target_dir.join(config::dora_bin_name()).exists());
     }
 
     #[test]

@@ -1,3 +1,4 @@
+use std::env;
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -303,17 +304,29 @@ impl MediaRuntime {
             None => format!("{}/latest", MEDIAMTX_REPO_API),
         };
 
-        let response = self
+        let mut req = self
             .client
             .get(url)
             .header("User-Agent", MEDIAMTX_USER_AGENT)
-            .header("Accept", "application/vnd.github+json")
-            .send()
-            .await?;
+            .header("Accept", "application/vnd.github+json");
+
+        if let Ok(token) = env::var("GITHUB_TOKEN") {
+            if !token.is_empty() {
+                req = req.header("Authorization", format!("Bearer {token}"));
+            }
+        }
+
+        let response = req.send().await?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
+            if status.as_u16() == 403 || status.as_u16() == 429 {
+                anyhow::bail!(
+                    "GitHub API error ({}): {}\n\n  Hint: You may have hit the API rate limit.\n  Set a GitHub personal access token to increase your limit:\n    export GITHUB_TOKEN=ghp_your_token_here",
+                    status, body
+                );
+            }
             anyhow::bail!("GitHub API error ({}): {}", status, body);
         }
 

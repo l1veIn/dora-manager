@@ -5,7 +5,10 @@ use anyhow::Result;
 pub(super) fn extract_tar(data: &[u8], target_dir: &Path) -> Result<()> {
     use std::process::{Command, Stdio};
 
-    let mut child = Command::new("tar")
+    // tar is available on all Unix systems and Windows 10+ (bsdtar)
+    let tar_cmd = if cfg!(windows) { "tar.exe" } else { "tar" };
+
+    let mut child = Command::new(tar_cmd)
         .args(["xzf", "-", "--strip-components=1", "-C"])
         .arg(target_dir)
         .stdin(Stdio::piped())
@@ -20,7 +23,7 @@ pub(super) fn extract_tar(data: &[u8], target_dir: &Path) -> Result<()> {
 
     let output = child.wait_with_output()?;
     if !output.status.success() {
-        let mut child = Command::new("tar")
+        let mut child = Command::new(tar_cmd)
             .args(["xzf", "-", "-C"])
             .arg(target_dir)
             .stdin(Stdio::piped())
@@ -53,8 +56,12 @@ pub(super) fn find_dora_binary(dir: &Path) -> Option<PathBuf> {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.file_name().map(|n| n == "dora").unwrap_or(false) {
-                return Some(path);
+            if path.is_file() {
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+                match name.as_deref() {
+                    Some("dora") | Some("dora.exe") => return Some(path),
+                    _ => {}
+                }
             }
             if path.is_dir() {
                 if path.file_name().map(|n| n == ".venv").unwrap_or(false) {

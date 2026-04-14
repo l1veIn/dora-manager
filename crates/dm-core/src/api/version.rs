@@ -96,7 +96,7 @@ pub async fn use_version(home: &Path, version: &str) -> Result<String> {
 
     let result = async {
         let version_dir = config::versions_dir(home).join(version);
-        let dora_bin = version_dir.join("dora");
+        let dora_bin = config::dora_bin_path(&version_dir);
 
         if !dora_bin.exists() {
             anyhow::bail!(
@@ -169,15 +169,28 @@ async fn fetch_cached_releases() -> Result<Vec<String>> {
 
 async fn fetch_recent_releases() -> Result<Vec<String>> {
     let client = reqwest::Client::new();
-    let resp = client
+    let mut req = client
         .get("https://api.github.com/repos/dora-rs/dora/releases?per_page=10")
         .header("User-Agent", "dm/0.1")
-        .header("Accept", "application/vnd.github+json")
-        .send()
-        .await?;
+        .header("Accept", "application/vnd.github+json");
+
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        if !token.is_empty() {
+            req = req.header("Authorization", format!("Bearer {token}"));
+        }
+    }
+
+    let resp = req.send().await?;
 
     if !resp.status().is_success() {
-        anyhow::bail!("GitHub API returned {}", resp.status());
+        let status = resp.status();
+        if status.as_u16() == 403 || status.as_u16() == 429 {
+            anyhow::bail!(
+                "GitHub API returned {} (rate limit exceeded). Set GITHUB_TOKEN to increase your limit:\n  export GITHUB_TOKEN=ghp_your_token_here",
+                status
+            );
+        }
+        anyhow::bail!("GitHub API returned {}", status);
     }
 
     let releases: Vec<GithubReleaseTag> = resp.json().await?;

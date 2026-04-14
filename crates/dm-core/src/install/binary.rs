@@ -77,7 +77,11 @@ pub(super) async fn install_from_binary(
         extract_zip(&bytes, target_dir)?;
     }
 
+    #[cfg(windows)]
+    let dora_bin = target_dir.join("dora.exe");
+    #[cfg(not(windows))]
     let dora_bin = target_dir.join("dora");
+
     if !dora_bin.exists() {
         if let Some(found_bin) = find_dora_binary(target_dir) {
             std::fs::rename(&found_bin, &dora_bin)?;

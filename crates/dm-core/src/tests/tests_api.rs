@@ -331,5 +331,5 @@ async fn active_dora_bin_found() {
 
     let bin = crate::dora::active_dora_bin(&home).unwrap();
     assert!(bin.exists());
-    assert!(bin.ends_with("dora"));
+    assert!(bin.ends_with(crate::config::dora_bin_name()));
 }

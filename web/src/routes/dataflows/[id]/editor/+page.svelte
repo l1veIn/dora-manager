@@ -24,6 +24,7 @@
         Sun,
         Moon,
         Languages,
+        LayoutGrid,
     } from 'lucide-svelte';
     import { mode, toggleMode } from 'mode-watcher';
     import DmNode from '../components/graph/DmNode.svelte';
@@ -39,6 +40,7 @@
         graphToYaml,
         createNodeFromPalette,
     } from '../components/graph/yaml-graph';
+    import { applyDagreLayout } from '../components/graph/auto-layout';
     import type {
         ViewJson,
         DmFlowNode,
@@ -108,6 +110,19 @@
         isDirty = true;
     }
 
+    // ── Auto-Layout ──
+    function applyAutoLayout() {
+        if (nodes.length === 0) return;
+        pushUndo();
+        const layouted = applyDagreLayout(
+            nodes.map(n => ({ ...n, position: { ...n.position } })) as DmFlowNode[],
+            edges.map(e => ({ ...e })) as DmFlowEdge[],
+        );
+        nodes = layouted.nodes;
+        edges = layouted.edges;
+        isDirty = true;
+    }
+
     // ── Context Menu ──
     let contextMenu = $state<{
         x: number;
@@ -145,6 +160,8 @@
         } else if (action === 'selectAll') {
             nodes = nodes.map(n => ({ ...n, selected: true }));
             edges = edges.map(e => ({ ...e, selected: true }));
+        } else if (action === 'autoLayout') {
+            applyAutoLayout();
         } else if (action === 'duplicate' && contextMenu.targetId) {
             const node = nodes.find(n => n.id === contextMenu.targetId);
             if (node) duplicateNode(node);
@@ -474,6 +491,18 @@
             >
                 <Plus class="size-4 mr-1" />
                 Add Node
+            </Button>
+
+            <Button
+                variant="outline"
+                size="sm"
+                class="mr-1"
+                disabled={nodes.length === 0}
+                onclick={applyAutoLayout}
+                title="Auto Layout"
+            >
+                <LayoutGrid class="size-4 mr-1" />
+                Auto Layout
             </Button>
 
             <Button variant="ghost" size="icon" class="h-8 w-8" onclick={toggleMode} title="Toggle Theme">

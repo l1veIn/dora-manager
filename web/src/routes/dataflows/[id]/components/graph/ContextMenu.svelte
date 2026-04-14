@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Copy, Trash2, Plus, MousePointer2, Settings } from 'lucide-svelte';
+    import { Copy, Trash2, Plus, MousePointer2, Settings, LayoutGrid } from 'lucide-svelte';
 
     let {
         x,
@@ -45,6 +45,11 @@
             <button class="menu-item" onclick={() => handleAction('selectAll')}>
                 <MousePointer2 class="size-4" />
                 <span>Select All</span>
+            </button>
+            <div class="h-px bg-border my-1"></div>
+            <button class="menu-item" onclick={() => handleAction('autoLayout')}>
+                <LayoutGrid class="size-4" />
+                <span>Auto Layout</span>
             </button>
         {:else if type === 'node'}
             <button class="menu-item" onclick={() => handleAction('duplicate')}>

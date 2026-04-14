@@ -1,6 +1,24 @@
+use std::env;
+
 use anyhow::Result;
 use reqwest::Client;
 use serde::Deserialize;
+
+/// Build common GitHub API headers, attaching an Authorization token
+/// when the `GITHUB_TOKEN` environment variable is set.
+fn github_headers(req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+    let mut req = req
+        .header("User-Agent", "dm/0.1")
+        .header("Accept", "application/vnd.github+json");
+
+    if let Ok(token) = env::var("GITHUB_TOKEN") {
+        if !token.is_empty() {
+            req = req.header("Authorization", format!("Bearer {token}"));
+        }
+    }
+
+    req
+}
 
 #[derive(Debug, Deserialize)]
 pub(super) struct GithubRelease {
@@ -32,11 +50,21 @@ pub(super) fn platform_asset_patterns() -> Vec<&'static str> {
     {
         vec!["aarch64-unknown-linux"]
     }
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        vec!["x86_64-pc-windows"]
+    }
+    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+    {
+        vec!["aarch64-pc-windows"]
+    }
     #[cfg(not(any(
         all(target_os = "macos", target_arch = "x86_64"),
         all(target_os = "macos", target_arch = "aarch64"),
         all(target_os = "linux", target_arch = "x86_64"),
         all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "windows", target_arch = "x86_64"),
+        all(target_os = "windows", target_arch = "aarch64"),
     )))]
     {
         vec!["unknown-platform"]
@@ -68,16 +96,17 @@ async fn fetch_release_from_base_url(
 ) -> Result<GithubRelease> {
     let url = release_url(api_base, version);
 
-    let resp = client
-        .get(&url)
-        .header("User-Agent", "dm/0.1")
-        .header("Accept", "application/vnd.github+json")
-        .send()
-        .await?;
+    let resp = github_headers(client.get(&url)).send().await?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
+        if status.as_u16() == 403 || status.as_u16() == 429 {
+            anyhow::bail!(
+                "GitHub API error ({}): {}\n\n  Hint: You may have hit the API rate limit.\n  Set a GitHub personal access token to increase your limit:\n    export GITHUB_TOKEN=ghp_your_token_here\n\n  Or download the release manually from:\n    https://github.com/dora-rs/dora/releases",
+                status, body
+            );
+        }
         anyhow::bail!("GitHub API error ({}): {}", status, body);
     }
 

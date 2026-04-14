@@ -122,6 +122,20 @@ pub fn versions_dir(home: &Path) -> PathBuf {
     home.join("versions")
 }
 
+/// Platform-appropriate dora binary name (dora on Unix, dora.exe on Windows)
+pub fn dora_bin_name() -> &'static str {
+    if cfg!(windows) {
+        "dora.exe"
+    } else {
+        "dora"
+    }
+}
+
+/// Full path to the dora binary inside a version directory
+pub fn dora_bin_path(version_dir: &Path) -> PathBuf {
+    version_dir.join(dora_bin_name())
+}
+
 pub fn active_link(home: &Path) -> PathBuf {
     home.join("active")
 }

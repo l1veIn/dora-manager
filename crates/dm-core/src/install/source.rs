@@ -62,8 +62,16 @@ pub(super) async fn install_from_source(
         anyhow::bail!("cargo build failed for dora-cli");
     }
 
+    #[cfg(windows)]
+    let built_bin = build_dir.join("target/release/dora.exe");
+    #[cfg(not(windows))]
     let built_bin = build_dir.join("target/release/dora");
+
+    #[cfg(windows)]
+    let target_bin = target_dir.join("dora.exe");
+    #[cfg(not(windows))]
     let target_bin = target_dir.join("dora");
+
     std::fs::copy(&built_bin, &target_bin)?;
 
     #[cfg(unix)]
@@ -173,7 +181,7 @@ mod tests {
         rt.block_on(install_from_source("v0.4.1", &target_dir, false))
             .unwrap();
 
-        assert!(target_dir.join("dora").exists());
+        assert!(target_dir.join(crate::config::dora_bin_name()).exists());
         assert!(!target_dir.join("_build").exists());
     }
 }

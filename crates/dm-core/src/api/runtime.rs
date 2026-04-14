@@ -26,7 +26,7 @@ pub async fn status(home: &Path, verbose: bool) -> Result<StatusReport> {
 
     let ver = cfg.active_version.as_ref().unwrap().clone();
     let bin = config::versions_dir(home).join(&ver);
-    let dora_bin = bin.join("dora");
+    let dora_bin = config::dora_bin_path(&bin);
 
     let check_args = vec!["check".to_string()];
     let list_args = vec!["list".to_string()];

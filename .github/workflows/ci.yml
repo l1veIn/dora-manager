@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,40 +12,99 @@ env:
 
 jobs:
   check:
-    name: Check
-    runs-on: ubuntu-latest
+    name: Build & Test (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            archive_ext: tar.gz
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            archive_ext: tar.gz
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            archive_ext: zip
+
     steps:
       - uses: actions/checkout@v4
 
-      # Frontend build (rust-embed needs web/build at compile time)
+      # ── Frontend ──────────────────────────────────────────────────────
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
         working-directory: web
-      - name: Svelte Check
+
+      - name: Svelte Check (lint)
         run: npm run lint
         working-directory: web
-      - name: Build Frontend
+
+      - name: Build frontend
         run: npm run build
         working-directory: web
 
-      # Rust checks
+      # ── Rust ──────────────────────────────────────────────────────────
       - uses: dtolnay/rust-toolchain@stable
         with:
+          targets: ${{ matrix.target }}
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
 
-      - name: Format
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Format check
         run: cargo fmt --check
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets
+        run: cargo clippy --workspace --all-targets --target ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --workspace --target ${{ matrix.target }}
 
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --workspace --target ${{ matrix.target }}
+
+      # ── Upload build artifacts ────────────────────────────────────────
+      - name: Package artifacts (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p staging
+          if [ -f "target/${{ matrix.target }}/debug/dm" ]; then
+            cp target/${{ matrix.target }}/debug/dm staging/
+          fi
+          if [ -f "target/${{ matrix.target }}/debug/dm-server" ]; then
+            cp target/${{ matrix.target }}/debug/dm-server staging/
+          fi
+          cp -r web/build staging/web_build
+          tar czf dora-manager-${{ matrix.target }}.tar.gz -C staging .
+
+      - name: Package artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path staging
+          if (Test-Path "target/${{ matrix.target }}/debug/dm.exe") {
+            Copy-Item "target/${{ matrix.target }}/debug/dm.exe" staging/
+          }
+          if (Test-Path "target/${{ matrix.target }}/debug/dm-server.exe") {
+            Copy-Item "target/${{ matrix.target }}/debug/dm-server.exe" staging/
+          }
+          Copy-Item -Recurse web/build staging/web_build
+          Compress-Archive -Path staging/* -DestinationPath "dora-manager-${{ matrix.target }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dora-manager-${{ matrix.target }}
+          path: dora-manager-${{ matrix.target }}.${{ matrix.archive_ext }}
+          retention-days: 7
 
   audit:
     name: Security Audit
@@ -58,4 +117,3 @@ jobs:
         run: cargo install cargo-audit --locked
       - name: Audit
         run: cargo audit
-
