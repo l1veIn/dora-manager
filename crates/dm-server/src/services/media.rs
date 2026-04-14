@@ -516,6 +516,7 @@ fn binary_name() -> &'static str {
     }
 }
 
+#[cfg_attr(not(unix), allow(unused_variables))]
 fn make_executable(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
