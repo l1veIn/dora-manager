@@ -12,8 +12,11 @@ fn setup_fake_home(versions: &[&str], active: Option<&str>) -> TempDir {
     for ver in versions {
         let ver_dir = config::versions_dir(&home).join(ver);
         std::fs::create_dir_all(&ver_dir).unwrap();
-        let bin = ver_dir.join("dora");
+        let bin = ver_dir.join(config::dora_bin_name());
+        #[cfg(not(target_os = "windows"))]
         std::fs::write(&bin, "#!/bin/sh\necho dora-cli 0.0.0").unwrap();
+        #[cfg(target_os = "windows")]
+        std::fs::write(&bin, "dummy").unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

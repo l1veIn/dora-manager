@@ -17,7 +17,12 @@ fn setup_fake_runtime(home: &std::path::Path, active_version: &str) {
     let version_dir = home.join("versions").join(active_version);
     fs::create_dir_all(&version_dir).unwrap();
 
-    let bin = version_dir.join("dora");
+    #[cfg(target_os = "windows")]
+    let bin_name = "dora.exe";
+    #[cfg(not(target_os = "windows"))]
+    let bin_name = "dora";
+
+    let bin = version_dir.join(bin_name);
     let state_file = home.join("active_dataflow_id");
     fs::write(
         &bin,
