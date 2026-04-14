@@ -11,8 +11,10 @@ fn dm_cmd() -> Command {
     cmd
 }
 
+#[cfg(not(target_os = "windows"))]
 const FAKE_DORA_UUID: &str = "019cc181-adad-7654-aa78-63502362337b";
 
+#[cfg(not(target_os = "windows"))]
 fn setup_fake_runtime(home: &std::path::Path, active_version: &str) {
     let version_dir = home.join("versions").join(active_version);
     fs::create_dir_all(&version_dir).unwrap();
