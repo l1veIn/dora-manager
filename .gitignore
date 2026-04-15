@@ -7,3 +7,9 @@
 /dora-hub
 out/
 node_modules
+.zread
+site/
+
+# VitePress
+docs/.vitepress/cache
+docs/.vitepress/dist
