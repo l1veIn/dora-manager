@@ -162,6 +162,9 @@ def main():
                 print(f"[DM-IO] DISPLAY {render} -> {rel_path}", flush=True)
             elif event["id"] == "data":
                 content = extract_data(event["value"])
+                # Skip empty/null ticks (e.g. from timer nodes)
+                if content is None or (isinstance(content, list) and len(content) == 0):
+                    continue
                 render = resolve_inline_render(content, render_mode)
                 normalized = normalize_inline_content(content, render)
                 emit(

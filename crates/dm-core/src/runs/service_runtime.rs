@@ -134,6 +134,7 @@ pub(super) fn refresh_run_statuses_with_backend<B: RuntimeBackend>(
 
         match runtime_status {
             Some(RunStatus::Running) => {
+                sync_run_outputs(home, run)?;
                 run.outcome = build_outcome(RunStatus::Running, None, None, None);
                 repo::save_run(home, run)?;
             }
