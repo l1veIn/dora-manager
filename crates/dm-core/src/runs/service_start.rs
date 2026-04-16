@@ -15,6 +15,33 @@ use crate::runs::runtime::RuntimeBackend;
 use crate::runs::state::{apply_terminal_state, build_outcome, TerminalStateUpdate};
 use crate::runs::{repo, runtime};
 
+/// Resolve the git URL to install a missing node from.
+/// Priority: YAML source.git > registry > None
+fn resolve_install_url(node_id: &str, yaml: &str) -> Option<String> {
+    // 1. Check YAML for source.git on this node
+    if let Ok(doc) = serde_yaml::from_str::<serde_yaml::Value>(yaml) {
+        if let Some(nodes) = doc.get("nodes").and_then(|n| n.as_sequence()) {
+            for node in nodes {
+                if node.get("id").and_then(|v| v.as_str()) == Some(node_id) {
+                    if let Some(git) = node
+                        .get("source")
+                        .and_then(|s| s.get("git"))
+                        .and_then(|g| g.as_str())
+                    {
+                        return Some(git.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Check registry
+    crate::node::hub::resolve_node_source(node_id).and_then(|src| match src {
+        crate::node::hub::NodeSource::Git(url) => Some(url),
+        _ => None,
+    })
+}
+
 pub async fn start_run_from_yaml(
     home: &Path,
     yaml: &str,
@@ -79,37 +106,38 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
     backend: &B,
 ) -> Result<StartRunResult> {
     let mut executable = crate::dataflow::inspect_yaml(home, yaml);
-    
-    // Auto-install missing nodes if we have git URLs
+
+    // Auto-install missing nodes
     if !executable.summary.missing_nodes.is_empty() {
-        if let Some(missing_with_git) = &executable.summary.missing_nodes_with_git_url {
-            let mut installed_any = false;
-            for (node_id, git_url) in missing_with_git {
-                // Import the node from git
-                match crate::node::import_git(home, node_id, git_url).await {
-                    Ok(_) => {
-                        // Install the node
-                        match crate::node::install_node(home, node_id).await {
+        let mut installed_any = false;
+
+        for node_id in &executable.summary.missing_nodes.clone() {
+            let git_url = resolve_install_url(node_id, yaml);
+            match git_url {
+                Some(url) => {
+                    eprintln!("→ Installing missing node '{}' from {}...", node_id, url);
+                    match crate::node::import_git(home, node_id, &url).await {
+                        Ok(_) => match crate::node::install_node(home, node_id).await {
                             Ok(_) => {
+                                eprintln!("  ✅ Installed {}", node_id);
                                 installed_any = true;
                             }
-                            Err(e) => {
-                                // Log the error but continue with other nodes
-                                eprintln!("Warning: Failed to install node '{}': {}", node_id, e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        // Log the error but continue with other nodes
-                        eprintln!("Warning: Failed to import node '{}': {}", node_id, e);
+                            Err(e) => eprintln!("  ⚠ Install failed: {}", e),
+                        },
+                        Err(e) => eprintln!("  ⚠ Import failed: {}", e),
                     }
                 }
+                None => {
+                    eprintln!(
+                        "→ Missing node '{}': no known source. Run: dm node import <git-url>",
+                        node_id
+                    );
+                }
             }
-            
-            // Re-inspect the YAML if we installed any nodes
-            if installed_any {
-                executable = crate::dataflow::inspect_yaml(home, yaml);
-            }
+        }
+
+        if installed_any {
+            executable = crate::dataflow::inspect_yaml(home, yaml);
         }
     }
     

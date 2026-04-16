@@ -1,104 +1,94 @@
-//! Node registry - static mapping of node IDs to their GitHub source URLs.
+//! Node registry — maps node IDs to their sources.
+//!
+//! The registry is embedded from `registry.json` at compile time.
+//! At runtime, `resolve_node_source()` checks:
+//!   1. YAML `source.git` field (highest priority)
+//!   2. This registry (local copy or future remote URL)
+//!
+//! Registry format:
+//! ```json
+//! {
+//!   "nodes": {
+//!     "dora-echo": {
+//!       "source": { "type": "local", "path": "nodes/dora-echo" }
+//!     },
+//!     "some-remote-node": {
+//!       "source": { "type": "git", "url": "https://github.com/..." }
+//!     }
+//!   }
+//! }
+//! ```
 
-/// Static registry mapping node IDs to their GitHub repository URLs.
-/// This allows automatic resolution of missing nodes during dataflow execution.
-const NODE_REGISTRY: &[(&str, &str)] = &[
-    // Core dora-rs nodes
-    ("dora-echo", "https://github.com/dora-rs/dora-echo.git"),
-    ("dora-yolo", "https://github.com/dora-rs/dora-yolo.git"),
-    ("dora-keyboard", "https://github.com/dora-rs/dora-keyboard.git"),
-    ("dora-microphone", "https://github.com/dora-rs/dora-microphone.git"),
-    ("dora-qwen", "https://github.com/dora-rs/dora-qwen.git"),
-    
-    // Computer vision nodes
-    ("opencv-video-capture", "https://github.com/dora-rs/opencv-video-capture.git"),
-    ("opencv-plot", "https://github.com/dora-rs/opencv-plot.git"),
-    
-    // Audio/speech nodes
-    ("dora-distil-whisper", "https://github.com/dora-rs/dora-distil-whisper.git"),
-    ("dora-vad", "https://github.com/dora-rs/dora-vad.git"),
-    ("dora-kokoro-tts", "https://github.com/dora-rs/dora-kokoro-tts.git"),
-    ("dora-outtetts", "https://github.com/dora-rs/dora-outtetts.git"),
-    ("dora-pyaudio", "https://github.com/dora-rs/dora-pyaudio.git"),
-    
-    // LLM/AI nodes
-    ("dora-qwen2-5-vl", "https://github.com/dora-rs/dora-qwen2-5-vl.git"),
-    ("dora-internvl", "https://github.com/dora-rs/dora-internvl.git"),
-    ("dora-transformers", "https://github.com/dora-rs/dora-transformers.git"),
-    ("dora-llama-cpp-python", "https://github.com/dora-rs/dora-llama-cpp-python.git"),
-    ("dora-sam2", "https://github.com/dora-rs/dora-sam2.git"),
-    
-    // Robotics nodes
-    ("dora-piper", "https://github.com/dora-rs/dora-piper.git"),
-    ("dora-reachy1", "https://github.com/dora-rs/dora-reachy1.git"),
-    ("dora-reachy2", "https://github.com/dora-rs/dora-reachy2.git"),
-    ("dora-ugv", "https://github.com/dora-rs/dora-ugv.git"),
-    ("dora-kit-car", "https://github.com/dora-rs/dora-kit-car.git"),
-    ("dora-mujoco", "https://github.com/dora-rs/dora-mujoco.git"),
-    ("dora-mujoco-husky", "https://github.com/dora-rs/dora-mujoco-husky.git"),
-    ("dora-rustypot", "https://github.com/dora-rs/dora-rustypot.git"),
-    ("dora-policy-inference", "https://github.com/dora-rs/dora-policy-inference.git"),
-    
-    // Sensor nodes
-    ("dora-pyrealsense", "https://github.com/dora-rs/dora-pyrealsense.git"),
-    ("dora-pyorbbecksdk", "https://github.com/dora-rs/dora-pyorbbecksdk.git"),
-    ("dora-ios-lidar", "https://github.com/dora-rs/dora-ios-lidar.git"),
-    ("dora-mediapipe", "https://github.com/dora-rs/dora-mediapipe.git"),
-    ("dora-cotracker", "https://github.com/dora-rs/dora-cotracker.git"),
-    
-    // Media/video nodes
-    ("dora-dav1d", "https://github.com/dora-rs/dora-dav1d.git"),
-    ("dora-rav1e", "https://github.com/dora-rs/dora-rav1e.git"),
-    ("video-encoder", "https://github.com/dora-rs/video-encoder.git"),
-    ("dora-vggt", "https://github.com/dora-rs/dora-vggt.git"),
-    
-    // UI/dashboard nodes
-    ("dora-gradio", "https://github.com/dora-rs/dora-gradio.git"),
-    ("lerobot-dashboard", "https://github.com/dora-rs/lerobot-dashboard.git"),
-    ("dora-teleop-xr", "https://github.com/dora-rs/dora-teleop-xr.git"),
-    
-    // Recording/playback nodes
-    ("dora-record", "https://github.com/dora-rs/dora-record.git"),
-    ("dora-dataset-record", "https://github.com/dora-rs/dora-dataset-record.git"),
-    ("dora-parquet-recorder", "https://github.com/dora-rs/dora-parquet-recorder.git"),
-    ("llama-factory-recorder", "https://github.com/dora-rs/llama-factory-recorder.git"),
-    ("replay-client", "https://github.com/dora-rs/replay-client.git"),
-    
-    // Terminal/IO nodes
-    ("terminal-input", "https://github.com/dora-rs/terminal-input.git"),
-    ("terminal-print", "https://github.com/dora-rs/terminal-print.git"),
-    
-    // MCP nodes
-    ("dora-mcp-host", "https://github.com/dora-rs/dora-mcp-host.git"),
-    ("dora-mcp-server", "https://github.com/dora-rs/dora-mcp-server.git"),
-    ("dora-openai-server", "https://github.com/dora-rs/dora-openai-server.git"),
-    ("dora-openai-websocket", "https://github.com/dora-rs/dora-openai-websocket.git"),
-    ("openai-proxy-server", "https://github.com/dora-rs/openai-proxy-server.git"),
-    
-    // Misc nodes
-    ("dora-rerun", "https://github.com/dora-rs/dora-rerun.git"),
-    ("dora-funasr", "https://github.com/dora-rs/dora-funasr.git"),
-    ("dora-parler", "https://github.com/dora-rs/dora-parler.git"),
-    ("dora-pytorch-kinematics", "https://github.com/dora-rs/dora-pytorch-kinematics.git"),
-    ("dora-object-to-pose", "https://github.com/dora-rs/dora-object-to-pose.git"),
-    ("dora-mistral-rs", "https://github.com/dora-rs/dora-mistral-rs.git"),
-    ("dora-qwen-omni", "https://github.com/dora-rs/dora-qwen-omni.git"),
-    
-    // Third-party nodes
-    ("gamepad", "https://github.com/dora-rs/gamepad.git"),
-    ("lebai-client", "https://github.com/dora-rs/lebai-client.git"),
-    ("mujoco-client", "https://github.com/dora-rs/mujoco-client.git"),
-    ("pyarrow-assert", "https://github.com/dora-rs/pyarrow-assert.git"),
-    ("pyarrow-sender", "https://github.com/dora-rs/pyarrow-sender.git"),
-];
+use serde::Deserialize;
+use std::path::{Path, PathBuf};
 
-/// Resolve a node ID to its GitHub repository URL.
-/// Returns None if the node is not found in the registry.
-pub fn resolve_node_source(node_id: &str) -> Option<&'static str> {
-    NODE_REGISTRY
-        .iter()
-        .find(|(id, _)| *id == node_id)
-        .map(|(_, url)| *url)
+/// Embedded registry JSON from the repo root.
+const REGISTRY_JSON: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../registry.json"));
+
+#[derive(Debug, Deserialize)]
+struct Registry {
+    nodes: std::collections::BTreeMap<String, RegistryEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RegistryEntry {
+    source: RegistrySource,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+enum RegistrySource {
+    Local { path: String },
+    Git { url: String },
+}
+
+/// Look up a node in the registry and return its source.
+///
+/// For `local` sources, returns the absolute path relative to the repo root
+/// (the caller must resolve it against the actual repo/install location).
+/// For `git` sources, returns the git URL.
+pub fn resolve_node_source(node_id: &str) -> Option<NodeSource> {
+    let registry: Registry = serde_json::from_str(REGISTRY_JSON).ok()?;
+    let entry = registry.nodes.get(node_id)?;
+
+    Some(match &entry.source {
+        RegistrySource::Local { path } => NodeSource::Local(path.clone()),
+        RegistrySource::Git { url } => NodeSource::Git(url.clone()),
+    })
+}
+
+/// List all nodes in the registry.
+pub fn list_registry_nodes() -> Vec<String> {
+    let registry: Registry = serde_json::from_str(REGISTRY_JSON).unwrap_or(Registry {
+        nodes: Default::default(),
+    });
+    registry.nodes.into_keys().collect()
+}
+
+/// Check if a node exists in the registry.
+pub fn is_in_registry(node_id: &str) -> bool {
+    resolve_node_source(node_id).is_some()
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NodeSource {
+    /// Local path relative to the dm install/repo root.
+    Local(String),
+    /// Git repository URL.
+    Git(String),
+}
+
+impl NodeSource {
+    /// Resolve a local source to an absolute path given the dm home or repo root.
+    pub fn resolve_local(&self, root: &Path) -> Option<PathBuf> {
+        match self {
+            NodeSource::Local(rel) => {
+                let p = root.join(rel);
+                if p.exists() { Some(p) } else { None }
+            }
+            NodeSource::Git(_) => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -106,32 +96,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolve_known_nodes() {
-        assert_eq!(
-            resolve_node_source("dora-echo"),
-            Some("https://github.com/dora-rs/dora-echo.git")
-        );
-        assert_eq!(
-            resolve_node_source("dora-yolo"),
-            Some("https://github.com/dora-rs/dora-yolo.git")
-        );
-        assert_eq!(
-            resolve_node_source("opencv-video-capture"),
-            Some("https://github.com/dora-rs/opencv-video-capture.git")
-        );
+    fn registry_loads() {
+        let nodes = list_registry_nodes();
+        assert!(!nodes.is_empty(), "registry should contain nodes");
+        assert!(nodes.contains(&"dm-display".to_string()));
+        assert!(nodes.contains(&"dora-yolo".to_string()));
     }
 
     #[test]
-    fn resolve_unknown_node_returns_none() {
-        assert_eq!(resolve_node_source("non-existent-node"), None);
+    fn resolve_known_node() {
+        let src = resolve_node_source("dm-display");
+        assert!(src.is_some());
+        match src.unwrap() {
+            NodeSource::Local(path) => assert!(path.contains("dm-display")),
+            _ => panic!("expected local source"),
+        }
     }
 
     #[test]
-    fn registry_contains_common_nodes() {
-        // Ensure key nodes are present
-        assert!(resolve_node_source("dora-keyboard").is_some());
-        assert!(resolve_node_source("dora-microphone").is_some());
-        assert!(resolve_node_source("dora-qwen").is_some());
-        assert!(resolve_node_source("dora-piper").is_some());
+    fn resolve_unknown_returns_none() {
+        assert!(resolve_node_source("non-existent-node").is_none());
     }
 }

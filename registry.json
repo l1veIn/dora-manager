@@ -1,0 +1,399 @@
+{
+  "version": 1,
+  "nodes": {
+    "dm-and": {
+      "description": "Emit true only when all known inputs are true.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-and"
+      },
+      "runtime": "python",
+      "category": "Builtin/Logic",
+      "tags": [
+        "logic",
+        "bool",
+        "and"
+      ]
+    },
+    "dm-button": {
+      "description": "A trigger button widget for the Interaction UI. Emits a pulse when clicked.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-button"
+      },
+      "runtime": "python",
+      "category": "Builtin/Interaction",
+      "tags": [
+        "builtin",
+        "interaction",
+        "input"
+      ]
+    },
+    "dm-check-ffmpeg": {
+      "description": "Check whether ffmpeg is available on the local machine.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-check-ffmpeg"
+      },
+      "runtime": "python",
+      "category": "Builtin/Logic",
+      "tags": [
+        "check",
+        "ffmpeg",
+        "readiness"
+      ]
+    },
+    "dm-check-media-backend": {
+      "description": "Check whether the dm-server media backend is ready.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-check-media-backend"
+      },
+      "runtime": "python",
+      "category": "Builtin/Logic",
+      "tags": [
+        "check",
+        "media",
+        "readiness"
+      ]
+    },
+    "dm-display": {
+      "description": "Relay display messages to dm-server for the current run UI. Supports inline content (text/json) via the data port and artifact files via the path port.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-display"
+      },
+      "runtime": "python",
+      "category": "Builtin/Interaction",
+      "tags": [
+        "builtin",
+        "interaction",
+        "display"
+      ]
+    },
+    "dm-downloader": {
+      "description": "Model weight downloader with hash verification, extraction, and Panel UI lifecycle.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-downloader"
+      },
+      "runtime": "python",
+      "category": "Builtin/Utility",
+      "tags": [
+        "builtin",
+        "download",
+        "model"
+      ]
+    },
+    "dm-gate": {
+      "description": "Pass through values only while enabled is true.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-gate"
+      },
+      "runtime": "python",
+      "category": "Builtin/Logic",
+      "tags": [
+        "logic",
+        "gate",
+        "bool"
+      ]
+    },
+    "dm-input-switch": {
+      "description": "A boolean toggle switch widget for the Interaction UI.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-input-switch"
+      },
+      "runtime": "python",
+      "category": "Builtin/Interaction",
+      "tags": [
+        "builtin",
+        "interaction",
+        "input"
+      ]
+    },
+    "dm-log": {
+      "description": "Serialize incoming data to append-only log files under the current run output directory.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-log"
+      },
+      "runtime": "python",
+      "category": "Builtin/Storage",
+      "tags": [
+        "builtin",
+        "storage",
+        "log"
+      ]
+    },
+    "dm-microphone": {
+      "description": "Microphone input with device selection. Publishes available devices for dynamic widget binding.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-microphone"
+      },
+      "runtime": "python",
+      "category": "Audio/Input",
+      "tags": [
+        "audio",
+        "microphone",
+        "input"
+      ]
+    },
+    "dm-mjpeg": {
+      "description": "Expose Dora video frames as an MJPEG-over-HTTP preview endpoint.",
+      "version": "unknown",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-mjpeg"
+      },
+      "runtime": "rust",
+      "category": "Builtin/Media",
+      "tags": [
+        "builtin",
+        "rust",
+        "video"
+      ]
+    },
+    "dm-queue": {
+      "description": "FIFO buffer and flush-control node for Dora Manager streams.",
+      "version": "unknown",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-queue"
+      },
+      "runtime": "rust",
+      "category": "Builtin/Flow Control",
+      "tags": [
+        "builtin",
+        "rust",
+        "queue"
+      ]
+    },
+    "dm-recorder": {
+      "description": "Record audio chunks into a single WAV artifact under the current run output directory.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-recorder"
+      },
+      "runtime": "python",
+      "category": "Builtin/Storage",
+      "tags": [
+        "builtin",
+        "storage",
+        "audio"
+      ]
+    },
+    "dm-save": {
+      "description": "Persist binary payloads as files under the current run output directory.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-save"
+      },
+      "runtime": "python",
+      "category": "Builtin/Storage",
+      "tags": [
+        "builtin",
+        "storage",
+        "file"
+      ]
+    },
+    "dm-screen-capture": {
+      "description": "Capture screen frames and emit them as Arrow image payloads inside Dora.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-screen-capture"
+      },
+      "runtime": "python",
+      "category": "Builtin/Media",
+      "tags": [
+        "screen",
+        "capture",
+        "image"
+      ]
+    },
+    "dm-slider": {
+      "description": "A slider widget for the Interaction UI. Emits a numerical value on change.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-slider"
+      },
+      "runtime": "python",
+      "category": "Builtin/Interaction",
+      "tags": [
+        "builtin",
+        "interaction",
+        "input"
+      ]
+    },
+    "dm-stream-publish": {
+      "description": "Publish frame streams from Dora to the dm-server media backend and emit stream metadata.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-stream-publish"
+      },
+      "runtime": "python",
+      "category": "Builtin/Media",
+      "tags": [
+        "stream",
+        "publish",
+        "video"
+      ]
+    },
+    "dm-test-audio-capture": {
+      "description": "Builtin DM test node for fixed-duration microphone capture.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-test-audio-capture"
+      },
+      "runtime": "python",
+      "category": "Builtin/Test",
+      "tags": [
+        "builtin",
+        "test"
+      ]
+    },
+    "dm-test-media-capture": {
+      "description": "Builtin DM test node for screenshot capture.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-test-media-capture"
+      },
+      "runtime": "python",
+      "category": "Builtin/Test",
+      "tags": [
+        "builtin",
+        "test"
+      ]
+    },
+    "dm-test-observer": {
+      "description": "Builtin DM test node for aggregating multimodal test events.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-test-observer"
+      },
+      "runtime": "python",
+      "category": "Builtin/Test",
+      "tags": [
+        "builtin",
+        "test"
+      ]
+    },
+    "dm-text-input": {
+      "description": "A text input widget for the Interaction UI. Supports single-line and multiline modes.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-text-input"
+      },
+      "runtime": "python",
+      "category": "Builtin/Interaction",
+      "tags": [
+        "builtin",
+        "interaction",
+        "input"
+      ]
+    },
+    "dora-distil-whisper": {
+      "description": "Dora dora-distil-whisper",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dora-distil-whisper"
+      },
+      "runtime": "python",
+      "category": "",
+      "tags": []
+    },
+    "dora-kokoro-tts": {
+      "description": "dora-kokoro-tts",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dora-kokoro-tts"
+      },
+      "runtime": "python",
+      "category": "",
+      "tags": []
+    },
+    "dora-qwen": {
+      "description": "dora-qwen",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dora-qwen"
+      },
+      "runtime": "python",
+      "category": "",
+      "tags": []
+    },
+    "dora-vad": {
+      "description": "Dora Node for Text translating using Argostranslate",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dora-vad"
+      },
+      "runtime": "python",
+      "category": "",
+      "tags": []
+    },
+    "dora-yolo": {
+      "description": "Object detection using Ultralytics YOLOv8. Accepts image frames and outputs bounding boxes with confidence scores, class labels, and annotated images.",
+      "version": "0.4.1",
+      "source": {
+        "type": "local",
+        "path": "nodes/dora-yolo"
+      },
+      "runtime": "python",
+      "category": "AI/Vision",
+      "tags": [
+        "detection",
+        "yolo",
+        "vision",
+        "object-detection"
+      ]
+    },
+    "opencv-plot": {
+      "description": "Dora Node for plotting text and bbox on image with OpenCV",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/opencv-plot"
+      },
+      "runtime": "python",
+      "category": "",
+      "tags": []
+    },
+    "opencv-video-capture": {
+      "description": "Dora Node for capturing video with OpenCV",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/opencv-video-capture"
+      },
+      "runtime": "python",
+      "category": "",
+      "tags": []
+    }
+  }
+}

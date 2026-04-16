@@ -75,7 +75,10 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                 } else {
                     // Check if we have a git URL from source.git or registry
                     let git_url = source_git_url.clone()
-                        .or_else(|| hub::resolve_node_source(node_id).map(|s| s.to_string()));
+                        .or_else(|| hub::resolve_node_source(node_id).and_then(|s| match s {
+                            hub::NodeSource::Git(url) => Some(url),
+                            _ => None,
+                        }));
                     
                     missing_nodes.insert(node_id.to_string());
                     if let Some(url) = git_url {
@@ -186,18 +189,23 @@ nodes:
         let tmp = tempdir().unwrap();
         let home = tmp.path();
 
+        // Use a node that exists in registry.json but NOT in nodes/ directory
+        // dora-distil-whisper is in nodes/ so it's found as builtin
+        // Use source.git to test the explicit URL path instead
         let yaml = r#"
 nodes:
   - id: test-node
-    node: dora-echo
+    node: custom-registry-node
+    source:
+      git: "https://github.com/example/custom-node.git"
 "#;
 
         let detail = inspect_yaml(home, yaml);
         assert_eq!(detail.summary.status, DataflowExecutableStatus::MissingNodes);
-        assert_eq!(detail.summary.missing_nodes, vec!["dora-echo"]);
+        assert_eq!(detail.summary.missing_nodes, vec!["custom-registry-node"]);
         assert!(detail.summary.missing_nodes_with_git_url.is_some());
         let git_urls = detail.summary.missing_nodes_with_git_url.unwrap();
-        assert_eq!(git_urls.get("dora-echo").unwrap(), "https://github.com/dora-rs/dora-echo.git");
+        assert_eq!(git_urls.get("custom-registry-node").unwrap(), "https://github.com/example/custom-node.git");
     }
 
     #[test]
