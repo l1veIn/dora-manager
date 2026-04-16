@@ -125,6 +125,28 @@ You can still use the powerful CLI tool to orchestrate environments silently:
 ./target/release/dm down
 ```
 
+## 📸 Demos
+
+Ready-to-run demos are available in the `demos/` directory. All built-in demos use only built-in nodes with zero external dependencies.
+
+```bash
+# Hello Timer — simplest demo, verifies engine + UI
+dm start demos/demo-hello-timer.yml
+
+# Interactive Widgets — slider, button, text input, switch
+dm start demos/demo-interactive-widgets.yml
+
+# Logic Gate Pipeline — AND gate + conditional flow control
+dm start demos/demo-logic-gate.yml
+
+# Robotics Object Detection — webcam + YOLOv8 (requires opencv-video-capture + dora-yolo)
+dm node install opencv-video-capture
+dm node install dora-yolo
+dm start demos/robotics-object-detection.yml
+```
+
+Open http://127.0.0.1:3210 and navigate to the running instance to interact with the demo.
+
 ## 📸 Try it out: OpenCV Camera Pipeline
 
 Try out a real-world computer vision dataflow using your webcam in under 30 seconds. This will also boot up a reactive visual panel to monitor the data stream in real-time!
@@ -174,12 +196,9 @@ curl -X POST http://127.0.0.1:3210/api/down
 
 `dm` is under active development. The following are known limitations:
 
-- **Graph Editor is early-stage**: The visual editor covers basic operations but lacks advanced features such as auto-layout for complex topologies, undo/redo history, and multi-select batch operations.
-- **Limited test coverage**: The project currently has low unit and integration test coverage, with no CI/CD pipeline in place.
 - **Network-dependent installation**: `dm install` and node downloads rely on GitHub Releases. Offline mode is not yet supported.
 - **Single-machine only**: The current architecture is designed for single-machine deployment. Distributed multi-node cluster scheduling is not supported.
 - **No topology validation**: The transpiler does not perform cycle detection or topological sorting. Only port in-degree limits and schema compatibility are checked.
-- **Incomplete documentation**: The full `dm.json` specification, node development guide, and API reference documentation are still in progress.
 - **Windows compatibility untested**: Development and testing have been primarily on macOS and Linux. Windows compatibility has not been fully verified.
 
 ## 📦 Install Strategy
