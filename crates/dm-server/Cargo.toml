@@ -3,6 +3,8 @@ name = "dm-server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+publish = false
 description = "Dora Manager HTTP API server — REST/WebSocket interface for web UIs"
 
 [[bin]]

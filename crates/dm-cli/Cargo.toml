@@ -3,6 +3,8 @@ name = "dm-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+publish = false
 description = "Dora Manager CLI — terminal interface for managing dora-rs environments"
 
 [[bin]]

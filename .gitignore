@@ -13,3 +13,21 @@ site/
 # VitePress
 docs/.vitepress/cache
 docs/.vitepress/dist
+
+# SvelteKit
+web/build
+web/.svelte-kit
+
+# Editor
+*.swp
+*~
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.local
