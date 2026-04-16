@@ -1,0 +1,83 @@
+{
+  "id": "dora-yolo",
+  "name": "dora-yolo",
+  "version": "0.4.1",
+  "source": {
+    "build": "pip install -e ."
+  },
+  "description": "Object detection using Ultralytics YOLOv8. Accepts image frames and outputs bounding boxes with confidence scores, class labels, and annotated images.",
+  "executable": ".venv/bin/dora-yolo",
+  "maintainers": [
+    {
+      "name": "Haixuan Xavier Tao"
+    },
+    {
+      "name": "Enzo Le Van"
+    }
+  ],
+  "license": "MIT",
+  "display": {
+    "category": "AI/Vision",
+    "tags": ["detection", "yolo", "vision", "object-detection"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "image",
+      "direction": "input",
+      "description": "Image frame from camera or video source (bgr8, rgb8, or jpeg encoding).",
+      "required": true,
+      "schema": {}
+    },
+    {
+      "id": "confidence",
+      "direction": "input",
+      "description": "Runtime confidence threshold override (float 0.0-1.0). When received, overrides the CONFIDENCE env var for subsequent frames.",
+      "required": false,
+      "schema": {
+        "type": { "name": "float64" }
+      }
+    },
+    {
+      "id": "bbox",
+      "direction": "output",
+      "description": "Bounding boxes with confidence scores and class labels (struct array with bbox, conf, labels fields).",
+      "schema": {}
+    },
+    {
+      "id": "annotated_image",
+      "direction": "output",
+      "description": "Annotated image with bounding boxes drawn, encoded as JPEG bytes.",
+      "schema": {}
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dora_yolo/main.py",
+    "tests": ["tests"],
+    "examples": []
+  },
+  "config_schema": {
+    "model": {
+      "default": "yolov8n.pt",
+      "description": "YOLO model file name or path (e.g. yolov8n.pt, yolov8s.pt, yolov8m.pt).",
+      "env": "MODEL"
+    },
+    "format": {
+      "default": "xyxy",
+      "description": "Bounding box format: xyxy (x1,y1,x2,y2) or xywh (x,y,w,h).",
+      "env": "FORMAT"
+    },
+    "confidence": {
+      "default": 0.25,
+      "description": "Detection confidence threshold (0.0-1.0). Can be overridden at runtime via the confidence input port.",
+      "env": "CONFIDENCE"
+    }
+  },
+  "examples": []
+}

@@ -1,0 +1,75 @@
+# Robotics Demo: Real-time Object Detection
+#
+# Webcam → YOLOv8 → Annotated Display
+#
+# This demo showcases Dora Manager's ability to orchestrate a classic
+# robotics pipeline: sense (camera) → perceive (YOLO) → display (Web panel).
+#
+# Prerequisites:
+#   dm node install opencv-video-capture
+#   dm node install dora-yolo
+#   dm node install dm-save
+#   dm node install dm-display
+#   dm node install dm-slider
+#
+# Usage:
+#   dm start demos/robotics-object-detection.yml
+#
+# Open http://127.0.0.1:3210 and navigate to the running instance
+# to see the detection results and adjust confidence threshold in real-time.
+
+nodes:
+  # --- Camera Input ---
+  - id: webcam
+    node: opencv-video-capture
+    inputs:
+      tick: dora/timer/millis/100
+    outputs:
+      - image
+    config:
+      encoding: jpeg
+
+  # --- Confidence Control (Web UI Slider) ---
+  - id: threshold
+    node: dm-slider
+    outputs:
+      - value
+    config:
+      label: "Detection Confidence"
+      min_val: 0.05
+      max_val: 0.95
+      step: 0.05
+
+  # --- YOLO Object Detection ---
+  - id: detector
+    node: dora-yolo
+    inputs:
+      image: webcam/image
+      confidence: threshold/value
+    outputs:
+      - bbox
+      - annotated_image
+    config:
+      model: yolov8n.pt
+
+  # --- Save Annotated Image ---
+  - id: save-result
+    node: dm-save
+    inputs:
+      data: detector/annotated_image
+    outputs:
+      - path
+    config:
+      dir: detection
+      naming: latest
+      extension: jpg
+      overwrite_latest: true
+
+  # --- Display in Web Panel ---
+  - id: detection-view
+    node: dm-display
+    inputs:
+      path: save-result/path
+    config:
+      label: "Object Detection"
+      render: image
