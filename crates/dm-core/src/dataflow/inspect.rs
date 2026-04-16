@@ -4,6 +4,7 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::node::{resolve_dm_json_path, resolve_node_dir, Node};
+use crate::node::hub;
 
 use super::model::{
     DataflowExecutableDetail, DataflowExecutableStatus, DataflowExecutableSummary,
@@ -28,6 +29,7 @@ pub fn inspect_yaml(home: &Path, yaml: &str) -> DataflowExecutableDetail {
                 resolved_node_count: 0,
                 missing_node_count: 0,
                 missing_nodes: Vec::new(),
+                missing_nodes_with_git_url: None,
                 invalid_yaml: true,
                 requires_media_backend: false,
                 media_node_count: 0,
@@ -42,6 +44,7 @@ pub fn inspect_yaml(home: &Path, yaml: &str) -> DataflowExecutableDetail {
 fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDetail {
     let mut nodes = Vec::new();
     let mut missing_nodes = BTreeSet::new();
+    let mut missing_nodes_with_git_url = std::collections::BTreeMap::new();
     let mut media_nodes = BTreeSet::new();
     let mut resolved_node_count = 0usize;
 
@@ -52,6 +55,15 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                 .and_then(|value| value.as_str())
                 .unwrap_or_default()
                 .to_string();
+            
+            // Check for source.git field
+            let source_git_url = entry
+                .get("source")
+                .and_then(|source| source.as_mapping())
+                .and_then(|source_map| source_map.get(serde_yaml::Value::String("git".to_string())))
+                .and_then(|git| git.as_str())
+                .map(|s| s.to_string());
+            
             if let Some(node_id) = entry.get("node").and_then(|value| value.as_str()) {
                 let resolved = resolve_node_dir(home, node_id).is_some();
                 let configurable = resolved && resolve_dm_json_path(home, node_id).is_some();
@@ -61,7 +73,14 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                 if resolved {
                     resolved_node_count += 1;
                 } else {
+                    // Check if we have a git URL from source.git or registry
+                    let git_url = source_git_url.clone()
+                        .or_else(|| hub::resolve_node_source(node_id).map(|s| s.to_string()));
+                    
                     missing_nodes.insert(node_id.to_string());
+                    if let Some(url) = git_url {
+                        missing_nodes_with_git_url.insert(node_id.to_string(), url);
+                    }
                 }
                 nodes.push(DataflowNodeResolution {
                     yaml_id,
@@ -69,6 +88,7 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                     resolved,
                     configurable,
                     source: "managed_node".to_string(),
+                    source_git_url,
                 });
             } else if let Some(path_value) = entry.get("path").and_then(|value| value.as_str()) {
                 nodes.push(DataflowNodeResolution {
@@ -77,6 +97,7 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                     resolved: true,
                     configurable: false,
                     source: "external_path".to_string(),
+                    source_git_url: None,
                 });
             }
         }
@@ -104,6 +125,11 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
             resolved_node_count,
             missing_node_count,
             missing_nodes,
+            missing_nodes_with_git_url: if missing_nodes_with_git_url.is_empty() {
+                None
+            } else {
+                Some(missing_nodes_with_git_url)
+            },
             invalid_yaml: false,
             requires_media_backend: media_node_count > 0,
             media_node_count,
@@ -127,4 +153,68 @@ fn node_requires_media_backend(home: &Path, node_id: &str) -> bool {
     node.capabilities
         .iter()
         .any(|capability| capability == "media")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn inspect_yaml_with_source_git_field() {
+        let tmp = tempdir().unwrap();
+        let home = tmp.path();
+
+        let yaml = r#"
+nodes:
+  - id: test-node
+    node: missing-node
+    source:
+      git: https://github.com/example/test-node.git
+"#;
+
+        let detail = inspect_yaml(home, yaml);
+        assert_eq!(detail.summary.status, DataflowExecutableStatus::MissingNodes);
+        assert_eq!(detail.summary.missing_nodes, vec!["missing-node"]);
+        assert!(detail.summary.missing_nodes_with_git_url.is_some());
+        let git_urls = detail.summary.missing_nodes_with_git_url.unwrap();
+        assert_eq!(git_urls.get("missing-node").unwrap(), "https://github.com/example/test-node.git");
+    }
+
+    #[test]
+    fn inspect_yaml_with_registry_node() {
+        let tmp = tempdir().unwrap();
+        let home = tmp.path();
+
+        let yaml = r#"
+nodes:
+  - id: test-node
+    node: dora-echo
+"#;
+
+        let detail = inspect_yaml(home, yaml);
+        assert_eq!(detail.summary.status, DataflowExecutableStatus::MissingNodes);
+        assert_eq!(detail.summary.missing_nodes, vec!["dora-echo"]);
+        assert!(detail.summary.missing_nodes_with_git_url.is_some());
+        let git_urls = detail.summary.missing_nodes_with_git_url.unwrap();
+        assert_eq!(git_urls.get("dora-echo").unwrap(), "https://github.com/dora-rs/dora-echo.git");
+    }
+
+    #[test]
+    fn inspect_yaml_without_git_url() {
+        let tmp = tempdir().unwrap();
+        let home = tmp.path();
+
+        let yaml = r#"
+nodes:
+  - id: test-node
+    node: unknown-node
+"#;
+
+        let detail = inspect_yaml(home, yaml);
+        assert_eq!(detail.summary.status, DataflowExecutableStatus::MissingNodes);
+        assert_eq!(detail.summary.missing_nodes, vec!["unknown-node"]);
+        // Should not have git URL since it's not in registry
+        assert!(detail.summary.missing_nodes_with_git_url.is_none());
+    }
 }

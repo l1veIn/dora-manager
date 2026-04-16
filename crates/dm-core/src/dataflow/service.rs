@@ -277,6 +277,7 @@ pub async fn import_sources(home: &Path, sources: &[String]) -> DataflowImportRe
                         resolved_node_count: 0,
                         missing_node_count: 0,
                         missing_nodes: Vec::new(),
+                        missing_nodes_with_git_url: None,
                         invalid_yaml: true,
                         requires_media_backend: false,
                         media_node_count: 0,

@@ -1,9 +1,10 @@
 mod cmd;
 mod display;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use dm_core::types::*;
@@ -356,9 +357,70 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
     }
     dm_core::ensure_runtime_up(home, verbose).await?;
 
-    let file_path = std::path::Path::new(file);
+    // Handle URL downloads
+    let file_path = if file.starts_with("http://") || file.starts_with("https://") {
+        println!("{} Downloading dataflow from {}...", "→".cyan(), file.dimmed());
+        
+        // Create a temporary file for the download
+        let mut temp_file = tempfile::Builder::new()
+            .suffix(".yml")
+            .tempfile()
+            .context("Failed to create temporary file")?;
+        
+        // Download the file
+        let response = reqwest::get(file)
+            .await
+            .context("Failed to download file from URL")?;
+        
+        if !response.status().is_success() {
+            anyhow::bail!("Failed to download file: HTTP {}", response.status());
+        }
+        
+        // Get content length for progress display
+        let total_size = response.content_length();
+        
+        // Create progress bar
+        let pb = ProgressBar::hidden();
+        if let Some(total) = total_size {
+            pb.set_length(total);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("  [{bar:30.cyan/dim}] {bytes}/{total_bytes} ({eta})")
+                    .unwrap()
+                    .progress_chars("█▓░"),
+            );
+            pb.reset();
+        }
+        
+        // Stream download to temporary file
+        let mut downloaded: u64 = 0;
+        let mut stream = response.bytes_stream();
+        
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.context("Failed to read download chunk")?;
+            std::io::Write::write_all(&mut temp_file, &chunk)
+                .context("Failed to write to temporary file")?;
+            downloaded += chunk.len() as u64;
+            if total_size.is_some() {
+                pb.set_position(downloaded);
+            }
+        }
+        
+        if total_size.is_some() {
+            pb.finish_and_clear();
+        }
+        
+        println!("{} Download complete!", "✅".green());
+        
+        // Keep the temp file alive by persisting it
+        let (_, temp_path) = temp_file.into_parts();
+        temp_path.to_path_buf()
+    } else {
+        std::path::PathBuf::from(file)
+    };
+
     if !file_path.exists() {
-        anyhow::bail!("Graph file '{}' not found.", file);
+        anyhow::bail!("Graph file '{}' not found.", file_path.display());
     }
 
     println!("{} Starting dataflow...", "🚀".green());
@@ -369,7 +431,7 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
     };
     let result = dm_core::runs::start_run_from_file_with_source_and_strategy(
         home,
-        file_path,
+        &file_path,
         None,
         dm_core::runs::RunSource::Cli,
         strategy,

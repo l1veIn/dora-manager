@@ -78,7 +78,41 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
     strategy: StartConflictStrategy,
     backend: &B,
 ) -> Result<StartRunResult> {
-    let executable = crate::dataflow::inspect_yaml(home, yaml);
+    let mut executable = crate::dataflow::inspect_yaml(home, yaml);
+    
+    // Auto-install missing nodes if we have git URLs
+    if !executable.summary.missing_nodes.is_empty() {
+        if let Some(missing_with_git) = &executable.summary.missing_nodes_with_git_url {
+            let mut installed_any = false;
+            for (node_id, git_url) in missing_with_git {
+                // Import the node from git
+                match crate::node::import_git(home, node_id, git_url).await {
+                    Ok(_) => {
+                        // Install the node
+                        match crate::node::install_node(home, node_id).await {
+                            Ok(_) => {
+                                installed_any = true;
+                            }
+                            Err(e) => {
+                                // Log the error but continue with other nodes
+                                eprintln!("Warning: Failed to install node '{}': {}", node_id, e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // Log the error but continue with other nodes
+                        eprintln!("Warning: Failed to import node '{}': {}", node_id, e);
+                    }
+                }
+            }
+            
+            // Re-inspect the YAML if we installed any nodes
+            if installed_any {
+                executable = crate::dataflow::inspect_yaml(home, yaml);
+            }
+        }
+    }
+    
     if !executable.summary.can_run {
         if executable.summary.invalid_yaml {
             bail!(

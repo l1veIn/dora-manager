@@ -2,6 +2,7 @@
 //!
 //! Nodes are installed in `~/.dm/nodes/<id>/` with metadata stored in `dm.json`.
 
+pub mod hub;
 mod import;
 pub(crate) mod init;
 mod install;

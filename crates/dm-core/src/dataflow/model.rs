@@ -62,6 +62,8 @@ pub struct DataflowExecutableSummary {
     pub missing_node_count: usize,
     #[serde(default)]
     pub missing_nodes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub missing_nodes_with_git_url: Option<std::collections::BTreeMap<String, String>>,
     #[serde(default)]
     pub invalid_yaml: bool,
     #[serde(default)]
@@ -86,6 +88,8 @@ pub struct DataflowNodeResolution {
     pub configurable: bool,
     #[serde(default)]
     pub source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_git_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
