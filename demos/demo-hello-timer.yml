@@ -1,0 +1,38 @@
+# Demo 1: Hello Timer -- 最简计时器消息展示
+#
+# 描述:
+#   dora-manager 最简开箱即用 demo。使用 Timer 虚拟节点每秒发送一次心跳,
+#   经过 dora-echo 转发后, 由 dm-display 在 Web UI 中实时展示。
+#   适合快速验证数据流引擎和 Web 交互面板是否正常工作。
+#
+# 数据流:
+#   dora/timer (1s) → dora-echo → dm-display
+#
+# 前置条件:
+#   无需安装额外节点, 所有依赖均为内置。
+#
+# 使用方法:
+#   dm start demos/demo-hello-timer.yml
+#   打开 http://127.0.0.1:3210 进入运行实例,
+#   右侧面板将每秒刷新一条 "tick #N" 消息。
+#
+# 停止:
+#   Ctrl+C 或 dm stop <run_id>
+
+nodes:
+  # Timer 虚拟节点: 每 1000ms 发送一个 tick 事件 (null 值)
+  - id: echo
+    node: dora-echo
+    inputs:
+      value: dora/timer/millis/1000
+    outputs:
+      - value
+
+  # dm-display 将 echo 转发的文本推送到 Web UI
+  - id: display
+    node: dm-display
+    inputs:
+      data: echo/value
+    config:
+      label: "Timer Tick"
+      render: text

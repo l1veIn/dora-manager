@@ -1,0 +1,128 @@
+# Demo 2: Interactive Widgets -- 四种交互控件展示
+#
+# 描述:
+#   展示 dora-manager 内置的四种交互控件: 滑块 (slider)、按钮 (button)、
+#   文本输入 (text-input) 和开关 (switch)。用户在 Web UI 中操作控件后,
+#   各控件的输出值经 dora-echo 转发并由 dm-display 实时回显。
+#   这是理解交互系统 "输入 → 数据流 → 展示" 闭环的最佳起点。
+#
+# 数据流:
+#   dm-slider   ──value──┐
+#   dm-button   ──click──┤
+#   dm-text-input──value──┼──→ dora-echo ──→ dm-display
+#   dm-input-switch──value┘
+#
+# 前置条件:
+#   无需安装额外节点, 所有依赖均为内置。
+#
+# 使用方法:
+#   dm start demos/demo-interactive-widgets.yml
+#   打开 http://127.0.0.1:3210 进入运行实例,
+#   在右侧面板中操作四个控件, 观察左侧面板的回显结果。
+#
+# 停止:
+#   Ctrl+C 或 dm stop <run_id>
+
+nodes:
+  # --- 输入控件 ---
+
+  - id: temperature
+    node: dm-slider
+    outputs:
+      - value
+    config:
+      label: "Temperature (°C)"
+      min_val: -20
+      max_val: 50
+      step: 1
+      default_value: 20
+
+  - id: trigger
+    node: dm-button
+    outputs:
+      - click
+    config:
+      label: "Send Greeting"
+
+  - id: message
+    node: dm-text-input
+    outputs:
+      - value
+    config:
+      label: "Message"
+      placeholder: "Type your message here..."
+      multiline: false
+
+  - id: enabled
+    node: dm-input-switch
+    outputs:
+      - value
+    config:
+      label: "Feature Enabled"
+      default_value: "true"
+
+  # --- 展示回路 (每个控件配一个 echo + display) ---
+
+  # Slider → echo → display
+  - id: echo-temp
+    node: dora-echo
+    inputs:
+      value: temperature/value
+    outputs:
+      - value
+
+  - id: display-temp
+    node: dm-display
+    inputs:
+      data: echo-temp/value
+    config:
+      label: "Temperature Reading"
+      render: text
+
+  # Button → echo → display
+  - id: echo-btn
+    node: dora-echo
+    inputs:
+      value: trigger/click
+    outputs:
+      - value
+
+  - id: display-btn
+    node: dm-display
+    inputs:
+      data: echo-btn/value
+    config:
+      label: "Button Clicked"
+      render: text
+
+  # Text Input → echo → display
+  - id: echo-text
+    node: dora-echo
+    inputs:
+      value: message/value
+    outputs:
+      - value
+
+  - id: display-text
+    node: dm-display
+    inputs:
+      data: echo-text/value
+    config:
+      label: "Input Text"
+      render: text
+
+  # Switch → echo → display
+  - id: echo-switch
+    node: dora-echo
+    inputs:
+      value: enabled/value
+    outputs:
+      - value
+
+  - id: display-switch
+    node: dm-display
+    inputs:
+      data: echo-switch/value
+    config:
+      label: "Switch State"
+      render: text

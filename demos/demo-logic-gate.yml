@@ -1,0 +1,119 @@
+# Demo 3: Logic Gate Pipeline -- 逻辑门控流程组合
+#
+# 描述:
+#   演示 dora-manager 逻辑与流控节点的组合使用: dm-and (布尔聚合)、
+#   dm-gate (条件门控)、dora-echo (转发)、dm-display (展示) 和 dm-log (日志)。
+#   用户通过两个开关 (Switch A / Switch B) 控制 dm-and 的输入,
+#   只有当 A 和 B 都为 ON 时, 门控才打开, Timer 信号才能通过门控
+#   到达下游并触发日志写入和 UI 展示。
+#
+# 数据流:
+#   Switch A ──value──┐
+#                     ├──→ dm-and ──ok──┐
+#   Switch B ──value──┘                 │
+#                                       ├──→ dm-gate ──value──┐
+#   dora/timer (2s) ───────────────────┘                      │
+#                                                             ├──→ dora-echo ──┬──→ dm-display
+#                                                                             └──→ dm-log
+#
+# 前置条件:
+#   无需安装额外节点, 所有依赖均为内置。
+#
+# 使用方法:
+#   dm start demos/demo-logic-gate.yml
+#   打开 http://127.0.0.1:3210 进入运行实例。
+#   1. 默认状态下, 两个开关都为 ON, 门控打开, 日志面板每 2s 输出一条消息。
+#   2. 关闭任意一个开关, dm-and 输出 false, 门控关闭, 消息停止。
+#   3. 同时打开两个开关, 消息恢复。
+#
+# 停止:
+#   Ctrl+C 或 dm stop <run_id>
+
+nodes:
+  # --- 布尔输入 (Web UI 开关) ---
+
+  - id: switch-a
+    node: dm-input-switch
+    outputs:
+      - value
+    config:
+      label: "Switch A"
+      default_value: "true"
+
+  - id: switch-b
+    node: dm-input-switch
+    outputs:
+      - value
+    config:
+      label: "Switch B"
+      default_value: "true"
+
+  # --- AND 聚合: 只有 A && B 都为 true 时输出 true ---
+
+  - id: and-gate
+    node: dm-and
+    inputs:
+      a: switch-a/value
+      b: switch-b/value
+    outputs:
+      - ok
+      - details
+    config:
+      expected_inputs: "a,b"
+
+  # --- 条件门控: AND 结果为 true 时放行 Timer 信号 ---
+
+  - id: tick-gate
+    node: dm-gate
+    inputs:
+      enabled: and-gate/ok
+      value: dora/timer/millis/2000
+    outputs:
+      - value
+
+  # --- 转发 + 展示 ---
+
+  - id: echo
+    node: dora-echo
+    inputs:
+      value: tick-gate/value
+    outputs:
+      - value
+
+  - id: display
+    node: dm-display
+    inputs:
+      data: echo/value
+    config:
+      label: "Gate Output"
+      render: text
+
+  # --- 持久化日志 (同时在 UI 中展示) ---
+
+  - id: event-log
+    node: dm-log
+    inputs:
+      data: echo/value
+    outputs:
+      - path
+    config:
+      format: json
+      filename: "gate-events"
+
+  - id: log-display
+    node: dm-display
+    inputs:
+      path: event-log/path
+    config:
+      label: "Event Log"
+      render: json
+
+  # --- AND 详情面板 (方便调试) ---
+
+  - id: and-details
+    node: dm-display
+    inputs:
+      data: and-gate/details
+    config:
+      label: "AND Gate Status"
+      render: json
