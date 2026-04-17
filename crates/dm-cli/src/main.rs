@@ -411,10 +411,12 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
         }
         
         println!("{} Download complete!", "✅".green());
-        
-        // Keep the temp file alive by persisting it
-        let (_, temp_path) = temp_file.into_parts();
-        temp_path.to_path_buf()
+
+        // Persist the temp file so it survives past this block
+        let temp_path = temp_file.into_temp_path();
+        temp_path
+            .keep()
+            .context("Failed to persist downloaded file")?
     } else {
         std::path::PathBuf::from(file)
     };
@@ -438,6 +440,16 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
     )
     .await?;
     println!("{} Run created: {}", "✅".green(), result.run.run_id.bold());
+    println!(
+        "  {} Running in background. Stop with: {}",
+        "→".cyan(),
+        format!("dm stop {}", result.run.run_id).dimmed()
+    );
+    println!(
+        "  {} View in browser: {}",
+        "→".cyan(),
+        "http://127.0.0.1:3210".dimmed()
+    );
     if let Some(dora_uuid) = &result.run.dora_uuid {
         println!("  Dora UUID: {}", dora_uuid.dimmed());
     }

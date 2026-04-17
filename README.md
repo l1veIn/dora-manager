@@ -124,7 +124,7 @@ Open the running instance in the Web UI to see real-time output.
 
 > 💡 **Tip for Developers**: Use `./dev.sh` for development with hot reload.
 
-### 3. Manage Environments (CLI)
+### 4. Manage Environments (CLI)
 
 You can still use the powerful CLI tool to orchestrate environments silently:
 
