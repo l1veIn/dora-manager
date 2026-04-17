@@ -20,11 +20,11 @@ def env_str(name: str, default: str = "") -> str:
     return raw.strip()
 
 
-def env_int(name: str, default: int) -> int:
+def env_float(name: str, default: float) -> float:
     raw = env_str(name)
     if not raw:
         return default
-    return int(raw)
+    return float(raw)
 
 
 def handle_stop(_signum, _frame):
@@ -85,12 +85,11 @@ def main():
     run_id = env_str("DM_RUN_ID")
     server_url = env_str("DM_SERVER_URL", "http://127.0.0.1:3210")
     label = env_str("LABEL") or node_id
-    poll_interval = env_int("POLL_INTERVAL", 1000)
-
-    min_val = env_int("MIN_VAL", 0)
-    max_val = env_int("MAX_VAL", 100)
-    step = env_int("STEP", 1)
-    default_val = env_int("DEFAULT_VALUE", 50)
+    poll_interval = int(env_float("POLL_INTERVAL", 1000))
+    min_val = env_float("MIN_VAL", 0)
+    max_val = env_float("MAX_VAL", 100)
+    step = env_float("STEP", 1)
+    default_val = env_float("DEFAULT_VALUE", 50)
 
     widgets = {
         "value": {

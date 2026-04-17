@@ -443,7 +443,7 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
     println!(
         "  {} Running in background. Stop with: {}",
         "→".cyan(),
-        format!("dm stop {}", result.run.run_id).dimmed()
+        format!("dm runs stop {}", result.run.run_id).dimmed()
     );
     println!(
         "  {} View in browser: {}",
