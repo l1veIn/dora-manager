@@ -138,6 +138,40 @@ curl -X POST http://127.0.0.1:3210/api/up
 
 Sources: [crates/dm-core/src/api/runtime.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/api/runtime.rs#L132-L194), [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-server/src/main.rs#L108-L109)
 
+## 新的启动方式（零依赖）
+
+Dora Manager 现在支持更便捷的数据流启动方式，无需手动安装节点。
+
+### 一键启动示例数据流
+
+项目内置了示例数据流，可以直接启动：
+
+```bash
+dm start demos/demo-hello-timer.yml
+```
+
+该命令会自动处理所有依赖，包括自动安装缺失的节点。
+
+### 从 URL 启动数据流
+
+你也可以直接从 URL 启动数据流：
+
+```bash
+dm start https://example.com/dataflow.yml
+```
+
+系统会自动下载 YAML 文件并启动数据流。
+
+### 节点自动安装行为
+
+当启动数据流时，如果发现有节点未安装，系统会自动尝试安装这些节点。这意味着你无需手动运行 `dm node install` 命令，`dm start` 会处理所有依赖。
+
+自动安装流程：
+1. 解析数据流 YAML，识别所有引用的节点
+2. 检查节点是否已安装在 `~/.dm/nodes/` 目录下
+3. 如果未安装，根据节点的 `source` 信息自动安装
+4. 安装完成后继续启动数据流
+
 ## 第四步：运行第一个数据流
 
 现在一切就绪，让我们创建并运行一个最简单的交互式数据流——用户输入文本，经过回显后显示在面板上。

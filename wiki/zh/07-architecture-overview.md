@@ -15,6 +15,7 @@ graph TD
 
     subgraph "核心层 (Core Layer)"
         CORE["dm-core (lib)<br/>业务逻辑引擎"]
+        AUTO["auto-install<br/>自动安装模块"]
     end
 
     subgraph "外部依赖"
@@ -22,6 +23,7 @@ graph TD
         FS["文件系统<br/>~/.dm/"]
         SQLITE["SQLite<br/>events.db"]
         GH["GitHub API<br/>(版本下载)"]
+        REG["registry.json<br/>(节点注册表)"]
     end
 
     CLI -->|"调用 pub fn"| CORE
@@ -32,6 +34,9 @@ graph TD
     CORE -->|"事件存储"| SQLITE
     CORE -->|"Release 下载"| GH
     SRV -->|"静态资源嵌入"| WEB["Web 前端<br/>(SvelteKit build)"]
+    CORE -->|"读取"| REG
+    AUTO -->|"克隆安装"| GH
+    AUTO -->|"安装节点"| FS
 ```
 
 Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/master/Cargo.toml), [crates/dm-cli/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-cli/Cargo.toml#L13), [crates/dm-server/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-server/Cargo.toml#L13)

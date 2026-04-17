@@ -16,11 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Event System: structured event logging with SQLite-backed XES-compatible storage
 - Environment Manager: DM_HOME directory structure, dora-rs and Python toolchain setup
 - Port Schema: type-safe port definitions with validation and auto-inference
+- Node Registry (`registry.json`): static mapping of 28 bundled nodes to their sources, embedded at compile time via `include_str!`
+- Auto-install: `dm start` automatically imports and installs missing nodes from YAML `source.git` or registry
 
 **CLI (dm-cli)**
 - `dm setup` — one-click environment initialization
 - `dm install/uninstall/list` — node lifecycle management
 - `dm start/stop/runs/logs` — dataflow run management
+- `dm start <url>` — download dataflow YAML from URL and start (with progress bar)
 - Colorized terminal output with progress indicators
 
 **Server (dm-server)**
@@ -35,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Responsive widget system for node-specific UI components
 - i18n support (Chinese / English)
 
+**Demos**
+- `demo-hello-timer` — simplest demo, zero dependencies
+- `demo-interactive-widgets` — 4 widget types showcase
+- `demo-logic-gate` — AND gate + conditional flow control
+- `robotics-object-detection` — webcam + YOLOv8 pipeline
+
+**Node Ecosystem**
+- `dora-yolo` — YOLOv8 object detection node with dm.json contract
+
 **Documentation**
 - 25-page bilingual project wiki (Chinese + English)
 - VitePress documentation site with full navigation
@@ -43,3 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **CI/CD**
 - GitHub Actions CI: build + test on macOS (aarch64) and Linux (x86_64)
 - Release workflow: cross-platform binary builds with GitHub Releases
+
+### Fixed
+- Running dataflows showed 0 nodes in Web UI (sync_run_outputs not called for Running state)
+- dm-display rendered empty `text []` for null timer ticks (now skips empty content)

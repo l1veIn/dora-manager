@@ -91,7 +91,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/master/nodes/dm-a
 | `version` | string | ✅ | 语义化版本号（如 `"0.1.0"`） |
 | `installed_at` | string | ✅ | 安装时间戳（Unix 秒） |
 | `description` | string | — | 节点功能的简短描述 |
-| `source` | object | ✅ | 构建来源信息，包含 `build`（构建命令）和可选的 `github` URL |
+| `source` | object | ✅ | 构建来源信息，包含 `build`（构建命令）、可选的 `github` URL 和 `git` 仓库地址 |
 | `executable` | string | ✅ | 可执行文件的相对路径（安装后填充） |
 | `display` | object | — | 展示元数据：`category`（分类路径）和 `tags`（标签数组） |
 | `capabilities` | string[] | — | 运行时能力声明（如 `"configurable"`, `"media"`, `"streaming"`） |
@@ -191,6 +191,46 @@ flowchart TD
 ```
 
 Sources: [import.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/node/import.rs#L20-L84), [init.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/node/init.rs#L17-L112), [install.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/node/install.rs#L11-L75), [mod.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/dataflow/transpile/mod.rs#L31-L81)
+
+## 节点注册表（registry.json）
+
+Dora Manager 使用 `registry.json` 文件作为节点注册表，提供集中式的节点发现和安装机制。注册表记录了可用的节点及其来源信息，支持自动安装。
+
+### 注册表结构
+
+`registry.json` 是一个 JSON 文件，包含节点 ID 到来源信息的映射：
+
+```json
+{
+  "dora-echo": {
+    "source": {
+      "git": "https://github.com/dora-rs/dora-echo.git"
+    }
+  },
+  "dm-text-input": {
+    "source": {
+      "git": "https://github.com/l1veIn/dora-manager.git",
+      "path": "nodes/dm-text-input"
+    }
+  }
+}
+```
+
+### source.git 字段
+
+`source.git` 字段指定了节点的 Git 仓库地址。系统可以自动克隆仓库并安装节点。该字段支持以下格式：
+
+- 纯 Git URL：`https://github.com/user/repo.git`
+- 带路径的 Git URL：指定仓库内的子目录
+
+### 自动安装流程
+
+当启动数据流时，如果发现节点未安装，系统会：
+
+1. 查找 `registry.json` 中对应的节点条目
+2. 如果存在 `source.git` 字段，自动克隆 Git 仓库
+3. 按照 `source.build` 命令构建节点
+4. 安装节点到 `~/.dm/nodes/` 目录
 
 ### 阶段一：导入与创建
 
