@@ -1,10 +1,31 @@
-本页是 Dora Manager 的 **实操入门指南**，将从零开始带你完成：编译项目 → 启动服务 → 编写 YAML 数据流 → 在浏览器中观察节点间的实时数据流动。读完本页后，你将掌握 `dm` 的核心工作流，并为后续深入学习架构细节奠定基础。
+本页是 Dora Manager 的 **实操入门指南**。最快方式：一行命令完成安装。
 
 ---
 
-## 前置条件
+## 快速安装（一行命令）
 
-在开始之前，请确保你的开发环境满足以下要求。`dm` 的编译和运行依赖两套工具链（Rust 后端 + Node.js 前端），同时节点生态需要 Python 环境。
+```bash
+curl -fsSL https://raw.githubusercontent.com/l1veIn/dora-manager/master/scripts/install.sh | bash
+```
+
+安装脚本会自动：
+1. 检测系统（macOS/Linux）和架构（x86_64/aarch64）
+2. 从 GitHub Releases 下载最新版 `dm` + `dm-server` 到 `~/.local/bin`
+3. 检查 Rust、Python、uv 环境（缺失时提示安装方式）
+4. 运行 `dm setup` 安装 dora-rs 运行时
+
+```bash
+# 安装完成后的快速验证
+dm doctor                         # 检查环境
+dm-server                         # 启动 Web UI (port 3210)
+dm start demos/demo-hello-timer.yml  # 运行 demo
+```
+
+---
+
+## 从源码构建（开发者）
+
+如果你需要修改代码或参与开发，请按以下步骤从源码构建。
 
 | 依赖 | 最低版本 | 用途 | 安装方式 |
 |------|---------|------|---------|

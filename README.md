@@ -82,32 +82,47 @@ Once started, a Dataflow blueprint becomes a **Run** — a tracked lifecycle ent
 
 ## ⚡ Quick Start
 
-### 1. Build the Suite
-
-Since the SvelteKit frontend is statically embedded directly into the Rust backend server, you must compile the web assets before compiling the Rust crates.
+### 1. Install (one line)
 
 ```bash
-# Build the SvelteKit Visual Panel
-cd web
-npm install
-npm run build
-cd ..
-
-# Build the Rust suite (dm-cli & dm-server)
-cargo build --release
+curl -fsSL https://raw.githubusercontent.com/l1veIn/dora-manager/master/scripts/install.sh | bash
 ```
 
-### 2. Enter the Visual Editor
+This will:
+- Download the latest `dm` + `dm-server` binaries to `~/.local/bin`
+- Check for Rust, Python, and uv (prompt to install if missing)
+- Run `dm setup` to install the dora-rs runtime
 
-To spin up the orchestrated API and Visual Panel, simply start the server:
+**Options:**
+```bash
+# Skip dependency checks
+curl -fsSL ... | bash -s -- --skip-deps
+
+# Install specific version
+curl -fsSL ... | bash -s -- --version v0.1.0
+
+# Custom install directory
+curl -fsSL ... | bash -s -- --bin-dir /usr/local/bin
+```
+
+### 2. Start the Web UI
 
 ```bash
-./target/release/dm-server
+dm-server
 ```
 
-**Next, open your browser and navigate to: [http://127.0.0.1:3210](http://127.0.0.1:3210) to access the Interactive Graph Editor!**
+Open [http://127.0.0.1:3210](http://127.0.0.1:3210) to access the Visual Editor.
 
-> 💡 **Tip for Developers**: You can use `./dev.sh` to spin up both the Rust backend and the SvelteKit development server (with Hot Module Replacement) simultaneously.
+### 3. Run a Demo
+
+```bash
+# Zero-dependency demo — works immediately
+dm start demos/demo-hello-timer.yml
+```
+
+Open the running instance in the Web UI to see real-time output.
+
+> 💡 **Tip for Developers**: Use `./dev.sh` for development with hot reload.
 
 ### 3. Manage Environments (CLI)
 
