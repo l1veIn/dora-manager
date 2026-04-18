@@ -7,7 +7,7 @@ mod state;
 
 pub use model::{
     LogSyncState, NodeMetrics, PaginatedRuns, RunDetail, RunInstance, RunListFilter, RunLogChunk,
-    RunLogSync, RunMetrics, RunNode, RunOutcome, RunSource, RunStatus, RunSummary,
+    RunLogSync, RunMetrics, RunNode, RunOutcome, RunSource, RunStatus, RunStopRequest, RunSummary,
     RunTranspileMetadata, StartConflictStrategy, StartRunResult, TerminationReason,
 };
 pub use repo::{
@@ -17,9 +17,10 @@ pub use repo::{
 };
 pub use service::{
     clean_runs, collect_all_active_metrics, delete_run, get_active_run, get_run, get_run_metrics,
-    list_active_runs, list_runs, list_runs_filtered, read_run_log, read_run_log_chunk,
-    read_run_transpiled, read_run_view, refresh_run_statuses, start_run_from_file,
-    start_run_from_file_with_source_and_strategy, start_run_from_file_with_strategy,
-    start_run_from_yaml, start_run_from_yaml_with_source_and_strategy,
-    start_run_from_yaml_with_strategy, stop_run, sync_run_outputs,
+    list_active_runs, list_runs, list_runs_filtered, mark_stop_requested, read_run_log,
+    read_run_log_chunk, read_run_transpiled, read_run_view, refresh_run_statuses,
+    start_run_from_file, start_run_from_file_with_source_and_strategy,
+    start_run_from_file_with_strategy, start_run_from_yaml,
+    start_run_from_yaml_with_source_and_strategy, start_run_from_yaml_with_strategy, stop_run,
+    sync_run_outputs,
 };

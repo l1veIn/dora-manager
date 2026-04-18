@@ -121,6 +121,8 @@ fn to_summary(run: RunInstance) -> RunSummary {
             .map(|reason| reason.as_str().to_string()),
         outcome_summary: run.outcome.summary,
         dora_uuid: run.dora_uuid,
+        stop_requested_at: run.stop_request.requested_at,
+        stop_request_error: run.stop_request.last_error,
         metrics: None,
     }
 }

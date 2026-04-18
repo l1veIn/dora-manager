@@ -207,6 +207,18 @@ pub fn read_node_file(home: &Path, id: &str, file_path: &str) -> Result<String> 
         .with_context(|| format!("Failed to read node file '{}'", candidate.display()))
 }
 
+pub fn read_node_file_bytes(home: &Path, id: &str, file_path: &str) -> Result<Vec<u8>> {
+    let node_path = resolve_node_dir(home, id)
+        .ok_or_else(|| anyhow::anyhow!("Node '{}' does not exist", id))?;
+    let root = node_path
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve node root for '{}'", id))?;
+    let candidate = resolve_safe_node_file(&root, file_path)?;
+
+    std::fs::read(&candidate)
+        .with_context(|| format!("Failed to read node file '{}'", candidate.display()))
+}
+
 pub fn save_node_config(home: &Path, id: &str, config: &serde_json::Value) -> Result<()> {
     let node_path = resolve_node_dir(home, id)
         .ok_or_else(|| anyhow::anyhow!("Node '{}' does not exist", id))?;

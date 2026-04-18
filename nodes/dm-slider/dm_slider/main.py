@@ -58,6 +58,27 @@ def emit(server_url: str, run_id: str, node_id: str, tag: str, payload: dict):
     ).raise_for_status()
 
 
+def run_should_continue(server_url: str, run_id: str) -> bool:
+    global RUNNING
+    if not RUNNING:
+        return False
+
+    try:
+        response = requests.get(
+            f"{server_url}/api/runs/{run_id}",
+            timeout=1,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception:
+        return RUNNING
+
+    if payload.get("stop_requested_at"):
+        return False
+
+    return payload.get("status") == "running"
+
+
 def messages_ws_url(server_url: str, run_id: str, node_id: str, since: int) -> str:
     parsed = urlparse(server_url)
     scheme = "wss" if parsed.scheme == "https" else "ws"
@@ -77,6 +98,7 @@ def on_message(node, widgets: dict, message: dict):
 
 
 def main():
+    global RUNNING
     signal.signal(signal.SIGTERM, handle_stop)
     signal.signal(signal.SIGINT, handle_stop)
 
@@ -123,6 +145,9 @@ def main():
             )
             ws.settimeout(1.0)
         except Exception as exc:
+            if not run_should_continue(server_url, run_id):
+                RUNNING = False
+                break
             if RUNNING:
                 print(f"[{node_id}] WS connect failed: {exc}", file=sys.stderr, flush=True)
             time.sleep(max(0.1, poll_interval / 1000))
@@ -133,6 +158,9 @@ def main():
                 try:
                     raw = ws.recv()
                 except websocket.WebSocketTimeoutException:
+                    if not run_should_continue(server_url, run_id):
+                        RUNNING = False
+                        break
                     continue
 
                 if not raw:
@@ -142,6 +170,9 @@ def main():
                 on_message(node, widgets, message)
                 since = max(since, int(message.get("seq", since)))
         except Exception as exc:
+            if not run_should_continue(server_url, run_id):
+                RUNNING = False
+                break
             if RUNNING:
                 print(f"[{node_id}] WS receive failed: {exc}", file=sys.stderr, flush=True)
         finally:

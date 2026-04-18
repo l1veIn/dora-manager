@@ -17,30 +17,40 @@
     let { outputId, xw, label, value = $bindable(), disabled, sending, onSend, onValueChange }: Props = $props();
 </script>
 
-<div class="relative group w-full">
-    <Input
-        id="widget-{outputId}"
-        bind:value
-        placeholder={xw.placeholder || `Enter ${label}...`}
-        class="h-10 w-full rounded-md border-border/70 bg-background pr-9 text-sm shadow-none"
-        {disabled}
-        oninput={() => onValueChange(value)}
-        onkeydown={(e: KeyboardEvent) => {
-            if (e.key === "Enter" && !e.shiftKey && value) {
-                e.preventDefault();
-                onSend();
-            }
-        }}
-    />
-    <Button
-        size="icon" variant="ghost" class="absolute right-0.5 top-0.5 h-9 w-9 text-muted-foreground hover:text-foreground"
-        disabled={disabled || sending || !value?.toString().trim()}
-        onclick={() => onSend()} title="Send {label}"
-    >
-        {#if sending}
-            <div class="h-3 w-3 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-        {:else}
-            <Send class="h-3.5 w-3.5" />
-        {/if}
-    </Button>
+<div class="w-full space-y-2">
+    <div class="flex items-center gap-2">
+        <Input
+            id="widget-{outputId}"
+            bind:value
+            placeholder={xw.placeholder || `Enter ${label}...`}
+            class="h-10 flex-1 rounded-md border-border/70 bg-background text-sm shadow-none"
+            {disabled}
+            oninput={() => onValueChange(value)}
+            onkeydown={(e: KeyboardEvent) => {
+                if (e.key === "Enter" && !e.shiftKey && value) {
+                    e.preventDefault();
+                    onSend();
+                }
+            }}
+        />
+        <Button
+            size="sm"
+            variant="default"
+            class="gap-2 shrink-0"
+            disabled={disabled || sending || !value?.toString().trim()}
+            onclick={() => onSend()}
+            title={`Send ${label}`}
+        >
+            {#if sending}
+                <div class="h-3 w-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></div>
+            {:else}
+                <Send class="h-3.5 w-3.5" />
+            {/if}
+            Send
+        </Button>
+    </div>
+    <p class="text-[11px] text-muted-foreground">
+        Press <span class="font-mono">Enter</span> or use
+        <span class="font-medium">Send</span>.
+    </p>
 </div>

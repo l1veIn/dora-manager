@@ -10,6 +10,10 @@ use crate::runs::model::RunStatus;
 
 type StartResult = (Option<String>, String);
 type BoxFutureResult<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
+// Bound how long dm waits synchronously for `dora stop` to return.
+// The stop request itself can continue to drain in the background while
+// the UI keeps reconciling the final runtime state.
+pub(crate) const STOP_TIMEOUT_SECS: u64 = 15;
 
 #[derive(Debug, Clone)]
 pub struct RuntimeDataflow {
@@ -76,7 +80,7 @@ impl RuntimeBackend for DoraCliBackend {
         Box::pin(async move {
             let args = vec!["stop".to_string(), dora_uuid.to_string()];
             let result = tokio::time::timeout(
-                std::time::Duration::from_secs(15),
+                std::time::Duration::from_secs(STOP_TIMEOUT_SECS),
                 dora::run_dora(home, &args, false),
             )
             .await;
@@ -94,7 +98,7 @@ impl RuntimeBackend for DoraCliBackend {
                     Ok(())
                 }
                 Ok(Err(e)) => Err(e),
-                Err(_) => bail!("dora stop timed out after 15s"),
+                Err(_) => bail!(stop_timeout_message()),
             }
         })
     }
@@ -116,6 +120,14 @@ impl RuntimeBackend for DoraCliBackend {
             &output.stdout,
         )))
     }
+}
+
+pub(crate) fn stop_timeout_message() -> String {
+    format!("dora stop timed out after {}s", STOP_TIMEOUT_SECS)
+}
+
+pub(crate) fn is_stop_timeout_error(message: &str) -> bool {
+    message.trim() == stop_timeout_message()
 }
 
 pub fn extract_dataflow_id(output: &str) -> Option<String> {

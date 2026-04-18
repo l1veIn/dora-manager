@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 
 use crate::runs::model::{LogSyncState, RunInstance, RunStatus, TerminationReason};
-use crate::runs::runtime::RuntimeBackend;
+use crate::runs::runtime::{is_stop_timeout_error, RuntimeBackend};
 use crate::runs::state::{
     apply_terminal_state, build_outcome, infer_failure_details, parse_failure_details,
     TerminalStateUpdate,
@@ -18,12 +18,27 @@ pub async fn stop_run(home: &Path, run_id: &str) -> Result<RunInstance> {
     stop_run_with_backend(home, run_id, &backend).await
 }
 
+pub fn mark_stop_requested(home: &Path, run_id: &str) -> Result<RunInstance> {
+    let mut run = repo::load_run(home, run_id)?;
+    if !run.status.is_running() {
+        return Ok(run);
+    }
+
+    if run.stop_request.requested_at.is_none() {
+        run.stop_request.requested_at = Some(Utc::now().to_rfc3339());
+        run.stop_request.last_error = None;
+        repo::save_run(home, &run)?;
+    }
+
+    Ok(run)
+}
+
 pub(super) async fn stop_run_with_backend<B: RuntimeBackend>(
     home: &Path,
     run_id: &str,
     backend: &B,
 ) -> Result<RunInstance> {
-    let mut run = repo::load_run(home, run_id)?;
+    let mut run = mark_stop_requested(home, run_id)?;
     let dora_uuid = run
         .dora_uuid
         .clone()
@@ -49,6 +64,7 @@ pub(super) async fn stop_run_with_backend<B: RuntimeBackend>(
         }
         Err(err) => {
             sync_run_outputs(home, &mut run)?;
+            let err_text = err.to_string();
 
             // Tolerance: if `dora stop` failed but the dataflow is no longer
             // reported by `dora list`, it was effectively stopped (e.g. all
@@ -76,8 +92,16 @@ pub(super) async fn stop_run_with_backend<B: RuntimeBackend>(
                 return Ok(run);
             }
 
+            if is_stop_timeout_error(&err_text) {
+                run.runtime_observed_at = Some(Utc::now().to_rfc3339());
+                run.stop_request.last_error = Some(err_text.clone());
+                run.outcome = build_outcome(RunStatus::Running, None, None, None);
+                repo::save_run(home, &run)?;
+                return Err(err);
+            }
+
             // Truly still running and stop failed — mark as failed
-            let (failure_node, failure_message) = parse_failure_details(&err.to_string());
+            let (failure_node, failure_message) = parse_failure_details(&err_text);
             apply_terminal_state(
                 &mut run,
                 TerminalStateUpdate {
@@ -125,6 +149,7 @@ pub(super) fn refresh_run_statuses_with_backend<B: RuntimeBackend>(
             continue;
         }
 
+        let stop_requested = run.stop_request.requested_at.is_some();
         run.runtime_observed_at = Some(now.clone());
         let runtime_status = run
             .dora_uuid
@@ -143,8 +168,16 @@ pub(super) fn refresh_run_statuses_with_backend<B: RuntimeBackend>(
                 apply_terminal_state(
                     run,
                     TerminalStateUpdate {
-                        status: RunStatus::Succeeded,
-                        termination_reason: Some(TerminationReason::Completed),
+                        status: if stop_requested {
+                            RunStatus::Stopped
+                        } else {
+                            RunStatus::Succeeded
+                        },
+                        termination_reason: if stop_requested {
+                            Some(TerminationReason::StoppedByUser)
+                        } else {
+                            Some(TerminationReason::Completed)
+                        },
                         exit_code: Some(0),
                         failure_reason: None,
                         failure_node: None,
@@ -181,7 +214,11 @@ pub(super) fn refresh_run_statuses_with_backend<B: RuntimeBackend>(
                     run,
                     TerminalStateUpdate {
                         status: RunStatus::Stopped,
-                        termination_reason: Some(TerminationReason::RuntimeStopped),
+                        termination_reason: Some(if stop_requested {
+                            TerminationReason::StoppedByUser
+                        } else {
+                            TerminationReason::RuntimeStopped
+                        }),
                         exit_code: run.exit_code.or(Some(0)),
                         failure_reason: None,
                         failure_node: None,
@@ -197,13 +234,23 @@ pub(super) fn refresh_run_statuses_with_backend<B: RuntimeBackend>(
                     run,
                     TerminalStateUpdate {
                         status: RunStatus::Stopped,
-                        termination_reason: Some(TerminationReason::RuntimeLost),
+                        termination_reason: Some(if stop_requested {
+                            TerminationReason::StoppedByUser
+                        } else {
+                            TerminationReason::RuntimeLost
+                        }),
                         exit_code: run.exit_code.or(Some(0)),
-                        failure_reason: Some("runtime_lost".to_string()),
+                        failure_reason: if stop_requested {
+                            None
+                        } else {
+                            Some("runtime_lost".to_string())
+                        },
                         failure_node: None,
-                        failure_message: Some(
-                            "Dora runtime no longer reports this dataflow".to_string(),
-                        ),
+                        failure_message: if stop_requested {
+                            None
+                        } else {
+                            Some("Dora runtime no longer reports this dataflow".to_string())
+                        },
                         observed_at: Some(now.clone()),
                     },
                 );

@@ -1,10 +1,19 @@
 <script lang="ts">
     import { Badge } from "$lib/components/ui/badge/index.js";
 
-    let { status } = $props<{ status: string }>();
+    let { status, stopRequestedAt = null } = $props<{
+        status: string;
+        stopRequestedAt?: string | null;
+    }>();
 </script>
 
-{#if status === "running"}
+{#if status === "running" && stopRequestedAt}
+    <Badge
+        variant="outline"
+        class="font-mono border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
+        >stopping</Badge
+    >
+{:else if status === "running"}
     <Badge
         variant="outline"
         class="font-mono bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-400 dark:border-blue-800"

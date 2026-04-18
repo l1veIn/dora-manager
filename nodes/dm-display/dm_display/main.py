@@ -137,6 +137,7 @@ def main():
     server_url = env_str("DM_SERVER_URL", "http://127.0.0.1:3210")
     label = env_str("LABEL") or node_id
     render_mode = env_str("RENDER", "auto")
+    tick_count = 0
 
     for event in node:
         if not RUNNING:
@@ -162,9 +163,11 @@ def main():
                 print(f"[DM-IO] DISPLAY {render} -> {rel_path}", flush=True)
             elif event["id"] == "data":
                 content = extract_data(event["value"])
-                # Skip empty/null ticks (e.g. from timer nodes)
+                # Turn null heartbeat events into visible text so timer-style demos
+                # produce a meaningful first-run signal in the UI.
                 if content is None or (isinstance(content, list) and len(content) == 0):
-                    continue
+                    tick_count += 1
+                    content = f"tick #{tick_count}"
                 render = resolve_inline_render(content, render_mode)
                 normalized = normalize_inline_content(content, render)
                 emit(

@@ -5,6 +5,7 @@
     import { StopCircle, FileText, Loader2, ChevronLeft } from "lucide-svelte";
     import { Badge } from "$lib/components/ui/badge/index.js";
     import { goto } from "$app/navigation";
+    import { summarizeOutcomeSummary } from "$lib/runs/outcomeSummary";
     import { get, getText } from "$lib/api";
     import CodeMirror from "svelte-codemirror-editor";
     import { yaml } from "@codemirror/lang-yaml";
@@ -15,11 +16,19 @@
     let {
         run,
         onStop = () => {},
-        isStopping = false,
+        stopRequest = {
+            phase: "idle",
+            requestedAt: null,
+            error: null,
+        },
     } = $props<{
         run: any;
         onStop?: () => void;
-        isStopping?: boolean;
+        stopRequest?: {
+            phase: "idle" | "pending" | "delayed";
+            requestedAt: number | null;
+            error: string | null;
+        };
     }>();
 
     let isYamlOpen = $state(false);
@@ -72,11 +81,13 @@
             try {
                 // Fetch the run snapshot yaml and layout view
                 const yamlTask = yamlContent ? Promise.resolve(yamlContent) : getText(`/runs/${run.id}/dataflow`);
-                const viewTask = viewJson ? Promise.resolve(viewJson) : get(`/runs/${run.id}/view`);
+                const viewTask = viewJson
+                    ? Promise.resolve(viewJson)
+                    : get(`/runs/${run.id}/view`).catch(() => ({}));
                 
                 const [yamlRes, viewRes] = await Promise.all([yamlTask, viewTask]);
                 yamlContent = yamlRes;
-                viewJson = viewRes;
+                viewJson = viewRes ?? {};
             } catch (e: any) {
                 console.error("Failed to load graph data", e);
             } finally {
@@ -90,70 +101,97 @@
         return new Date(ts).toLocaleString();
     }
 
-    function calculateDuration(start: string, end: string) {
-        if (!start) return "-";
-        const t1 = new Date(start).getTime();
-        const t2 = end ? new Date(end).getTime() : Date.now();
-        const diffMs = t2 - t1;
-
-        const secs = Math.floor(diffMs / 1000);
-        if (secs < 60) return `${secs}s`;
-        const mins = Math.floor(secs / 60);
-        const remSecs = secs % 60;
-        return `${mins}m ${remSecs}s`;
+    function formatStopRequestedAt(ts: number | null) {
+        if (!ts) return "-";
+        return new Date(ts).toLocaleTimeString();
     }
+
+    let persistedStopRequestedAt = $derived(
+        run?.stop_requested_at ? Date.parse(run.stop_requested_at) : null,
+    );
+    let effectiveStopRequestedAt = $derived(
+        stopRequest.requestedAt ?? persistedStopRequestedAt,
+    );
 </script>
 
 <header
-    class="flex items-center justify-between px-4 h-14 border-b bg-card/95 backdrop-blur-sm shrink-0 z-20 w-full relative"
+    class="flex items-start justify-between gap-3 px-4 py-3 border-b bg-card/95 backdrop-blur-sm shrink-0 z-20 w-full relative"
 >
-    <div class="flex items-center gap-3">
-        <Button
-            variant="ghost"
-            size="icon"
-            onclick={() => goto("/runs")}
-            class="shrink-0 h-8 w-8 text-muted-foreground mr-1"
-        >
-            <ChevronLeft class="size-4" />
-        </Button>
-        <span
-            class="text-sm text-muted-foreground hidden sm:inline-flex font-medium select-none"
-            >Runs <span class="mx-2 opacity-50">/</span></span
-        >
-        <h1
-            class="text-sm font-bold tracking-tight font-mono text-foreground flex items-center"
-        >
-            {run?.name || "Loading..."}
-        </h1>
-
-        {#if run}
-            <div class="ml-2 flex flex-row items-center gap-2">
-                <RunStatusBadge status={run.status} />
-            </div>
-        {/if}
-
-        {#if run?.outcome_summary}
-            <div
-                class="ml-4 pl-4 border-l hidden lg:flex items-center text-xs text-muted-foreground max-w-sm truncate h-4"
-                title={run.outcome_summary}
+    <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-3">
+            <Button
+                variant="ghost"
+                size="icon"
+                onclick={() => goto("/runs")}
+                class="shrink-0 h-8 w-8 text-muted-foreground mr-1"
             >
-                {run.outcome_summary}
-            </div>
+                <ChevronLeft class="size-4" />
+            </Button>
+            <span
+                class="text-sm text-muted-foreground hidden sm:inline-flex font-medium select-none"
+                >Runs <span class="mx-2 opacity-50">/</span></span
+            >
+            <h1
+                class="min-w-0 text-sm font-bold tracking-tight font-mono text-foreground truncate"
+            >
+                {run?.name || "Loading..."}
+            </h1>
+
+            {#if run}
+                <div class="ml-2 flex flex-row items-center gap-2">
+                    <RunStatusBadge
+                        status={run.status}
+                        stopRequestedAt={run.stop_requested_at}
+                    />
+                    {#if effectiveStopRequestedAt && run.status === "running"}
+                        <Badge
+                            variant="outline"
+                            class="font-mono border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
+                        >
+                            {stopRequest.phase === "delayed"
+                                ? "stop delayed"
+                                : "stop requested"}
+                        </Badge>
+                    {/if}
+                </div>
+            {/if}
+
+            {#if run?.outcome_summary}
+                <div
+                    class="ml-4 pl-4 border-l hidden lg:flex items-center text-xs text-muted-foreground max-w-sm truncate h-4"
+                    title={summarizeOutcomeSummary(run.outcome_summary)}
+                >
+                    {summarizeOutcomeSummary(run.outcome_summary)}
+                </div>
+            {/if}
+        </div>
+
+        {#if effectiveStopRequestedAt && run?.status === "running"}
+            <p class="mt-2 pl-12 text-xs text-muted-foreground">
+                Stop was requested at {formatStopRequestedAt(effectiveStopRequestedAt)}.
+                This run is still draining in the background. You can leave or refresh this page safely; Dora Manager will keep polling until the run reaches a terminal state.
+            </p>
+        {:else if stopRequest.error}
+            <p class="mt-2 pl-12 text-xs text-destructive">
+                {stopRequest.error}
+            </p>
         {/if}
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 pt-0.5">
         {#if run?.status === "running"}
             <Button
                 variant="destructive"
                 size="sm"
                 onclick={onStop}
                 class="h-8"
-                disabled={isStopping}
+                disabled={effectiveStopRequestedAt !== null}
             >
-                {#if isStopping}
+                {#if effectiveStopRequestedAt}
                     <Loader2 class="size-3.5 mr-1.5 animate-spin" />
-                    Stopping...
+                    {stopRequest.phase === "delayed"
+                        ? "Still stopping..."
+                        : "Stop requested"}
                 {:else}
                     <StopCircle class="size-3.5 mr-1.5" />
                     Stop

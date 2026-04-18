@@ -140,7 +140,7 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
             executable = crate::dataflow::inspect_yaml(home, yaml);
         }
     }
-    
+
     if !executable.summary.can_run {
         if executable.summary.invalid_yaml {
             bail!(
@@ -228,6 +228,7 @@ pub(super) async fn start_run_from_yaml_with_source_and_strategy_and_backend<B: 
         outcome: build_outcome(RunStatus::Running, None, None, None),
         transpile,
         log_sync: RunLogSync::default(),
+        stop_request: Default::default(),
         node_count_expected: nodes_expected.len() as u32,
         node_count_observed: 0,
         nodes_expected,

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { page } from "$app/state";
     import { onMount } from "svelte";
-    import { get, post } from "$lib/api";
+    import { ApiError, get, post } from "$lib/api";
     import { goto } from "$app/navigation";
     import { toast } from "svelte-sonner";
     import * as Tabs from "$lib/components/ui/tabs/index.js";
@@ -33,6 +33,92 @@
     let loading = $state(true);
     let isRunConflictDialogOpen = $state(false);
     let activeTab = $state("graph");
+    type RunFailureNotice = {
+        summary: string;
+        details: string[];
+        nextStep: string;
+        toast: string;
+        raw: string;
+    };
+    let lastRunError = $state<RunFailureNotice | null>(null);
+
+    function parseRunFailure(error: unknown): RunFailureNotice {
+        const message =
+            error instanceof ApiError
+                ? error.rawMessage || error.message
+                : error instanceof Error
+                  ? error.message
+                  : String(error ?? "Run failed");
+        const lines = message
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+        const cleaned: string[] = [];
+        let skippingLocation = false;
+
+        for (const line of lines) {
+            if (line.startsWith("dataflow start triggered:")) continue;
+            if (line === "[ERROR]" || line === "Caused by:") continue;
+            if (line === "Location:") {
+                skippingLocation = true;
+                continue;
+            }
+            if (skippingLocation) {
+                skippingLocation = false;
+                continue;
+            }
+            cleaned.push(line.replace(/^\d+:\s*/, ""));
+        }
+
+        const deduped = cleaned.filter(
+            (line, index) => cleaned.indexOf(line) === index,
+        );
+        const flattened = deduped.join(" ").replace(/\s+/g, " ").trim();
+
+        if (
+            /no such file or directory/i.test(flattened) ||
+            /os error 2/i.test(flattened)
+        ) {
+            const pathMatch = flattened.match(/(\/[^\s,)]+)/);
+            const pathText = pathMatch ? ` at ${pathMatch[1]}` : "";
+            return {
+                summary: `Dora Manager could not start one of the configured node commands${pathText} because the file was not found.`,
+                details: deduped,
+                nextStep:
+                    "Check the node path or reinstall the missing node, then save the workspace and run it again.",
+                toast: "Run failed: a node path could not be found.",
+                raw: message,
+            };
+        }
+
+        if (/permission denied/i.test(flattened)) {
+            return {
+                summary:
+                    "Dora Manager could not start one of the configured node commands because the process was not allowed to execute it.",
+                details: deduped,
+                nextStep:
+                    "Check the node file permissions or command path, then save the workspace and run it again.",
+                toast: "Run failed: a node command is not executable.",
+                raw: message,
+            };
+        }
+
+        return {
+            summary: "Dora Manager could not start this workspace.",
+            details: deduped,
+            nextStep:
+                "Review the workspace configuration, fix the failing node or command, then run it again.",
+            toast: "Run failed: the workspace could not be started.",
+            raw: message,
+        };
+    }
+
+    function missingNodeImportEntries(executable: any) {
+        const entries = executable?.missing_nodes_with_git_url;
+        if (!entries) return [];
+        return Object.entries(entries) as [string, string][];
+    }
 
     async function loadDataflow() {
         loading = true;
@@ -87,6 +173,7 @@
 
         try {
             isRunConflictDialogOpen = false;
+            lastRunError = null;
             const res: any = await post("/runs/start", {
                 name: dataflowName,
                 yaml: dataflow.yaml,
@@ -98,7 +185,8 @@
                 goto(`/runs/${res.run_id}`);
             }
         } catch (e: any) {
-            toast.error(`Run failed: ${e.message}`);
+            lastRunError = parseRunFailure(e);
+            toast.error(lastRunError.toast);
         }
     }
 </script>
@@ -185,6 +273,65 @@
             <Skeleton class="h-[60vh] w-full rounded-lg" />
         </div>
     {:else if dataflow}
+        {#if dataflow?.executable?.invalid_yaml}
+            <div
+                class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+            >
+                <div class="flex items-start gap-2">
+                    <AlertCircle class="size-4 mt-0.5 shrink-0" />
+                    <div class="space-y-1">
+                        <p class="font-medium">This workspace has invalid YAML</p>
+                        <p>
+                            Fix the syntax in <span class="font-mono">dataflow.yml</span>
+                            before running it again.
+                        </p>
+                        {#if dataflow.executable.error}
+                            <p class="font-mono break-words text-red-800/90">
+                                {dataflow.executable.error}
+                            </p>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+        {:else if dataflow?.executable?.missing_nodes?.length}
+            <div
+                class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+            >
+                <div class="flex items-start gap-2">
+                    <AlertTriangle class="size-4 mt-0.5 shrink-0" />
+                    <div class="space-y-2">
+                        <p class="font-medium">
+                            This workspace is missing {dataflow.executable.missing_node_count}
+                            node{dataflow.executable.missing_node_count === 1 ? "" : "s"}
+                        </p>
+                        <p>
+                            Install or restore the missing node{dataflow.executable.missing_node_count === 1 ? "" : "s"},
+                            then save the workspace again.
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            {#each dataflow.executable.missing_nodes as nodeId}
+                                <span
+                                    class="rounded-full border border-amber-300 bg-white/70 px-2 py-1 font-mono text-xs"
+                                >
+                                    {nodeId}
+                                </span>
+                            {/each}
+                        </div>
+                        {#if missingNodeImportEntries(dataflow.executable).length}
+                            <div class="space-y-1">
+                                <p class="font-medium">Known import sources</p>
+                                {#each missingNodeImportEntries(dataflow.executable) as [nodeId, gitUrl]}
+                                    <p class="font-mono break-all text-xs text-amber-900/90">
+                                        {nodeId}: dm node import {gitUrl}
+                                    </p>
+                                {/each}
+                            </div>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+        {/if}
+
         {#if dataflow?.executable?.requires_media_backend && mediaStatus?.status !== "ready"}
             <div
                 class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
@@ -196,6 +343,36 @@
                 Configure MediaMTX in <a class="font-medium underline" href="/settings"
                     >Settings</a
                 > and restart `dm-server` before running it.
+            </div>
+        {/if}
+
+        {#if lastRunError}
+            <div
+                class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+            >
+                <div class="flex items-start gap-2">
+                    <AlertTriangle class="size-4 mt-0.5 shrink-0" />
+                    <div class="space-y-1">
+                        <p class="font-medium">Last run attempt failed</p>
+                        <p class="break-words">{lastRunError.summary}</p>
+                        {#if lastRunError.details.length}
+                            <div class="space-y-1 pt-1">
+                                {#each lastRunError.details as detail}
+                                    <p class="break-words text-red-800/90">{detail}</p>
+                                {/each}
+                            </div>
+                        {/if}
+                        <p class="text-red-700/80">
+                            {lastRunError.nextStep}
+                        </p>
+                        <details class="pt-1 text-xs text-red-700/80">
+                            <summary class="cursor-pointer select-none">
+                                Show raw technical detail
+                            </summary>
+                            <pre class="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] leading-5">{lastRunError.raw}</pre>
+                        </details>
+                    </div>
+                </div>
             </div>
         {/if}
 
@@ -242,8 +419,13 @@
                     <YamlEditorTab
                         {dataflowName}
                         initialYaml={dataflow.yaml || ""}
-                        onCodeUpdated={(newYaml) => {
-                            if (dataflow) dataflow.yaml = newYaml;
+                        onCodeUpdated={(newYaml, refreshedDataflow) => {
+                            if (refreshedDataflow) {
+                                dataflow = refreshedDataflow;
+                            } else if (dataflow) {
+                                dataflow.yaml = newYaml;
+                            }
+                            lastRunError = null;
                         }}
                     />
                 {/if}

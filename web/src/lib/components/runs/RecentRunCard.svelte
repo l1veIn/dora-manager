@@ -4,6 +4,7 @@
     import { Badge } from "$lib/components/ui/badge/index.js";
     import { Clock, Activity } from "lucide-svelte";
     import { goto } from "$app/navigation";
+    import { summarizeOutcomeSummary } from "$lib/runs/outcomeSummary";
 
     let { run } = $props<{ run: any }>();
 
@@ -24,9 +25,11 @@
 </script>
 
 <Card.Root
-    class="hover:bg-muted/50 transition-colors cursor-pointer border-l-4 {run.status ===
-    'running'
+    class="hover:bg-muted/50 transition-colors cursor-pointer border-l-4 {(run.status ===
+    'running' && !run.stop_requested_at)
         ? 'border-l-blue-500'
+        : run.status === 'running' && run.stop_requested_at
+          ? 'border-l-amber-500'
         : run.status === 'succeeded'
           ? 'border-l-emerald-500'
           : run.status === 'failed'
@@ -41,7 +44,7 @@
                     class="text-[14px] leading-tight font-semibold flex items-center gap-2 truncate"
                 >
                     <span class="truncate">{run.name}</span>
-                    {#if run.status === "running"}
+                    {#if run.status === "running" && !run.stop_requested_at}
                         <Activity
                             class="size-3.5 text-blue-500 animate-pulse shrink-0"
                         />
@@ -55,7 +58,10 @@
                 </div>
             </div>
             <div class="shrink-0">
-                <RunStatusBadge status={run.status} />
+                <RunStatusBadge
+                    status={run.status}
+                    stopRequestedAt={run.stop_requested_at}
+                />
             </div>
         </div>
     </Card.Header>
@@ -63,9 +69,9 @@
         {#if run.outcome_summary}
             <p
                 class="text-xs text-muted-foreground line-clamp-2"
-                title={run.outcome_summary}
+                title={summarizeOutcomeSummary(run.outcome_summary)}
             >
-                {run.outcome_summary}
+                {summarizeOutcomeSummary(run.outcome_summary)}
             </p>
         {:else}
             <div class="h-4"></div>

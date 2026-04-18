@@ -1,8 +1,7 @@
 <script lang="ts">
-    import { onMount, onDestroy } from "svelte";
+    import { onMount } from "svelte";
     import { get, post } from "$lib/api";
     import * as HoverCard from "$lib/components/ui/hover-card/index.js";
-    import * as Card from "$lib/components/ui/card/index.js";
     import { useStatus } from "$lib/stores/status.svelte";
     import { Button } from "$lib/components/ui/button/index.js";
     import { Badge } from "$lib/components/ui/badge/index.js";
@@ -14,8 +13,9 @@
         Activity,
         History,
         ArrowRight,
+        Sparkles,
+        TimerReset,
     } from "lucide-svelte";
-    import { toast } from "svelte-sonner";
     import RecentRunCard from "$lib/components/runs/RecentRunCard.svelte";
     import { goto } from "$app/navigation";
 
@@ -24,56 +24,263 @@
     let recentRuns = $state<any[]>([]);
     let activeRuns = $state<any[]>([]);
     let frequentDataflows = $state<
-        { name: string; count: number; id: string }[]
+        {
+            name: string;
+            count: number;
+            id: string;
+            destination: string;
+            destinationLabel: string;
+            helperText: string;
+            destinationKind: "workspace" | "run" | "dataflows";
+        }[]
     >([]);
     let runsLoading = $state(false);
     let runsPolling: ReturnType<typeof setInterval> | null = null;
+    let hasSavedDataflows = $state(false);
+    let hasUsableFrequentWorkspace = $derived(
+        frequentDataflows.some((fd) => fd.destinationKind === "workspace"),
+    );
+    let quickStartLaunching = $state(false);
+    let quickStartWorkspaceOpening = $state(false);
+
+    const QUICKSTART_DEMO_NAME = "demo-hello-timer";
+    const DASHBOARD_RECENT_FAILURE_WINDOW_HOURS = 1;
+    const QUICKSTART_DEMO_YAML = `nodes:
+  - id: echo
+    node: dora-echo
+    inputs:
+      value: dora/timer/millis/1000
+    outputs:
+      - value
+
+  - id: display
+    node: dm-display
+    inputs:
+      data: echo/value
+    config:
+      label: "Timer Tick"
+      render: text
+`;
+    const QUICKSTART_DEMO_VIEW = {};
+
+    function friendlyDataflowName(dataflowId: string) {
+        return (
+            dataflowId
+                .split("/")
+                .pop()
+                ?.replace(".yml", "")
+                ?.replace(".yaml", "") || dataflowId
+        );
+    }
+
+    function parseTimestampMs(value: string | null | undefined) {
+        if (!value) return 0;
+        const ms = new Date(value).getTime();
+        return Number.isNaN(ms) ? 0 : ms;
+    }
+
+    function isWithinHours(value: string | null | undefined, hours: number) {
+        const ms = parseTimestampMs(value);
+        if (!ms) return false;
+        return Date.now() - ms <= hours * 60 * 60 * 1000;
+    }
+
+    function isEphemeralRunName(name: string | null | undefined) {
+        return !!name && name.startsWith(".");
+    }
+
+    function isFailureLikeRun(run: any) {
+        return (
+            run?.status === "failed" ||
+            run?.termination_reason === "runtime_lost" ||
+            run?.outcome_summary?.startsWith?.("Failed:")
+        );
+    }
+
+    async function startQuickStartDemo() {
+        if (quickStartLaunching) return;
+        quickStartLaunching = true;
+        try {
+            const activeResult: any = await get(`/runs/active`);
+            const activeRuns = Array.isArray(activeResult)
+                ? activeResult
+                : activeResult.runs || [];
+            const existingRun = activeRuns.find(
+                (run: any) => run.name === QUICKSTART_DEMO_NAME,
+            );
+            if (existingRun?.id) {
+                goto(`/runs/${existingRun.id}`);
+                return;
+            }
+
+            const result: any = await post("/runs/start", {
+                yaml: QUICKSTART_DEMO_YAML,
+                name: QUICKSTART_DEMO_NAME,
+                view_json: JSON.stringify(QUICKSTART_DEMO_VIEW),
+            });
+            if (result.run_id) {
+                goto(`/runs/${result.run_id}`);
+            } else {
+                goto("/runs");
+            }
+        } catch (e: any) {
+            console.error("Failed to launch quick-start demo", e);
+        } finally {
+            quickStartLaunching = false;
+        }
+    }
+
+    async function ensureQuickStartWorkspace() {
+        try {
+            await get(`/dataflows/${QUICKSTART_DEMO_NAME}`);
+            return;
+        } catch (e) {
+            await post(`/dataflows/${QUICKSTART_DEMO_NAME}`, {
+                yaml: QUICKSTART_DEMO_YAML,
+            });
+            await post(
+                `/dataflows/${QUICKSTART_DEMO_NAME}/view`,
+                QUICKSTART_DEMO_VIEW,
+            );
+        }
+    }
+
+    async function openQuickStartWorkspace() {
+        if (quickStartWorkspaceOpening) return;
+        quickStartWorkspaceOpening = true;
+        try {
+            await ensureQuickStartWorkspace();
+            goto(`/dataflows/${QUICKSTART_DEMO_NAME}`);
+        } catch (e: any) {
+            console.error("Failed to open quick-start workspace", e);
+        } finally {
+            quickStartWorkspaceOpening = false;
+        }
+    }
 
     async function fetchRunsOverview() {
         if (runsLoading) return;
         if (recentRuns.length === 0 && activeRuns.length === 0)
             runsLoading = true;
         try {
-            const activeResult: any = await get(`/runs/active?metrics=true`);
+            const [activeResult, recentResult, dataflowList] = (await Promise.all([
+                get(`/runs/active?metrics=true`),
+                get(`/runs?limit=100`),
+                get("/dataflows").catch(() => []),
+            ])) as [any, any, any[]];
             activeRuns = Array.isArray(activeResult)
                 ? activeResult
                 : activeResult.runs || [];
 
-            const recentResult: any = await get(`/runs?limit=100`);
             const runs = recentResult.runs || [];
+            const availableDataflows = Array.isArray(dataflowList)
+                ? dataflowList
+                : [];
+            const availableDataflowNames = new Set(
+                availableDataflows
+                    .map((item: any) => item?.name)
+                    .filter(Boolean),
+            );
+            hasSavedDataflows = availableDataflowNames.size > 0;
 
             // Calculate frequent dataflows
             const counts: Record<
                 string,
-                { name: string; count: number; id: string }
+                {
+                    name: string;
+                    count: number;
+                    id: string;
+                    latestRunId?: string;
+                    latestStartedAt?: number;
+                }
             > = {};
             for (const r of runs) {
                 // The API /runs returns RunSummary where `name` is the dataflow id, and `id` is the Run ID.
                 const df_id = r.name;
                 if (df_id) {
                     if (!counts[df_id]) {
-                        // make a friendly name from the dataflow id (e.g. my-flow from my-flow.yml)
-                        let friendly_name =
-                            df_id
-                                .split("/")
-                                .pop()
-                                ?.replace(".yml", "")
-                                ?.replace(".yaml", "") || df_id;
                         counts[df_id] = {
-                            name: friendly_name,
+                            name: friendlyDataflowName(df_id),
                             count: 0,
                             id: df_id,
                         };
                     }
                     counts[df_id].count++;
+                    const startedAt = r.started_at
+                        ? new Date(r.started_at).getTime()
+                        : 0;
+                    if (
+                        !counts[df_id].latestRunId ||
+                        startedAt > (counts[df_id].latestStartedAt || 0)
+                    ) {
+                        counts[df_id].latestRunId = r.id;
+                        counts[df_id].latestStartedAt = startedAt;
+                    }
                 }
             }
             frequentDataflows = Object.values(counts)
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 4);
+                .filter((item) => availableDataflowNames.has(item.id))
+                .sort((a, b) => {
+                    const aSaved = availableDataflowNames.has(a.id) ? 0 : 1;
+                    const bSaved = availableDataflowNames.has(b.id) ? 0 : 1;
+                    if (aSaved !== bSaved) return aSaved - bSaved;
+                    if (a.count !== b.count) return b.count - a.count;
+                    return (b.latestStartedAt || 0) - (a.latestStartedAt || 0);
+                })
+                .slice(0, 4)
+                .map((item) => {
+                    if (availableDataflowNames.has(item.id)) {
+                        return {
+                            ...item,
+                            destination: `/dataflows/${item.id}`,
+                            destinationLabel: "Open workspace",
+                            helperText: `Saved workspace · run ${item.count} time${item.count === 1 ? "" : "s"}`,
+                            destinationKind: "workspace" as const,
+                        };
+                    }
+
+                    if (item.latestRunId) {
+                        return {
+                            ...item,
+                            destination: `/runs/${item.latestRunId}`,
+                            destinationLabel: "View latest run",
+                            helperText: "Workspace missing · opening the latest recorded run instead",
+                            destinationKind: "run" as const,
+                        };
+                    }
+
+                    return {
+                        ...item,
+                        destination: "/dataflows",
+                        destinationLabel: "Browse dataflows",
+                        helperText: "No saved workspace found yet",
+                        destinationKind: "dataflows" as const,
+                    };
+                });
 
             recentRuns = runs
                 .filter((r: any) => r.status !== "running")
+                .filter((r: any) => !isEphemeralRunName(r.name))
+                .filter(
+                    (r: any) =>
+                        !isFailureLikeRun(r) ||
+                        isWithinHours(
+                            r.finished_at || r.started_at,
+                            DASHBOARD_RECENT_FAILURE_WINDOW_HOURS,
+                        ),
+                )
+                .sort((a: any, b: any) => {
+                    const aSaved = availableDataflowNames.has(a.name) ? 0 : 1;
+                    const bSaved = availableDataflowNames.has(b.name) ? 0 : 1;
+                    if (aSaved !== bSaved) return aSaved - bSaved;
+                    const aFailed = isFailureLikeRun(a) ? 1 : 0;
+                    const bFailed = isFailureLikeRun(b) ? 1 : 0;
+                    if (aFailed !== bFailed) return aFailed - bFailed;
+                    return (
+                        parseTimestampMs(b.finished_at || b.started_at) -
+                        parseTimestampMs(a.finished_at || a.started_at)
+                    );
+                })
                 .slice(0, 6);
         } catch (e) {
             console.error("Failed to fetch runs overview", e);
@@ -130,6 +337,62 @@
             </Button>
         </div>
     </div>
+
+    <section class="shrink-0 space-y-4">
+        <div class="flex items-center justify-between border-b pb-2">
+            <div>
+                <h2 class="text-xl font-semibold flex items-center gap-2">
+                    <Sparkles class="size-5 text-amber-500" />
+                    Quick Start
+                </h2>
+                <p class="text-sm text-muted-foreground mt-1">
+                    Use a known-good built-in demo to reach your first successful run.
+                </p>
+            </div>
+        </div>
+
+        <div
+            class="rounded-2xl border bg-gradient-to-br from-amber-50 via-background to-background p-5 shadow-sm dark:from-amber-950/20"
+        >
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div class="space-y-2 max-w-2xl">
+                    <div class="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <TimerReset class="size-4 text-amber-600" />
+                        Hello Timer Demo
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                        The fastest path to first success. This demo uses only built-in nodes,
+                        starts a ticking flow immediately, and now also gives you a matching
+                        editable workspace for your first small change.
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        Path: Dashboard -> run demo -> inspect live status -> open editable
+                        workspace -> rerun.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <Button
+                        size="sm"
+                        onclick={startQuickStartDemo}
+                        disabled={quickStartLaunching}
+                    >
+                        <Play class="mr-2 size-4" />
+                        {quickStartLaunching ? "Launching..." : "Run Hello Timer"}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onclick={openQuickStartWorkspace}
+                        disabled={quickStartWorkspaceOpening}
+                    >
+                        {quickStartWorkspaceOpening
+                            ? "Opening workspace..."
+                            : "Edit Hello Timer"}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- Frequent Dataflows -->
     <div class="shrink-0 space-y-4">
@@ -246,22 +509,53 @@
                         </div>
                     </HoverCard.Content>
                 </HoverCard.Root>
-            {/if}
+        {/if}
         </div>
 
         {#if frequentDataflows.length === 0 && !runsLoading}
             <div
-                class="h-24 flex items-center justify-center border-2 border-dashed rounded-lg bg-muted/20 text-muted-foreground text-sm"
+                class="border-2 border-dashed rounded-lg bg-muted/20 p-5 text-sm"
             >
-                No history available to suggest frequent dataflows.
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div class="space-y-1">
+                        <p class="font-medium text-foreground">
+                            No frequent dataflows yet
+                        </p>
+                        <p class="text-muted-foreground">
+                            Start from a saved dataflow or browse recent runs.
+                            This area will learn from the runs you keep using.
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onclick={() => goto("/runs")}
+                        >
+                            View Runs
+                        </Button>
+                        <Button size="sm" onclick={() => goto("/dataflows")}>
+                            Open Dataflows
+                        </Button>
+                    </div>
+                </div>
             </div>
         {:else}
+            {#if !hasUsableFrequentWorkspace}
+                <div
+                    class="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground"
+                >
+                    These suggestions come from run history. If a saved
+                    workspace no longer exists, the shortcut opens the latest
+                    matching run so you can still inspect what happened.
+                </div>
+            {/if}
             <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {#each frequentDataflows as fd}
                     <button
                         type="button"
                         class="text-left group flex items-start gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        onclick={() => goto(`/dataflows/${fd.id}`)}
+                        onclick={() => goto(fd.destination)}
                     >
                         <div
                             class="h-10 w-10 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform"
@@ -270,11 +564,13 @@
                         </div>
                         <div class="flex flex-col min-w-0 pr-2">
                             <span class="font-medium truncate">{fd.name}</span>
-                            <span class="text-xs text-muted-foreground truncate"
-                                >Run {fd.count} time{fd.count === 1
-                                    ? ""
-                                    : "s"}</span
+                            <span
+                                class="text-xs text-muted-foreground truncate"
+                                >{fd.helperText}</span
                             >
+                            <span class="text-xs text-foreground/80 mt-1">
+                                {fd.destinationLabel}
+                            </span>
                         </div>
                     </button>
                 {/each}
@@ -338,18 +634,36 @@
             <div
                 class="flex items-center justify-between border-b pb-2 shrink-0"
             >
-                <h2 class="text-lg font-semibold flex items-center gap-2">
-                    <History class="size-4 text-muted-foreground" />
-                    Recent Finished
-                </h2>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-6 px-2 text-xs"
-                    onclick={() => goto("/runs")}
-                >
-                    View All <ArrowRight class="size-3 ml-1" />
-                </Button>
+                <div class="space-y-1">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <History class="size-4 text-muted-foreground" />
+                        Recent Finished Runs
+                    </h2>
+                    <p class="text-xs text-muted-foreground">
+                        Showing the latest completed runs from local history.
+                        Use View All to inspect or clean up older entries.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    {#if !hasSavedDataflows}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="h-6 px-2 text-xs"
+                            onclick={() => goto("/dataflows")}
+                        >
+                            Create One
+                        </Button>
+                    {/if}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-6 px-2 text-xs"
+                        onclick={() => goto("/runs")}
+                    >
+                        View All <ArrowRight class="size-3 ml-1" />
+                    </Button>
+                </div>
             </div>
 
             <div class="flex-1 overflow-y-auto min-h-0 pb-2">

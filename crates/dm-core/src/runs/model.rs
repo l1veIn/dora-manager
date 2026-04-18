@@ -116,6 +116,14 @@ pub struct RunLogSync {
     pub last_synced_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RunStopRequest {
+    #[serde(default)]
+    pub requested_at: Option<String>,
+    #[serde(default)]
+    pub last_error: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RunInstance {
@@ -137,6 +145,7 @@ pub struct RunInstance {
     pub outcome: RunOutcome,
     pub transpile: RunTranspileMetadata,
     pub log_sync: RunLogSync,
+    pub stop_request: RunStopRequest,
     pub node_count_expected: u32,
     pub node_count_observed: u32,
     pub nodes_expected: Vec<String>,
@@ -165,6 +174,7 @@ impl Default for RunInstance {
             outcome: RunOutcome::default(),
             transpile: RunTranspileMetadata::default(),
             log_sync: RunLogSync::default(),
+            stop_request: RunStopRequest::default(),
             node_count_expected: 0,
             node_count_observed: 0,
             nodes_expected: Vec::new(),
@@ -198,6 +208,10 @@ pub struct RunSummary {
     pub termination_reason: Option<String>,
     pub outcome_summary: String,
     pub dora_uuid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_requested_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_request_error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics: Option<RunMetrics>,
 }

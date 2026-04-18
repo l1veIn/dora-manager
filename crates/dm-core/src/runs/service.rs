@@ -24,7 +24,9 @@ pub use self::service_query::{
     get_active_run, get_run, list_active_runs, list_runs, list_runs_filtered, read_run_log,
     read_run_log_chunk, read_run_transpiled, read_run_view,
 };
-pub use self::service_runtime::{refresh_run_statuses, stop_run, sync_run_outputs};
+pub use self::service_runtime::{
+    mark_stop_requested, refresh_run_statuses, stop_run, sync_run_outputs,
+};
 pub use self::service_start::{
     start_run_from_file, start_run_from_file_with_source_and_strategy,
     start_run_from_file_with_strategy, start_run_from_yaml,

@@ -6,7 +6,7 @@
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button/index.js";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
-    import { Plus, PanelLeftClose, PanelLeftOpen } from "lucide-svelte";
+    import { Plus, PanelLeftClose, PanelLeftOpen, X } from "lucide-svelte";
 
     import RunHeader from "./RunHeader.svelte";
     import RunFailureBanner from "./RunFailureBanner.svelte";
@@ -35,7 +35,19 @@
     let selectedNodeId = $state<string>("");
     let workspaceLayout = $state<WorkspaceGridItem[]>(getDefaultLayout());
     let workspaceLoaded = false;
-    let stoppingRun = $state(false);
+    type StopRequestState = {
+        phase: "idle" | "pending" | "delayed";
+        requestedAt: number | null;
+        error: string | null;
+    };
+
+    const STOP_DELAYED_THRESHOLD_MS = 15000;
+
+    let stopRequest = $state<StopRequestState>({
+        phase: "idle",
+        requestedAt: null,
+        error: null,
+    });
     let messageSocket: WebSocket | null = null;
     let reconnectMessageSocket: ReturnType<typeof setTimeout> | null = null;
     let snapshotRefreshInFlight: Promise<void> | null = null;
@@ -43,6 +55,7 @@
     let latestInputSeq = $state(0);
     let messageRefreshToken = $state(0);
     let isRunSidebarOpen = $state(true);
+    let interactionNoticeDismissed = $state(false);
     const panelOptions: Array<{ type: "chart" | "message" | "input" | "video" | "terminal"; label: string }> = [
         { type: "message", label: "Message" },
         { type: "input", label: "Input" },
@@ -53,6 +66,10 @@
 
     function sidebarStorageKey() {
         return run?.name ? `dm-run-sidebar-open-${run.name}` : null;
+    }
+
+    function interactionNoticeStorageKey(name: string | undefined | null) {
+        return name ? `dm-run-interaction-notice-dismissed-${name}` : null;
     }
 
     // Layout persistence
@@ -168,7 +185,70 @@
     }
 
     let isRunActive = $derived(run?.status === "running");
+    let shouldPollRun = $derived(isRunActive || stopRequest.requestedAt !== null);
     let hasInteraction = $derived((snapshots?.length ?? 0) > 0);
+    let hasWidgetInputs = $derived(
+        (snapshots ?? []).some((snapshot: any) => snapshot.tag === "widgets"),
+    );
+    let showInteractionNotice = $derived(
+        hasWidgetInputs && !interactionNoticeDismissed,
+    );
+
+    function clearStopRequest() {
+        stopRequest = {
+            phase: "idle",
+            requestedAt: null,
+            error: null,
+        };
+    }
+
+    function syncStopRequest(nextRun: any) {
+        const persistedRequestedAt = nextRun?.stop_requested_at
+            ? Date.parse(nextRun.stop_requested_at)
+            : null;
+        const effectiveRequestedAt = persistedRequestedAt ?? stopRequest.requestedAt;
+
+        if (!effectiveRequestedAt) {
+            if (stopRequest.error) {
+                stopRequest = {
+                    phase: "idle",
+                    requestedAt: null,
+                    error: stopRequest.error,
+                };
+            }
+            return;
+        }
+
+        if (nextRun?.status && nextRun.status !== "running") {
+            clearStopRequest();
+            return;
+        }
+
+        const nextPhase =
+            Date.now() - effectiveRequestedAt >= STOP_DELAYED_THRESHOLD_MS
+                ? "delayed"
+                : "pending";
+
+        if (
+            stopRequest.phase !== nextPhase ||
+            stopRequest.error ||
+            stopRequest.requestedAt !== effectiveRequestedAt
+        ) {
+            stopRequest = {
+                phase: nextPhase,
+                requestedAt: effectiveRequestedAt,
+                error: null,
+            };
+        }
+    }
+
+    function dismissInteractionNotice() {
+        interactionNoticeDismissed = true;
+        const key = interactionNoticeStorageKey(run?.name);
+        if (key && browser) {
+            localStorage.setItem(key, "true");
+        }
+    }
 
     // ── Data fetching ──
 
@@ -176,10 +256,11 @@
         if (!runId) return;
         try {
             const result = await get(
-                `/runs/${runId}${isRunActive || loading ? "?include_metrics=true" : ""}`,
+                `/runs/${runId}${shouldPollRun || loading ? "?include_metrics=true" : ""}`,
             );
             run = result;
             metrics = (result as any)?.metrics ?? null;
+            syncStopRequest(result);
             if (run?.nodes?.length > 0 && !workspaceLoaded) {
                 // Restore layout on first run load
                 workspaceLoaded = true;
@@ -205,6 +286,12 @@
                     if (savedSidebar !== null) {
                         isRunSidebarOpen = savedSidebar === "true";
                     }
+                }
+
+                const interactionKey = interactionNoticeStorageKey(run?.name);
+                if (browser && interactionKey) {
+                    interactionNoticeDismissed =
+                        localStorage.getItem(interactionKey) === "true";
                 }
             }
         } catch (e: any) {
@@ -296,21 +383,28 @@
     }
 
     async function stopRun() {
-        if (!runId) return;
-        stoppingRun = true;
+        if (!runId || stopRequest.requestedAt) return;
+        stopRequest = {
+            phase: "pending",
+            requestedAt: Date.now(),
+            error: null,
+        };
         try {
             await post(`/runs/${runId}/stop`);
-            let maxAttempts = 10;
-            while (maxAttempts > 0) {
-                await fetchRunDetail();
-                if (run?.status !== "running") break;
+            await fetchRunDetail();
+
+            let burstAttempts = 4;
+            while (burstAttempts > 0 && stopRequest.requestedAt && run?.status === "running") {
                 await new Promise((r) => setTimeout(r, 1000));
-                maxAttempts--;
+                await fetchRunDetail();
+                burstAttempts--;
             }
         } catch (e: any) {
-            alert(`Failed to stop run: ${e.message}`);
-        } finally {
-            stoppingRun = false;
+            stopRequest = {
+                phase: "idle",
+                requestedAt: null,
+                error: e.message || "Failed to request stop.",
+            };
         }
     }
 
@@ -378,7 +472,7 @@
         fetchInputValues();
         connectMessageSocket();
         mainPolling = setInterval(() => {
-            if (isRunActive) {
+            if (shouldPollRun) {
                 fetchRunDetail();
             } else {
                 metrics = null;
@@ -395,7 +489,7 @@
 <div class="h-full w-full flex flex-col overflow-hidden bg-background">
     <!-- Slim Global Header -->
     <div class="shrink-0">
-        <RunHeader {run} onStop={stopRun} isStopping={stoppingRun} />
+        <RunHeader {run} onStop={stopRun} stopRequest={stopRequest} />
     </div>
 
     {#if loading}
@@ -490,6 +584,27 @@
                         </DropdownMenu.Root>
                     </div>
                 </div>
+                {#if showInteractionNotice}
+                    <div class="shrink-0 border-b bg-sky-50 px-4 py-2 text-sm text-sky-950">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                This run is interactive. Use the
+                                <span class="font-medium">Input</span> panel to send a
+                                value, then watch the result appear in the
+                                <span class="font-medium">Message</span> panel.
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                class="h-7 w-7 shrink-0 text-sky-900/70 hover:bg-sky-100 hover:text-sky-950"
+                                title="Dismiss interaction hint"
+                                onclick={dismissInteractionNotice}
+                            >
+                                <X class="size-4" />
+                            </Button>
+                        </div>
+                    </div>
+                {/if}
                 <div class="flex-1 min-h-0 relative">
                     <Workspace
                         bind:layout={workspaceLayout}

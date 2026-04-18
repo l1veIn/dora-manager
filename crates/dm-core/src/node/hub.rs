@@ -23,7 +23,8 @@ use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
 /// Embedded registry JSON from the repo root.
-const REGISTRY_JSON: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../registry.json"));
+const REGISTRY_JSON: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../registry.json"));
 
 #[derive(Debug, Deserialize)]
 struct Registry {
@@ -84,7 +85,11 @@ impl NodeSource {
         match self {
             NodeSource::Local(rel) => {
                 let p = root.join(rel);
-                if p.exists() { Some(p) } else { None }
+                if p.exists() {
+                    Some(p)
+                } else {
+                    None
+                }
             }
             NodeSource::Git(_) => None,
         }

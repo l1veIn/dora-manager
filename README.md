@@ -107,8 +107,31 @@ curl -fsSL ... | bash -s -- --bin-dir /usr/local/bin
 
 ### 2. Start the Web UI
 
+Choose the path that matches how you are using Dora Manager:
+
+**Installed binaries** (after running the install script above):
+
 ```bash
 dm-server
+```
+
+**From a source checkout** (recommended for local repo/development use):
+
+```bash
+./dev.sh
+```
+
+`./dev.sh` builds the web app if needed, starts `cargo run -p dm-server`, and launches the web dev server with hot reload.
+
+If you want to run the embedded release binary from the repo instead:
+
+```bash
+cd web
+npm install
+npm run build
+cd ..
+cargo build --release
+./target/release/dm-server
 ```
 
 Open [http://127.0.0.1:3210](http://127.0.0.1:3210) to access the Visual Editor.
@@ -122,7 +145,7 @@ dm start demos/demo-hello-timer.yml
 
 Open the running instance in the Web UI to see real-time output.
 
-> 💡 **Tip for Developers**: Use `./dev.sh` for development with hot reload.
+> 💡 If you cloned this repo, bare `dm-server` will usually not exist in your shell until you install the released binaries into your `PATH`.
 
 ### 4. Manage Environments (CLI)
 
@@ -231,4 +254,3 @@ This project has a high [VibeCoding](https://en.wikipedia.org/wiki/Vibe_coding) 
 ## 📄 License
 
 Apache-2.0
-

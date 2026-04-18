@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { post } from "$lib/api";
+    import { get, post } from "$lib/api";
     import { toast } from "svelte-sonner";
     import CodeMirror from "svelte-codemirror-editor";
     import { yaml } from "@codemirror/lang-yaml";
@@ -15,7 +15,7 @@
     } = $props<{
         dataflowName: string;
         initialYaml?: string;
-        onCodeUpdated?: (newYaml: string) => void;
+        onCodeUpdated?: (newYaml: string, refreshedDataflow?: any) => void;
     }>();
 
     // svelte-ignore state_referenced_locally
@@ -37,8 +37,9 @@
         isSaving = true;
         try {
             await post(`/dataflows/${dataflowName}`, { yaml: code });
+            const refreshedDataflow = await get(`/dataflows/${dataflowName}`);
             toast.success("YAML Saved successfully");
-            onCodeUpdated?.(code);
+            onCodeUpdated?.(code, refreshedDataflow);
         } catch (e: any) {
             toast.error(`Save failed: ${e.message}`);
         } finally {

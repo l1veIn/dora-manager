@@ -45,6 +45,7 @@ struct WebAssets;
         handlers::nodes::import_node,
         handlers::nodes::uninstall_node,
         handlers::nodes::create_node,
+        handlers::nodes::open_node,
         handlers::nodes::get_node_config,
         handlers::nodes::save_node_config,
         // Dataflows
@@ -113,11 +114,16 @@ async fn main() {
         .route("/api/nodes/create", post(handlers::create_node))
         .route("/api/nodes/import", post(handlers::import_node))
         .route("/api/nodes/{id}", get(handlers::node_status))
+        .route("/api/nodes/{id}/open", post(handlers::open_node))
         .route("/api/nodes/{id}/readme", get(handlers::node_readme))
         .route("/api/nodes/{id}/files", get(handlers::get_node_files))
         .route(
             "/api/nodes/{id}/files/{*path}",
             get(handlers::get_node_file_content),
+        )
+        .route(
+            "/api/nodes/{id}/artifacts/{*path}",
+            get(handlers::serve_node_artifact_file),
         )
         .route("/api/nodes/{id}/config", get(handlers::get_node_config))
         .route("/api/nodes/{id}/config", post(handlers::save_node_config))

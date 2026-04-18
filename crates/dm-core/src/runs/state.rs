@@ -77,6 +77,8 @@ pub(crate) fn apply_terminal_state(run: &mut RunInstance, update: TerminalStateU
         run.runtime_observed_at = update.observed_at;
     }
     run.outcome = summary;
+    run.stop_request.requested_at = None;
+    run.stop_request.last_error = None;
 }
 
 pub(crate) fn build_outcome(

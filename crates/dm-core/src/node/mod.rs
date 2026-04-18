@@ -18,7 +18,7 @@ pub use import::{import_git, import_local};
 pub use install::install_node;
 pub use local::{
     create_node, get_node_config, get_node_readme, git_like_file_tree, list_nodes, node_status,
-    read_node_file, save_node_config, uninstall_node,
+    read_node_file, read_node_file_bytes, save_node_config, uninstall_node,
 };
 pub use model::{
     Node, NodeDisplay, NodeExample, NodeFiles, NodeMaintainer, NodePort, NodePortDirection,

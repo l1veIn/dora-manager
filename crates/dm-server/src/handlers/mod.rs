@@ -24,7 +24,8 @@ pub use messages::{
 };
 pub use nodes::{
     create_node, get_node_config, get_node_file_content, get_node_files, import_node, install_node,
-    list_nodes, node_readme, node_status, save_node_config, uninstall_node,
+    list_nodes, node_readme, node_status, open_node, save_node_config, serve_node_artifact_file,
+    uninstall_node,
 };
 pub use run_ws::run_ws;
 pub use runs::{

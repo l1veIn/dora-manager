@@ -359,26 +359,30 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
 
     // Handle URL downloads
     let file_path = if file.starts_with("http://") || file.starts_with("https://") {
-        println!("{} Downloading dataflow from {}...", "→".cyan(), file.dimmed());
-        
+        println!(
+            "{} Downloading dataflow from {}...",
+            "→".cyan(),
+            file.dimmed()
+        );
+
         // Create a temporary file for the download
         let mut temp_file = tempfile::Builder::new()
             .suffix(".yml")
             .tempfile()
             .context("Failed to create temporary file")?;
-        
+
         // Download the file
         let response = reqwest::get(file)
             .await
             .context("Failed to download file from URL")?;
-        
+
         if !response.status().is_success() {
             anyhow::bail!("Failed to download file: HTTP {}", response.status());
         }
-        
+
         // Get content length for progress display
         let total_size = response.content_length();
-        
+
         // Create progress bar
         let pb = ProgressBar::hidden();
         if let Some(total) = total_size {
@@ -391,11 +395,11 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
             );
             pb.reset();
         }
-        
+
         // Stream download to temporary file
         let mut downloaded: u64 = 0;
         let mut stream = response.bytes_stream();
-        
+
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.context("Failed to read download chunk")?;
             std::io::Write::write_all(&mut temp_file, &chunk)
@@ -405,11 +409,11 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
                 pb.set_position(downloaded);
             }
         }
-        
+
         if total_size.is_some() {
             pb.finish_and_clear();
         }
-        
+
         println!("{} Download complete!", "✅".green());
 
         // Persist the temp file so it survives past this block

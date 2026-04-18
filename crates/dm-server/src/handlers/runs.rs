@@ -258,14 +258,16 @@ pub async fn start_run(
 /// POST /api/runs/:id/stop
 #[utoipa::path(post, path = "/api/runs/{id}/stop", params(("id" = String, Path)), responses((status = 200, description = "Run stop initiated")))]
 pub async fn stop_run(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
-    // Verify the run exists before spawning, so we return 404 for invalid IDs.
-    if dm_core::runs::load_run(&state.home, &id).is_err() {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": format!("Run '{}' not found", id) })),
-        )
-            .into_response();
-    }
+    let run = match dm_core::runs::mark_stop_requested(&state.home, &id) {
+        Ok(run) => run,
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": format!("Run '{}' not found", id) })),
+            )
+                .into_response();
+        }
+    };
 
     // Fire-and-forget: run the stop in background so the HTTP response returns immediately.
     let home = state.home.clone();
@@ -279,6 +281,8 @@ pub async fn stop_run(State(state): State<AppState>, Path(id): Path<String>) -> 
     Json(serde_json::json!({
         "status": "stopping",
         "run_id": id,
+        "stop_requested_at": run.stop_request.requested_at,
+        "can_leave": true,
     }))
     .into_response()
 }

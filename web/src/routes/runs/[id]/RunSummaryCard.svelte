@@ -21,6 +21,12 @@
         const remSecs = secs % 60;
         return `${mins}m ${remSecs}s`;
     }
+
+    function observedNodeSummary(run: any) {
+        const observed = run?.node_count_observed ?? run?.node_count ?? 0;
+        const expected = run?.node_count_expected ?? run?.node_count ?? "-";
+        return `${observed} / ${expected}`;
+    }
 </script>
 
 <div class="flex flex-col shrink-0">
@@ -128,12 +134,13 @@
 
                 <div class="flex items-center justify-between">
                     <dt class="text-xs text-muted-foreground font-medium">
-                        Active Nodes
+                        Observed Nodes
                     </dt>
-                    <dd class="font-mono text-xs text-foreground">
-                        {run.node_count_observed ?? run.node_count ?? 0} / {run.node_count_expected ??
-                            run.node_count ??
-                            "-"}
+                    <dd
+                        class="font-mono text-xs text-foreground"
+                        title="Nodes discovered from synced logs for this run."
+                    >
+                        {observedNodeSummary(run)}
                     </dd>
                 </div>
             </dl>

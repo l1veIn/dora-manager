@@ -26,7 +26,18 @@
         Search,
         BookOpen,
         Settings,
+        FolderOpen,
+        ChevronDown,
     } from "lucide-svelte";
+    import * as DropdownUI from "$lib/components/ui/dropdown-menu/index.js";
+    import {
+        isInstalledNode,
+        nodeAvatarSrc,
+        nodeCategory,
+        nodeOriginLabel,
+        nodePrimaryMaintainer,
+        nodeRuntimeLabel,
+    } from "$lib/nodes/catalog";
 
     // Markdown
     import { marked } from "marked";
@@ -39,6 +50,7 @@
     // We can just use standard pre formatting for now until required
 
     let nodeId = $derived(page.params.id);
+    let isNewNode = $derived(page.url.searchParams.get("new") === "1");
     let node = $state<any>(null);
     let loading = $state(true);
 
@@ -199,13 +211,25 @@
     let hasChanges = $derived(
         JSON.stringify(formData) !== JSON.stringify(originalConfig),
     );
-    let needsInstall = $derived(
-        !node?.executable || node.executable.trim() === "",
-    );
+    let needsInstall = $derived(!isInstalledNode(node));
+    let avatarBroken = $state(false);
+    let avatarSrc = $derived((() => {
+        avatarBroken;
+        return avatarBroken ? null : nodeAvatarSrc(node);
+    })());
 
     let filteredFiles = $derived(
         files.filter((f) => f.toLowerCase().includes(fileSearch.toLowerCase())),
     );
+
+    async function openExternally(target: "finder" | "terminal" | "vscode") {
+        try {
+            await post(`/nodes/${nodeId}/open`, { target });
+            toast.success(`Opened ${nodeId} in ${target}`);
+        } catch (e: any) {
+            toast.error(`Failed to open ${nodeId}: ${e.message}`);
+        }
+    }
 </script>
 
 <div
@@ -224,10 +248,23 @@
                 Back to Nodes
             </Button>
             <div class="flex items-center gap-3">
+                <div
+                    class="h-14 w-14 rounded-xl border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0"
+                >
+                    {#if avatarSrc}
+                        <img
+                            src={avatarSrc}
+                            alt={`${nodeId} avatar`}
+                            class="h-full w-full object-cover"
+                            onerror={() => (avatarBroken = true)}
+                        />
+                    {:else}
+                        <Box class="size-6 text-primary" />
+                    {/if}
+                </div>
                 <h1
                     class="text-3xl font-bold font-mono tracking-tight flex items-center gap-2"
                 >
-                    <Box class="size-6 text-primary" />
                     {nodeId}
                 </h1>
                 {#if node}
@@ -235,7 +272,13 @@
                         {node.version || "v0.0.0"}
                     </Badge>
                     <Badge variant="secondary" class="text-xs">
-                        {node.language || "Unknown"}
+                        {nodeRuntimeLabel(node)}
+                    </Badge>
+                    <Badge variant="outline" class="text-xs">
+                        {nodeOriginLabel(node)}
+                    </Badge>
+                    <Badge variant="outline" class="text-xs">
+                        {nodeCategory(node)}
                     </Badge>
                 {/if}
             </div>
@@ -244,10 +287,35 @@
                     {node.description}
                 </p>
             {/if}
+            {#if node}
+                <p class="text-xs text-muted-foreground mt-1">
+                    Maintainer: {nodePrimaryMaintainer(node) || "Unknown maintainer"}
+                </p>
+            {/if}
         </div>
 
         {#if node}
             <div class="flex items-center gap-2">
+                <DropdownUI.Root>
+                    <DropdownUI.Trigger
+                        class="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground gap-2"
+                    >
+                        <FolderOpen class="size-4" />
+                        Open With
+                        <ChevronDown class="size-4" />
+                    </DropdownUI.Trigger>
+                    <DropdownUI.Content align="end">
+                        <DropdownUI.Item onclick={() => openExternally("vscode")}>
+                            Open in VS Code
+                        </DropdownUI.Item>
+                        <DropdownUI.Item onclick={() => openExternally("finder")}>
+                            Open in Finder
+                        </DropdownUI.Item>
+                        <DropdownUI.Item onclick={() => openExternally("terminal")}>
+                            Open in Terminal
+                        </DropdownUI.Item>
+                    </DropdownUI.Content>
+                </DropdownUI.Root>
                 {#if needsInstall}
                     <Button
                         disabled={operation === "installing"}
@@ -298,6 +366,18 @@
             <Skeleton class="h-[60vh] w-full rounded-lg" />
         </div>
     {:else}
+        {#if isNewNode}
+            <div
+                class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
+            >
+                <p class="font-medium">Node scaffold created</p>
+                <p class="mt-1">
+                    Continue in the code tab, or use
+                    <span class="font-medium">Open With</span> to jump straight
+                    into VS Code, Finder, or Terminal.
+                </p>
+            </div>
+        {/if}
         <!-- Main Content Area -->
         <Tabs.Root value="code" class="flex-1 flex flex-col min-h-0">
             <Tabs.List class="w-fit mb-4">

@@ -3,8 +3,8 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::node::{resolve_dm_json_path, resolve_node_dir, Node};
 use crate::node::hub;
+use crate::node::{resolve_dm_json_path, resolve_node_dir, Node};
 
 use super::model::{
     DataflowExecutableDetail, DataflowExecutableStatus, DataflowExecutableSummary,
@@ -55,7 +55,7 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                 .and_then(|value| value.as_str())
                 .unwrap_or_default()
                 .to_string();
-            
+
             // Check for source.git field
             let source_git_url = entry
                 .get("source")
@@ -63,7 +63,7 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                 .and_then(|source_map| source_map.get(serde_yaml::Value::String("git".to_string())))
                 .and_then(|git| git.as_str())
                 .map(|s| s.to_string());
-            
+
             if let Some(node_id) = entry.get("node").and_then(|value| value.as_str()) {
                 let resolved = resolve_node_dir(home, node_id).is_some();
                 let configurable = resolved && resolve_dm_json_path(home, node_id).is_some();
@@ -74,12 +74,13 @@ fn inspect_graph(home: &Path, graph: &serde_yaml::Value) -> DataflowExecutableDe
                     resolved_node_count += 1;
                 } else {
                     // Check if we have a git URL from source.git or registry
-                    let git_url = source_git_url.clone()
-                        .or_else(|| hub::resolve_node_source(node_id).and_then(|s| match s {
+                    let git_url = source_git_url.clone().or_else(|| {
+                        hub::resolve_node_source(node_id).and_then(|s| match s {
                             hub::NodeSource::Git(url) => Some(url),
                             _ => None,
-                        }));
-                    
+                        })
+                    });
+
                     missing_nodes.insert(node_id.to_string());
                     if let Some(url) = git_url {
                         missing_nodes_with_git_url.insert(node_id.to_string(), url);
@@ -177,11 +178,17 @@ nodes:
 "#;
 
         let detail = inspect_yaml(home, yaml);
-        assert_eq!(detail.summary.status, DataflowExecutableStatus::MissingNodes);
+        assert_eq!(
+            detail.summary.status,
+            DataflowExecutableStatus::MissingNodes
+        );
         assert_eq!(detail.summary.missing_nodes, vec!["missing-node"]);
         assert!(detail.summary.missing_nodes_with_git_url.is_some());
         let git_urls = detail.summary.missing_nodes_with_git_url.unwrap();
-        assert_eq!(git_urls.get("missing-node").unwrap(), "https://github.com/example/test-node.git");
+        assert_eq!(
+            git_urls.get("missing-node").unwrap(),
+            "https://github.com/example/test-node.git"
+        );
     }
 
     #[test]
@@ -201,11 +208,17 @@ nodes:
 "#;
 
         let detail = inspect_yaml(home, yaml);
-        assert_eq!(detail.summary.status, DataflowExecutableStatus::MissingNodes);
+        assert_eq!(
+            detail.summary.status,
+            DataflowExecutableStatus::MissingNodes
+        );
         assert_eq!(detail.summary.missing_nodes, vec!["custom-registry-node"]);
         assert!(detail.summary.missing_nodes_with_git_url.is_some());
         let git_urls = detail.summary.missing_nodes_with_git_url.unwrap();
-        assert_eq!(git_urls.get("custom-registry-node").unwrap(), "https://github.com/example/custom-node.git");
+        assert_eq!(
+            git_urls.get("custom-registry-node").unwrap(),
+            "https://github.com/example/custom-node.git"
+        );
     }
 
     #[test]
@@ -220,7 +233,10 @@ nodes:
 "#;
 
         let detail = inspect_yaml(home, yaml);
-        assert_eq!(detail.summary.status, DataflowExecutableStatus::MissingNodes);
+        assert_eq!(
+            detail.summary.status,
+            DataflowExecutableStatus::MissingNodes
+        );
         assert_eq!(detail.summary.missing_nodes, vec!["unknown-node"]);
         // Should not have git URL since it's not in registry
         assert!(detail.summary.missing_nodes_with_git_url.is_none());

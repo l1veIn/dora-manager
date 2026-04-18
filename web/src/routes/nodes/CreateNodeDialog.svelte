@@ -10,7 +10,7 @@
 
     let { open = $bindable(false), onCreated } = $props<{
         open: boolean;
-        onCreated: () => void;
+        onCreated: (id: string) => void;
     }>();
 
     let id = $state("");
@@ -30,14 +30,15 @@
 
         creating = true;
         try {
+            const createdId = id;
             await post("/nodes/create", { id, description });
-            toast.success(`Node scaffold '${id}' created!`);
+            toast.success(`Node scaffold '${createdId}' created!`);
             open = false; // Close dialog
             // Reset form
             id = "";
             description = "";
             // Notify parent
-            onCreated();
+            onCreated(createdId);
         } catch (e: any) {
             toast.error(`Failed to create node: ${e.message}`);
         } finally {

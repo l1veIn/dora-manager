@@ -13,7 +13,7 @@ mod tests {
         RunInstance, RunSource, RunStatus, StartConflictStrategy, TerminationReason,
     };
     use crate::runs::repo;
-    use crate::runs::runtime::{RuntimeBackend, RuntimeDataflow};
+    use crate::runs::runtime::{RuntimeBackend, RuntimeDataflow, STOP_TIMEOUT_SECS};
     use crate::runs::service::{service_runtime, service_start};
     use crate::runs::state::build_outcome;
 
@@ -182,6 +182,23 @@ mod tests {
         assert_eq!(persisted.runtime_observed_at, None);
     }
 
+    #[test]
+    fn mark_stop_requested_persists_background_stop_state() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+        write_running_run(home, "run-stop-marked", Some("uuid-stop-marked"));
+
+        let run = service_runtime::mark_stop_requested(home, "run-stop-marked").unwrap();
+        assert_eq!(run.status, RunStatus::Running);
+        assert!(run.stop_request.requested_at.is_some());
+        assert_eq!(run.stop_request.last_error, None);
+
+        let persisted = repo::load_run(home, "run-stop-marked").unwrap();
+        assert_eq!(persisted.status, RunStatus::Running);
+        assert!(persisted.stop_request.requested_at.is_some());
+        assert_eq!(persisted.stop_request.last_error, None);
+    }
+
     #[tokio::test]
     async fn stop_run_success_marks_run_stopped_and_syncs_logs() {
         let tmp = tempfile::tempdir().unwrap();
@@ -210,6 +227,8 @@ mod tests {
             run.termination_reason,
             Some(TerminationReason::StoppedByUser)
         );
+        assert_eq!(run.stop_request.requested_at, None);
+        assert_eq!(run.stop_request.last_error, None);
         assert_eq!(run.node_count_observed, 1);
         assert_eq!(run.nodes_observed, vec!["worker".to_string()]);
         assert_eq!(
@@ -276,6 +295,44 @@ mod tests {
         );
         assert_eq!(persisted.failure_node.as_deref(), Some("worker"));
         assert_eq!(persisted.failure_message.as_deref(), Some("boom"));
+    }
+
+    #[tokio::test]
+    async fn stop_run_timeout_keeps_run_running_when_runtime_still_reports_running() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+        write_running_run(home, "run-stop-timeout", Some("uuid-stop-timeout"));
+
+        let backend = TestBackend {
+            start_result: Ok((Some("unused".to_string()), "started".to_string())),
+            stop_result: Err(format!("dora stop timed out after {}s", STOP_TIMEOUT_SECS)),
+            list_result: Ok(vec![RuntimeDataflow {
+                id: "uuid-stop-timeout".to_string(),
+                status: RunStatus::Running,
+            }]),
+            stop_calls: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        let err = service_runtime::stop_run_with_backend(home, "run-stop-timeout", &backend)
+            .await
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains(&format!("dora stop timed out after {}s", STOP_TIMEOUT_SECS)));
+
+        let persisted = repo::load_run(home, "run-stop-timeout").unwrap();
+        assert_eq!(persisted.status, RunStatus::Running);
+        assert_eq!(persisted.termination_reason, None);
+        assert_eq!(persisted.failure_node, None);
+        assert_eq!(persisted.failure_message, None);
+        assert!(persisted.runtime_observed_at.is_some());
+        assert!(persisted.stop_request.requested_at.is_some());
+        assert!(persisted
+            .stop_request
+            .last_error
+            .as_deref()
+            .unwrap_or_default()
+            .contains(&format!("timed out after {}s", STOP_TIMEOUT_SECS)));
     }
 
     #[test]
@@ -389,6 +446,7 @@ mod tests {
             runtime_stopped.termination_reason,
             Some(TerminationReason::RuntimeStopped)
         );
+        assert_eq!(runtime_stopped.stop_request.requested_at, None);
 
         let runtime_lost = repo::load_run(home, "run-runtime-lost").unwrap();
         assert_eq!(runtime_lost.status, RunStatus::Stopped);
@@ -397,6 +455,78 @@ mod tests {
             Some(TerminationReason::RuntimeLost)
         );
         assert_eq!(runtime_lost.failure_reason.as_deref(), Some("runtime_lost"));
+    }
+
+    #[test]
+    fn refresh_run_statuses_preserves_user_stop_intent_across_runtime_terminal_states() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+
+        write_run(
+            home,
+            RunInstance {
+                run_id: "run-stop-succeeded".to_string(),
+                dora_uuid: Some("uuid-stop-succeeded".to_string()),
+                dataflow_name: "demo".to_string(),
+                dataflow_hash: "sha256:test".to_string(),
+                started_at: "2026-03-09T00:00:00Z".to_string(),
+                stop_request: crate::runs::RunStopRequest {
+                    requested_at: Some("2026-03-09T00:00:05Z".to_string()),
+                    last_error: Some("dora stop timed out after 15s".to_string()),
+                },
+                outcome: build_outcome(RunStatus::Running, None, None, None),
+                ..RunInstance::default()
+            },
+        );
+
+        write_run(
+            home,
+            RunInstance {
+                run_id: "run-stop-gone".to_string(),
+                dora_uuid: Some("uuid-stop-gone".to_string()),
+                dataflow_name: "demo".to_string(),
+                dataflow_hash: "sha256:test".to_string(),
+                started_at: "2026-03-09T00:00:01Z".to_string(),
+                stop_request: crate::runs::RunStopRequest {
+                    requested_at: Some("2026-03-09T00:00:06Z".to_string()),
+                    last_error: None,
+                },
+                outcome: build_outcome(RunStatus::Running, None, None, None),
+                ..RunInstance::default()
+            },
+        );
+
+        let mut runs = repo::list_run_instances(home).unwrap();
+        let backend = TestBackend {
+            start_result: Ok((Some("unused".to_string()), "started".to_string())),
+            stop_result: Ok(()),
+            list_result: Ok(vec![RuntimeDataflow {
+                id: "uuid-stop-succeeded".to_string(),
+                status: RunStatus::Succeeded,
+            }]),
+            stop_calls: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        service_runtime::refresh_run_statuses_with_backend(home, &mut runs, &backend).unwrap();
+
+        let stop_succeeded = repo::load_run(home, "run-stop-succeeded").unwrap();
+        assert_eq!(stop_succeeded.status, RunStatus::Stopped);
+        assert_eq!(
+            stop_succeeded.termination_reason,
+            Some(TerminationReason::StoppedByUser)
+        );
+        assert_eq!(stop_succeeded.stop_request.requested_at, None);
+        assert_eq!(stop_succeeded.stop_request.last_error, None);
+
+        let stop_gone = repo::load_run(home, "run-stop-gone").unwrap();
+        assert_eq!(stop_gone.status, RunStatus::Stopped);
+        assert_eq!(
+            stop_gone.termination_reason,
+            Some(TerminationReason::StoppedByUser)
+        );
+        assert_eq!(stop_gone.failure_reason, None);
+        assert_eq!(stop_gone.failure_message, None);
+        assert_eq!(stop_gone.stop_request.requested_at, None);
     }
 
     #[tokio::test]

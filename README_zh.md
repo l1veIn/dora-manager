@@ -89,30 +89,38 @@ web       (Svelte)→ Web 可视化面板，支持 WebSocket 实时交互
 
 ## ⚡ 快速开始
 
-### 1. 编译
+### 1. 选择启动方式
 
-`dm-server` 使用 `rust_embed` 将 SvelteKit 前端静态嵌入到 Rust 二进制中，因此需要先编译前端资源。
+按你的使用方式选择：
+
+**已安装二进制**（例如通过安装脚本安装到 `~/.local/bin` 之后）：
 
 ```bash
-# 编译前端
+dm-server
+```
+
+**源码仓库本地运行**（推荐给首次 clone 仓库的开发者）：
+
+```bash
+./dev.sh
+```
+
+`./dev.sh` 会自动在需要时构建前端、启动 `cargo run -p dm-server`，并同时启动带热更新（HMR）的前端开发服务器。
+
+如果你想从源码仓库运行嵌入前端资源的 release 二进制：
+
+```bash
 cd web
 npm install
 npm run build
 cd ..
-
-# 编译 Rust 后端（dm-cli 和 dm-server）
 cargo build --release
-```
-
-### 2. 启动服务
-
-```bash
 ./target/release/dm-server
 ```
 
 **在浏览器中访问 [http://127.0.0.1:3210](http://127.0.0.1:3210) 进入可视化管理面板。**
 
-> 💡 **开发模式**：运行 `./dev.sh` 可同时启动带有热更新（HMR）的前端开发服务器和 Rust 后端。
+> 💡 如果你只是 clone 了仓库，当前 shell 里通常不会直接有 `dm-server` 命令；那是安装后的二进制用法，不是源码目录的默认启动方式。
 
 ### 3. CLI 工具
 

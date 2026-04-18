@@ -14,6 +14,7 @@
         Trash2,
     } from "lucide-svelte";
     import RunStatusBadge from "$lib/components/runs/RunStatusBadge.svelte";
+    import { summarizeOutcomeSummary } from "$lib/runs/outcomeSummary";
     import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import { Badge } from "$lib/components/ui/badge/index.js";
     import { Checkbox } from "$lib/components/ui/checkbox/index.js";
@@ -360,14 +361,17 @@
                                 {#if run.outcome_summary}
                                     <div
                                         class="text-xs text-muted-foreground mt-1 max-w-[200px] truncate"
-                                        title={run.outcome_summary}
+                                        title={summarizeOutcomeSummary(run.outcome_summary)}
                                     >
-                                        {run.outcome_summary}
+                                        {summarizeOutcomeSummary(run.outcome_summary)}
                                     </div>
                                 {/if}
                             </Table.Cell>
                             <Table.Cell>
-                                <RunStatusBadge status={run.status} />
+                                <RunStatusBadge
+                                    status={run.status}
+                                    stopRequestedAt={run.stop_requested_at}
+                                />
                             </Table.Cell>
                             <Table.Cell
                                 class="font-mono text-xs text-muted-foreground"
