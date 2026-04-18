@@ -41,6 +41,40 @@ pub struct NodeDisplay {
     pub avatar: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeDm {
+    #[serde(default = "default_dm_version")]
+    pub version: String,
+    #[serde(default)]
+    pub bindings: Vec<NodeDmBinding>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeDmBinding {
+    #[serde(default)]
+    pub family: String,
+    #[serde(default)]
+    pub role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
+    #[serde(default)]
+    pub media: Vec<String>,
+    #[serde(default)]
+    pub lifecycle: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NodeInteractionLegacy {
+    #[serde(default)]
+    pub emit: Vec<String>,
+    #[serde(default)]
+    pub on: bool,
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NodePortDirection {
@@ -138,6 +172,9 @@ pub struct Node {
     /// Presentation metadata for list/detail pages.
     #[serde(default)]
     pub display: NodeDisplay,
+    /// Explicit DM-plane capability bindings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dm: Option<NodeDm>,
     /// Declared runtime capabilities such as `panel` or `audio`.
     #[serde(default)]
     pub capabilities: Vec<String>,
@@ -161,6 +198,9 @@ pub struct Node {
     /// for ports not found in `ports`.
     #[serde(default)]
     pub dynamic_ports: bool,
+    /// Legacy interaction metadata. Prefer `dm`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interaction: Option<NodeInteractionLegacy>,
     /// Runtime-computed absolute path to the node directory.
     /// Not stored in dm.json — populated when loading from disk.
     #[serde(skip_deserializing, default)]
@@ -173,6 +213,10 @@ fn default_true() -> bool {
 
 fn default_readme_path() -> String {
     "README.md".to_string()
+}
+
+fn default_dm_version() -> String {
+    "v0".to_string()
 }
 
 impl Node {
@@ -199,6 +243,7 @@ impl Node {
             maintainers: Vec::new(),
             license: None,
             display: NodeDisplay::default(),
+            dm: None,
             capabilities: Vec::new(),
             runtime: NodeRuntime::default(),
             ports: Vec::new(),
@@ -206,6 +251,7 @@ impl Node {
             examples: Vec::new(),
             config_schema: None,
             dynamic_ports: false,
+            interaction: None,
             path,
         }
     }

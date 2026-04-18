@@ -51,9 +51,27 @@
     "tests": [],
     "examples": []
   },
-  "interaction": {
-    "emit": ["widgets"],
-    "on": true
+  "dm": {
+    "version": "v0",
+    "bindings": [
+      {
+        "family": "widget_input",
+        "role": "widget",
+        "channel": "register",
+        "media": ["widgets"],
+        "lifecycle": ["run_scoped", "stop_aware"],
+        "description": "Registers a button widget with the DM interaction plane."
+      },
+      {
+        "family": "widget_input",
+        "role": "widget",
+        "port": "click",
+        "channel": "input",
+        "media": ["pulse"],
+        "lifecycle": ["run_scoped", "stop_aware"],
+        "description": "Emits a click pulse on the click output port."
+      }
+    ]
   },
   "examples": [],
   "config_schema": {

@@ -94,6 +94,7 @@ pub fn init_dm_json(id: &str, node_path: &Path, hints: InitHints) -> Result<Node
         maintainers,
         license: pyproject.as_ref().and_then(|p| p.license.clone()),
         display: NodeDisplay::default(),
+        dm: None,
         capabilities: Vec::new(),
         runtime,
         ports: Vec::new(),
@@ -101,6 +102,7 @@ pub fn init_dm_json(id: &str, node_path: &Path, hints: InitHints) -> Result<Node
         examples: Vec::new(),
         config_schema: None,
         dynamic_ports: false,
+        interaction: None,
         path: Default::default(),
     };
 

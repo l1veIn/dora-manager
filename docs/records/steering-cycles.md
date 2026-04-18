@@ -517,3 +517,42 @@ Round 15 will focus on stop-latency diagnosis and the first narrow fix:
 - The investigation names the blocking node or node class.
 - There is at least one concrete, validated explanation for the old 11 to 12 second stop time.
 - If a bounded fix exists in dm-owned nodes, validate whether it reduces dm-driven stop latency significantly.
+
+## Cycle 15
+
+### Current project judgment
+
+- The stop-latency round exposed a deeper structural problem: dm-owned interaction nodes still carry too much DM-plane protocol and lifecycle logic themselves.
+- The project now has a clearer ontology for the problem:
+  `dora` ports remain the data plane, while panel/interaction belongs to a separate DM plane expressed as vertical bindings rather than ordinary graph edges.
+- The next highest-leverage move is not another stop patch. It is turning that architectural truth into an explicit contract the codebase can carry forward.
+
+### Options considered
+
+- Build a parallel DM SDK across languages immediately
+- Keep layering ad hoc node-local HTTP/WS logic and helper patches
+- Formalize DM-plane bindings in `dm.json` first, then pilot the contract on a very small set of builtin nodes
+
+### Recommendation
+
+Formalize DM-plane bindings in `dm.json` first, then pilot the contract on a very small set of builtin nodes.
+
+### Dissent / warning
+
+- Do not pretend a new metadata contract alone removes all node-local protocol code yet.
+- Do not collapse the DM plane back into ordinary `port` semantics just because that would be easier to encode.
+
+### Final decision
+
+Round 16 will focus on capability binding v0:
+
+1. write the v0 design doc grounded in the panel ontology memo
+2. add typed capability-binding metadata to the node model
+3. migrate the first builtin interaction nodes to the new contract
+4. expose the DM-plane binding truth in node-facing surfaces
+
+### Acceptance condition
+
+- The repo has a clear `dm` capability-binding design doc for v0.
+- Node metadata can load and serialize typed DM bindings.
+- At least `dm-text-input` and `dm-display` expose the new contract through the running product surfaces.

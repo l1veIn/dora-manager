@@ -41,9 +41,27 @@
     "tests": [],
     "examples": []
   },
-  "interaction": {
-    "emit": ["widgets"],
-    "on": true
+  "dm": {
+    "version": "v0",
+    "bindings": [
+      {
+        "family": "widget_input",
+        "role": "widget",
+        "channel": "register",
+        "media": ["widgets"],
+        "lifecycle": ["run_scoped", "stop_aware"],
+        "description": "Registers a slider widget with the DM interaction plane."
+      },
+      {
+        "family": "widget_input",
+        "role": "widget",
+        "port": "value",
+        "channel": "input",
+        "media": ["number"],
+        "lifecycle": ["run_scoped", "stop_aware"],
+        "description": "Emits user-selected numeric input on the value output port."
+      }
+    ]
   },
   "examples": [],
   "config_schema": {

@@ -77,6 +77,7 @@ mod tests {
             maintainers: Vec::new(),
             license: None,
             display: NodeDisplay::default(),
+            dm: None,
             capabilities: Vec::new(),
             runtime: NodeRuntime::default(),
             ports: Vec::new(),
@@ -84,6 +85,7 @@ mod tests {
             examples: Vec::new(),
             config_schema: None,
             dynamic_ports: false,
+            interaction: None,
             path: Default::default(),
         };
 

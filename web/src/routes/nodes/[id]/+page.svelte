@@ -230,6 +230,12 @@
             toast.error(`Failed to open ${nodeId}: ${e.message}`);
         }
     }
+
+    function nodeDmBindings(entry: any) {
+        return Array.isArray(entry?.dm?.bindings) ? entry.dm.bindings : [];
+    }
+
+    let dmBindings = $derived(nodeDmBindings(node));
 </script>
 
 <div
@@ -377,6 +383,59 @@
                     into VS Code, Finder, or Terminal.
                 </p>
             </div>
+        {/if}
+        {#if dmBindings.length > 0}
+            <section class="rounded-xl border bg-card px-4 py-4 space-y-3">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <Badge variant="secondary">DM Plane</Badge>
+                        <p class="text-sm font-medium">Capability bindings</p>
+                    </div>
+                    <p class="text-sm text-muted-foreground max-w-3xl">
+                        These are vertical bindings from this node into the DM interaction plane.
+                        They are not ordinary graph edges.
+                    </p>
+                </div>
+                <div class="grid gap-3 md:grid-cols-2">
+                    {#each dmBindings as binding}
+                        <div class="rounded-lg border bg-muted/20 px-3 py-3 space-y-2">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" class="font-mono text-[11px]">
+                                    {binding.family || "unknown_family"}
+                                </Badge>
+                                <Badge variant="outline" class="font-mono text-[11px]">
+                                    {binding.role || "unknown_role"}
+                                </Badge>
+                                {#if binding.channel}
+                                    <Badge variant="secondary" class="font-mono text-[11px]">
+                                        {binding.channel}
+                                    </Badge>
+                                {/if}
+                                {#if binding.port}
+                                    <Badge variant="outline" class="font-mono text-[11px]">
+                                        port:{binding.port}
+                                    </Badge>
+                                {/if}
+                            </div>
+                            {#if binding.description}
+                                <p class="text-sm text-muted-foreground">
+                                    {binding.description}
+                                </p>
+                            {/if}
+                            {#if binding.media?.length}
+                                <p class="text-xs text-muted-foreground">
+                                    Media: {binding.media.join(", ")}
+                                </p>
+                            {/if}
+                            {#if binding.lifecycle?.length}
+                                <p class="text-xs text-muted-foreground">
+                                    Lifecycle: {binding.lifecycle.join(", ")}
+                                </p>
+                            {/if}
+                        </div>
+                    {/each}
+                </div>
+            </section>
         {/if}
         <!-- Main Content Area -->
         <Tabs.Root value="code" class="flex-1 flex flex-col min-h-0">

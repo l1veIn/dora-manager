@@ -29,6 +29,7 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
         maintainers: Vec::new(),
         license: None,
         display: NodeDisplay::default(),
+        dm: None,
         capabilities: Vec::new(),
         runtime: NodeRuntime::default(),
         ports: Vec::new(),
@@ -36,6 +37,7 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
         examples: Vec::new(),
         config_schema: None,
         dynamic_ports: false,
+        interaction: None,
         path: Default::default(),
     };
 
@@ -376,6 +378,7 @@ fn test_inspect_config_aggregates_schema_and_effective_values() {
         maintainers: Vec::new(),
         license: None,
         display: crate::node::NodeDisplay::default(),
+        dm: None,
         capabilities: Vec::new(),
         runtime: crate::node::NodeRuntime::default(),
         ports: Vec::new(),
@@ -394,6 +397,7 @@ fn test_inspect_config_aggregates_schema_and_effective_values() {
             }
         })),
         dynamic_ports: false,
+        interaction: None,
         path: Default::default(),
     };
     std::fs::write(

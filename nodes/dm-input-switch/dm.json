@@ -51,9 +51,27 @@
     "tests": [],
     "examples": []
   },
-  "interaction": {
-    "emit": ["widgets"],
-    "on": true
+  "dm": {
+    "version": "v0",
+    "bindings": [
+      {
+        "family": "widget_input",
+        "role": "widget",
+        "channel": "register",
+        "media": ["widgets"],
+        "lifecycle": ["run_scoped", "stop_aware"],
+        "description": "Registers a switch widget with the DM interaction plane."
+      },
+      {
+        "family": "widget_input",
+        "role": "widget",
+        "port": "value",
+        "channel": "input",
+        "media": ["boolean"],
+        "lifecycle": ["run_scoped", "stop_aware"],
+        "description": "Emits toggled user input on the value output port."
+      }
+    ]
   },
   "examples": [],
   "config_schema": {

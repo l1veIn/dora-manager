@@ -64,8 +64,26 @@
     "tests": [],
     "examples": []
   },
-  "interaction": {
-    "emit": ["text", "image", "json", "markdown", "audio", "video"]
+  "dm": {
+    "version": "v0",
+    "bindings": [
+      {
+        "family": "display",
+        "role": "source",
+        "port": "data",
+        "channel": "inline",
+        "media": ["text", "json", "markdown"],
+        "description": "Relays inline display content into the DM interaction plane."
+      },
+      {
+        "family": "display",
+        "role": "source",
+        "port": "path",
+        "channel": "artifact",
+        "media": ["image", "audio", "video", "text", "json", "markdown"],
+        "description": "Relays artifact-backed display content into the DM interaction plane."
+      }
+    ]
   },
   "examples": [],
   "config_schema": {

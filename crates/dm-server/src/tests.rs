@@ -183,6 +183,7 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         maintainers: Vec::new(),
         license: None,
         display: dm_core::node::NodeDisplay::default(),
+        dm: None,
         capabilities: Vec::new(),
         runtime: dm_core::node::NodeRuntime::default(),
         ports: Vec::new(),
@@ -190,6 +191,7 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         files: dm_core::node::NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
+        interaction: None,
         path: Default::default(),
     };
     std::fs::write(
@@ -357,6 +359,51 @@ async fn node_status_returns_entry_for_installed_node() {
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["id"], "demo-node");
     assert_eq!(json["version"], "1.0.0");
+}
+
+#[tokio::test]
+async fn node_status_returns_dm_capability_bindings() {
+    let (_tmp, state) = test_state();
+    let id = "dm-bound-node";
+    let node_dir = dm_core::node::node_dir(&state.home, id);
+    std::fs::create_dir_all(&node_dir).unwrap();
+    std::fs::write(
+        dm_core::node::dm_json_path(&state.home, id),
+        serde_json::json!({
+            "id": id,
+            "name": "DM Bound Node",
+            "version": "0.1.0",
+            "installed_at": "1234567890",
+            "source": { "build": "pip install -e .", "github": null },
+            "description": "",
+            "executable": ".venv/bin/dm-bound-node",
+            "dm": {
+                "version": "v0",
+                "bindings": [
+                    {
+                        "family": "widget_input",
+                        "role": "widget",
+                        "port": "value",
+                        "channel": "input",
+                        "media": ["text"]
+                    }
+                ]
+            }
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let resp = handlers::node_status(State(state), Path(id.to_string()))
+        .await
+        .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["dm"]["version"], "v0");
+    assert_eq!(json["dm"]["bindings"][0]["family"], "widget_input");
+    assert_eq!(json["dm"]["bindings"][0]["port"], "value");
 }
 
 #[tokio::test]

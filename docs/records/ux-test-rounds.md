@@ -775,3 +775,68 @@ Investigate the real source of stop latency and determine whether the slowdown b
 ### Next focus
 
 - Decide whether to leave raw Dora stop behavior as-is and optimize only the dm-managed product path, or to pursue a deeper runtime/node contract that also improves direct `dora stop` semantics outside dm.
+
+## Round 16
+
+### Goal
+
+Turn the newly agreed DM-plane ontology into an explicit capability-binding contract and validate it on a minimal set of builtin interaction nodes before merge.
+
+### Tester path
+
+1. Rebuild context from the panel ontology discussion and current node metadata.
+2. Formalize the `dm` capability-binding contract in a design document.
+3. Migrate the smallest realistic builtin pilot set:
+   - `dm-text-input`
+   - `dm-display`
+   - companion widget nodes in the same family
+4. Verify that node APIs now expose typed DM bindings.
+5. Verify that node-facing UI surfaces acknowledge the DM plane instead of hiding it completely.
+
+### Findings
+
+- The repo already contained an implicit DM plane:
+  ad hoc `interaction` metadata in `dm.json`, run-scoped message persistence, widget registration, and browser-facing input/display flows.
+- That DM plane was real but structurally hidden. Nodes could participate in it, but the node model did not type it and the product did not surface it clearly.
+- The immediate goal was therefore not to redesign transport, but to stop treating DM-plane semantics as untyped leftovers.
+
+### Fixes shipped
+
+- Added the new design document:
+  [docs/design/dm-capability-binding-v0.md](/Users/yangchen/Desktop/dora-manager/docs/design/dm-capability-binding-v0.md)
+- Extended the node model with first-class DM-plane metadata:
+  - [crates/dm-core/src/node/model.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/node/model.rs)
+  - [crates/dm-core/src/node/mod.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/node/mod.rs)
+- Migrated the builtin interaction nodes to the new `dm.version = \"v0\"` binding contract:
+  - [nodes/dm-text-input/dm.json](/Users/yangchen/Desktop/dora-manager/nodes/dm-text-input/dm.json)
+  - [nodes/dm-display/dm.json](/Users/yangchen/Desktop/dora-manager/nodes/dm-display/dm.json)
+  - [nodes/dm-button/dm.json](/Users/yangchen/Desktop/dora-manager/nodes/dm-button/dm.json)
+  - [nodes/dm-slider/dm.json](/Users/yangchen/Desktop/dora-manager/nodes/dm-slider/dm.json)
+  - [nodes/dm-input-switch/dm.json](/Users/yangchen/Desktop/dora-manager/nodes/dm-input-switch/dm.json)
+- Updated the node detail page to show the DM plane explicitly instead of keeping it implicit:
+  [web/src/routes/nodes/[id]/+page.svelte](/Users/yangchen/Desktop/dora-manager/web/src/routes/nodes/[id]/+page.svelte)
+- Added focused coverage proving the new metadata survives both core loading and server serialization:
+  - [crates/dm-core/src/node/tests.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/node/tests.rs)
+  - [crates/dm-server/src/tests.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-server/src/tests.rs)
+
+### Validation
+
+- `cargo test -p dm-core node::tests::test_node_status_preserves_dm_capability_bindings -- --nocapture` passed.
+- `cargo test -p dm-server node_status_returns_dm_capability_bindings -- --nocapture` passed.
+- `cargo check` passed for the workspace.
+- `npm run check` passed in `web/`.
+- After restarting the local dev stack, the running API now returns typed DM bindings for the pilot nodes:
+  - `GET /api/nodes/dm-text-input`
+  - `GET /api/nodes/dm-display`
+- The rebuilt node detail surface now contains the new `DM Plane` / `Capability bindings` section in the shipped app bundle.
+
+### Remaining issues
+
+- This round formalizes the DM plane, but it does not yet remove node-local HTTP/WS code from the widget/display nodes.
+- The graph editor still does not visualize capability bindings as first-class off-canvas relationships.
+- Legacy third-party nodes may still carry the old ad hoc `interaction` shape until a broader migration pass exists.
+
+### Next focus
+
+- Start the next pilot round from this contract:
+  choose one narrow runtime path where a declared DM binding can replace node-local protocol glue rather than only document it.
