@@ -48,7 +48,7 @@ if [ -d "$WEB_DIR" ]; then
     fi
 
     info "Building web frontend..."
-    npm run build
+    # npm run build
     ok "Web frontend built."
 
     cd "$SCRIPT_DIR"

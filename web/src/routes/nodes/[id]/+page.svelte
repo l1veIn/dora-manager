@@ -231,11 +231,25 @@
         }
     }
 
-    function nodeDmBindings(entry: any) {
-        return Array.isArray(entry?.dm?.bindings) ? entry.dm.bindings : [];
+    function nodeCapabilityTags(entry: any) {
+        if (!Array.isArray(entry?.capabilities)) return [];
+        return entry.capabilities.filter((capability: any) => typeof capability === "string");
     }
 
-    let dmBindings = $derived(nodeDmBindings(node));
+    function nodeBoundCapabilities(entry: any) {
+        if (!Array.isArray(entry?.capabilities)) return [];
+        return entry.capabilities.filter(
+            (capability: any) =>
+                capability &&
+                typeof capability === "object" &&
+                typeof capability.name === "string" &&
+                Array.isArray(capability.bindings) &&
+                capability.bindings.length > 0,
+        );
+    }
+
+    let capabilityTags = $derived(nodeCapabilityTags(node));
+    let boundCapabilities = $derived(nodeBoundCapabilities(node));
 </script>
 
 <div
@@ -384,57 +398,85 @@
                 </p>
             </div>
         {/if}
-        {#if dmBindings.length > 0}
+        {#if capabilityTags.length > 0 || boundCapabilities.length > 0}
             <section class="rounded-xl border bg-card px-4 py-4 space-y-3">
                 <div class="space-y-1">
                     <div class="flex items-center gap-2">
-                        <Badge variant="secondary">DM Plane</Badge>
-                        <p class="text-sm font-medium">Capability bindings</p>
+                        <Badge variant="secondary">Capabilities</Badge>
+                        <p class="text-sm font-medium">Runtime capability contract</p>
                     </div>
                     <p class="text-sm text-muted-foreground max-w-3xl">
-                        These are vertical bindings from this node into the DM interaction plane.
-                        They are not ordinary graph edges.
+                        Coarse capability tags stay lightweight, while structured capabilities
+                        carry the fine-grained bindings that connect this node to DM runtime
+                        behavior without pretending they are ordinary graph edges.
                     </p>
                 </div>
-                <div class="grid gap-3 md:grid-cols-2">
-                    {#each dmBindings as binding}
-                        <div class="rounded-lg border bg-muted/20 px-3 py-3 space-y-2">
-                            <div class="flex flex-wrap items-center gap-2">
+                {#if capabilityTags.length > 0}
+                    <div class="space-y-2">
+                        <p class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                            Tags
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            {#each capabilityTags as tag}
                                 <Badge variant="outline" class="font-mono text-[11px]">
-                                    {binding.family || "unknown_family"}
+                                    {tag}
                                 </Badge>
-                                <Badge variant="outline" class="font-mono text-[11px]">
-                                    {binding.role || "unknown_role"}
-                                </Badge>
-                                {#if binding.channel}
-                                    <Badge variant="secondary" class="font-mono text-[11px]">
-                                        {binding.channel}
-                                    </Badge>
-                                {/if}
-                                {#if binding.port}
-                                    <Badge variant="outline" class="font-mono text-[11px]">
-                                        port:{binding.port}
-                                    </Badge>
-                                {/if}
-                            </div>
-                            {#if binding.description}
-                                <p class="text-sm text-muted-foreground">
-                                    {binding.description}
-                                </p>
-                            {/if}
-                            {#if binding.media?.length}
-                                <p class="text-xs text-muted-foreground">
-                                    Media: {binding.media.join(", ")}
-                                </p>
-                            {/if}
-                            {#if binding.lifecycle?.length}
-                                <p class="text-xs text-muted-foreground">
-                                    Lifecycle: {binding.lifecycle.join(", ")}
-                                </p>
-                            {/if}
+                            {/each}
                         </div>
-                    {/each}
-                </div>
+                    </div>
+                {/if}
+                {#if boundCapabilities.length > 0}
+                    <div class="grid gap-3 md:grid-cols-2">
+                        {#each boundCapabilities as capability}
+                            <div class="rounded-lg border bg-muted/20 px-3 py-3 space-y-3">
+                                <div class="flex items-center gap-2">
+                                    <Badge variant="secondary" class="font-mono text-[11px]">
+                                        {capability.name || "unknown_capability"}
+                                    </Badge>
+                                    <p class="text-xs text-muted-foreground">
+                                        {capability.bindings.length} binding{capability.bindings.length === 1 ? "" : "s"}
+                                    </p>
+                                </div>
+                                <div class="space-y-2">
+                                    {#each capability.bindings as binding}
+                                        <div class="rounded-md border bg-background/70 px-3 py-2 space-y-2">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <Badge variant="outline" class="font-mono text-[11px]">
+                                                    {binding.role || "unknown_role"}
+                                                </Badge>
+                                                {#if binding.channel}
+                                                    <Badge variant="secondary" class="font-mono text-[11px]">
+                                                        {binding.channel}
+                                                    </Badge>
+                                                {/if}
+                                                {#if binding.port}
+                                                    <Badge variant="outline" class="font-mono text-[11px]">
+                                                        port:{binding.port}
+                                                    </Badge>
+                                                {/if}
+                                            </div>
+                                            {#if binding.description}
+                                                <p class="text-sm text-muted-foreground">
+                                                    {binding.description}
+                                                </p>
+                                            {/if}
+                                            {#if binding.media?.length}
+                                                <p class="text-xs text-muted-foreground">
+                                                    Media: {binding.media.join(", ")}
+                                                </p>
+                                            {/if}
+                                            {#if binding.lifecycle?.length}
+                                                <p class="text-xs text-muted-foreground">
+                                                    Lifecycle: {binding.lifecycle.join(", ")}
+                                                </p>
+                                            {/if}
+                                        </div>
+                                    {/each}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {/if}
             </section>
         {/if}
         <!-- Main Content Area -->

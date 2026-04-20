@@ -1,3 +1,4 @@
+pub(crate) mod bridge_socket;
 pub(crate) mod dataflow;
 pub(crate) mod events;
 pub(crate) mod messages;

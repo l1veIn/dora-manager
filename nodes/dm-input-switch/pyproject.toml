@@ -3,7 +3,7 @@ name = "dm-input-switch"
 version = "0.1.0"
 description = "A boolean toggle switch widget for the Interaction UI."
 requires-python = ">=3.10"
-dependencies = ["dora-rs == 0.4.1", "pyarrow", "requests", "websocket-client"]
+dependencies = ["dora-rs == 0.4.1", "pyarrow"]
 
 [project.scripts]
 dm-input-switch = "dm_input_switch.main:main"

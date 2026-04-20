@@ -2,7 +2,7 @@
   "id": "dm-display",
   "name": "dm-display",
   "version": "0.1.0",
-  "installed_at": "1775106935",
+  "installed_at": "1776692257",
   "source": {
     "build": "pip install -e .",
     "github": null
@@ -23,7 +23,39 @@
     ]
   },
   "capabilities": [
-    "configurable"
+    "configurable",
+    {
+      "name": "display",
+      "bindings": [
+        {
+          "role": "source",
+          "port": "data",
+          "channel": "inline",
+          "media": [
+            "text",
+            "json",
+            "markdown"
+          ],
+          "lifecycle": [],
+          "description": "Relays inline display content into the DM interaction plane."
+        },
+        {
+          "role": "source",
+          "port": "path",
+          "channel": "artifact",
+          "media": [
+            "image",
+            "audio",
+            "video",
+            "text",
+            "json",
+            "markdown"
+          ],
+          "lifecycle": [],
+          "description": "Relays artifact-backed display content into the DM interaction plane."
+        }
+      ]
+    }
   ],
   "runtime": {
     "language": "python",
@@ -63,27 +95,6 @@
     "entry": "dm_display/main.py",
     "tests": [],
     "examples": []
-  },
-  "dm": {
-    "version": "v0",
-    "bindings": [
-      {
-        "family": "display",
-        "role": "source",
-        "port": "data",
-        "channel": "inline",
-        "media": ["text", "json", "markdown"],
-        "description": "Relays inline display content into the DM interaction plane."
-      },
-      {
-        "family": "display",
-        "role": "source",
-        "port": "path",
-        "channel": "artifact",
-        "media": ["image", "audio", "video", "text", "json", "markdown"],
-        "description": "Relays artifact-backed display content into the DM interaction plane."
-      }
-    ]
   },
   "examples": [],
   "config_schema": {

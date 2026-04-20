@@ -8,7 +8,7 @@
     import { getPanelDefinition } from "./panels/registry";
     import type { PanelContext } from "./panels/types";
 
-    let { 
+    let {
         layout = $bindable([]),
         runId,
         snapshots = [],

@@ -58,8 +58,11 @@ pub fn load_run(home: &Path, run_id: &str) -> Result<RunInstance> {
 pub fn save_run(home: &Path, run: &RunInstance) -> Result<()> {
     let path = run_json_path(home, &run.run_id);
     let content = serde_json::to_string_pretty(run)?;
-    fs::write(&path, content)
-        .with_context(|| format!("Failed to write run metadata {}", path.display()))
+    let tmp_path = path.with_extension(format!("{}.tmp", std::process::id()));
+    fs::write(&tmp_path, &content)
+        .with_context(|| format!("Failed to write temp run metadata {}", tmp_path.display()))?;
+    fs::rename(&tmp_path, &path)
+        .with_context(|| format!("Failed to rename run metadata {}", path.display()))
 }
 
 pub fn list_run_instances(home: &Path) -> Result<Vec<RunInstance>> {

@@ -1,5 +1,11 @@
 use crate::node::{self, Node};
 
+use super::bridge::{
+    bridge_specs_json, build_bridge_node_spec, ensure_input_mapping, ensure_output_port,
+    DM_BRIDGE_INPUT_ENV_KEY, DM_BRIDGE_OUTPUT_ENV_KEY, DM_CAPABILITIES_ENV_KEY,
+    DM_CLI_BIN_ENV_KEY, HIDDEN_DM_BRIDGE_YAML_ID, NODE_DM_BRIDGE_INPUT_PORT,
+    NODE_DM_BRIDGE_OUTPUT_PORT,
+};
 use super::context::TranspileContext;
 use super::error::{DiagnosticKind, TranspileDiagnostic};
 use super::model::{DmGraph, DmNode, ManagedNode};
@@ -441,11 +447,149 @@ pub(crate) fn inject_runtime_env(ctx: &TranspileContext, graph: &mut DmGraph) {
             serde_yaml::Value::String("DM_RUN_OUT_DIR".to_string()),
             serde_yaml::Value::String(run_out_dir.clone()),
         );
-        managed.merged_env.insert(
-            serde_yaml::Value::String("DM_SERVER_URL".to_string()),
-            serde_yaml::Value::String("http://127.0.0.1:3210".to_string()),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Pass 4.5: Inject hidden DM bridge for capability bindings
+// ---------------------------------------------------------------------------
+
+pub(crate) fn inject_dm_bridge(
+    ctx: &TranspileContext,
+    graph: &mut DmGraph,
+    _diags: &mut Vec<TranspileDiagnostic>,
+) {
+    if graph.nodes.iter().any(|node| match node {
+        DmNode::Managed(managed) => managed.yaml_id == HIDDEN_DM_BRIDGE_YAML_ID,
+        DmNode::External { _yaml_id, .. } => _yaml_id == HIDDEN_DM_BRIDGE_YAML_ID,
+    }) {
+        return;
+    }
+
+    let mut all_specs = Vec::new();
+    let mut bridge_outputs = Vec::new();
+    let mut bridge_inputs = serde_yaml::Mapping::new();
+
+    for node in &mut graph.nodes {
+        let DmNode::Managed(managed) = node else {
+            continue;
+        };
+
+        let Some(meta) = load_node_meta(ctx, &managed.node_id) else {
+            continue;
+        };
+        let Some(spec) = build_bridge_node_spec(&meta, managed) else {
+            continue;
+        };
+
+        if let Some(port) = spec.bridge_output_port.as_deref() {
+            ensure_input_mapping(
+                managed,
+                NODE_DM_BRIDGE_INPUT_PORT,
+                &format!("{}/{}", HIDDEN_DM_BRIDGE_YAML_ID, port),
+            );
+            managed.merged_env.insert(
+                serde_yaml::Value::String(DM_BRIDGE_INPUT_ENV_KEY.to_string()),
+                serde_yaml::Value::String(NODE_DM_BRIDGE_INPUT_PORT.to_string()),
+            );
+            bridge_outputs.push(serde_yaml::Value::String(port.to_string()));
+        }
+
+        if let Some(port) = spec.bridge_input_port.as_deref() {
+            ensure_output_port(managed, NODE_DM_BRIDGE_OUTPUT_PORT);
+            managed.merged_env.insert(
+                serde_yaml::Value::String(DM_BRIDGE_OUTPUT_ENV_KEY.to_string()),
+                serde_yaml::Value::String(NODE_DM_BRIDGE_OUTPUT_PORT.to_string()),
+            );
+            bridge_inputs.insert(
+                serde_yaml::Value::String(port.to_string()),
+                serde_yaml::Value::String(format!(
+                    "{}/{}",
+                    managed.yaml_id, NODE_DM_BRIDGE_OUTPUT_PORT
+                )),
+            );
+        }
+
+        all_specs.push(spec);
+    }
+
+    if all_specs.is_empty() {
+        return;
+    }
+
+    let bridge_path = Some(resolve_dm_cli_exe().display().to_string());
+    let run_out_dir = crate::runs::run_out_dir(ctx.home, ctx.run_id)
+        .display()
+        .to_string();
+
+    let mut env = serde_yaml::Mapping::new();
+    env.insert(
+        serde_yaml::Value::String("DM_RUN_ID".to_string()),
+        serde_yaml::Value::String(ctx.run_id.to_string()),
+    );
+    env.insert(
+        serde_yaml::Value::String("DM_NODE_ID".to_string()),
+        serde_yaml::Value::String(HIDDEN_DM_BRIDGE_YAML_ID.to_string()),
+    );
+    env.insert(
+        serde_yaml::Value::String("DM_RUN_OUT_DIR".to_string()),
+        serde_yaml::Value::String(run_out_dir),
+    );
+    if let Ok(payload) = bridge_specs_json(&all_specs) {
+        env.insert(
+            serde_yaml::Value::String(DM_CAPABILITIES_ENV_KEY.to_string()),
+            serde_yaml::Value::String(payload),
         );
     }
+
+    let mut bridge_extra = serde_yaml::Mapping::new();
+    if !bridge_outputs.is_empty() {
+        bridge_extra.insert(
+            serde_yaml::Value::String("outputs".to_string()),
+            serde_yaml::Value::Sequence(bridge_outputs),
+        );
+    }
+    if !bridge_inputs.is_empty() {
+        bridge_extra.insert(
+            serde_yaml::Value::String("inputs".to_string()),
+            serde_yaml::Value::Mapping(bridge_inputs),
+        );
+    }
+    bridge_extra.insert(
+        serde_yaml::Value::String("args".to_string()),
+        serde_yaml::Value::String(format!("bridge --run-id {}", ctx.run_id)),
+    );
+
+    graph.nodes.push(DmNode::Managed(ManagedNode {
+        yaml_id: HIDDEN_DM_BRIDGE_YAML_ID.to_string(),
+        node_id: "dm".to_string(),
+        inline_config: serde_json::json!({}),
+        resolved_path: bridge_path,
+        merged_env: env,
+        extra_fields: bridge_extra,
+    }));
+}
+
+fn resolve_dm_cli_exe() -> std::path::PathBuf {
+    if let Ok(override_path) = std::env::var(DM_CLI_BIN_ENV_KEY) {
+        let trimmed = override_path.trim();
+        if !trimmed.is_empty() {
+            return std::path::PathBuf::from(trimmed);
+        }
+    }
+
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| {
+            let dir = exe.parent()?;
+            let dm_path = dir.join("dm");
+            if dm_path.exists() {
+                Some(dm_path)
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from("dm"))
 }
 
 // ---------------------------------------------------------------------------

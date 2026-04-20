@@ -2,7 +2,7 @@
   "id": "dm-text-input",
   "name": "dm-text-input",
   "version": "0.1.0",
-  "installed_at": "1775297594",
+  "installed_at": "1776685193",
   "source": {
     "build": "pip install -e .",
     "github": null
@@ -23,7 +23,37 @@
     ]
   },
   "capabilities": [
-    "configurable"
+    "configurable",
+    {
+      "name": "widget_input",
+      "bindings": [
+        {
+          "role": "widget",
+          "channel": "register",
+          "media": [
+            "widgets"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "stop_aware"
+          ],
+          "description": "Registers a text input widget with the DM interaction plane."
+        },
+        {
+          "role": "widget",
+          "port": "value",
+          "channel": "input",
+          "media": [
+            "text"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "stop_aware"
+          ],
+          "description": "Emits submitted user input on the value output port."
+        }
+      ]
+    }
   ],
   "runtime": {
     "language": "python",
@@ -50,28 +80,6 @@
     "entry": "dm_text_input/main.py",
     "tests": [],
     "examples": []
-  },
-  "dm": {
-    "version": "v0",
-    "bindings": [
-      {
-        "family": "widget_input",
-        "role": "widget",
-        "channel": "register",
-        "media": ["widgets"],
-        "lifecycle": ["run_scoped", "stop_aware"],
-        "description": "Registers a text input widget with the DM interaction plane."
-      },
-      {
-        "family": "widget_input",
-        "role": "widget",
-        "port": "value",
-        "channel": "input",
-        "media": ["text"],
-        "lifecycle": ["run_scoped", "stop_aware"],
-        "description": "Emits submitted user input on the value output port."
-      }
-    ]
   },
   "examples": [],
   "config_schema": {

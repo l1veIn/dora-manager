@@ -362,7 +362,7 @@ async fn node_status_returns_entry_for_installed_node() {
 }
 
 #[tokio::test]
-async fn node_status_returns_dm_capability_bindings() {
+async fn node_status_returns_structured_capabilities_for_bindings() {
     let (_tmp, state) = test_state();
     let id = "dm-bound-node";
     let node_dir = dm_core::node::node_dir(&state.home, id);
@@ -377,18 +377,20 @@ async fn node_status_returns_dm_capability_bindings() {
             "source": { "build": "pip install -e .", "github": null },
             "description": "",
             "executable": ".venv/bin/dm-bound-node",
-            "dm": {
-                "version": "v0",
-                "bindings": [
-                    {
-                        "family": "widget_input",
-                        "role": "widget",
-                        "port": "value",
-                        "channel": "input",
-                        "media": ["text"]
-                    }
-                ]
-            }
+            "capabilities": [
+                "configurable",
+                {
+                    "name": "widget_input",
+                    "bindings": [
+                        {
+                            "role": "widget",
+                            "port": "value",
+                            "channel": "input",
+                            "media": ["text"]
+                        }
+                    ]
+                }
+            ]
         })
         .to_string(),
     )
@@ -401,9 +403,10 @@ async fn node_status_returns_dm_capability_bindings() {
 
     let body = body_text(resp).await;
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(json["dm"]["version"], "v0");
-    assert_eq!(json["dm"]["bindings"][0]["family"], "widget_input");
-    assert_eq!(json["dm"]["bindings"][0]["port"], "value");
+    assert!(json.get("dm").is_none());
+    assert_eq!(json["capabilities"][0], "configurable");
+    assert_eq!(json["capabilities"][1]["name"], "widget_input");
+    assert_eq!(json["capabilities"][1]["bindings"][0]["port"], "value");
 }
 
 #[tokio::test]

@@ -246,5 +246,19 @@ async fn main() {
         }
     });
 
+    // Unix domain socket for bridge IPC
+    let bridge_sock_path = state.home.join("bridge.sock");
+    let _ = std::fs::remove_file(&bridge_sock_path);
+    match tokio::net::UnixListener::bind(&bridge_sock_path) {
+        Ok(unix_listener) => {
+            let sock_home = state.home.clone();
+            let sock_tx = state.messages.clone();
+            tokio::spawn(async move {
+                handlers::bridge_socket::bridge_socket_loop(sock_home, sock_tx, unix_listener).await;
+            });
+        }
+        Err(e) => eprintln!("[dm-server] warning: could not create bridge.sock: {e}"),
+    }
+
     axum::serve(listener, app).await.expect("Server error");
 }

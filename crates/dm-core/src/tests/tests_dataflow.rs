@@ -3,7 +3,10 @@ use std::fs;
 use tempfile::tempdir;
 
 use crate::dataflow::{transpile_graph, transpile_graph_for_run};
-use crate::node::{node_dir, Node, NodeDisplay, NodeFiles, NodeRuntime, NodeSource};
+use crate::node::{
+    node_dir, Node, NodeCapability, NodeCapabilityBinding, NodeCapabilityDetail, NodeDisplay,
+    NodeFiles, NodeRuntime, NodeSource,
+};
 
 fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
     let dir = node_dir(home, id);
@@ -41,6 +44,18 @@ fn setup_managed_node(home: &std::path::Path, id: &str, executable: &str) {
         path: Default::default(),
     };
 
+    fs::write(
+        dir.join("dm.json"),
+        serde_json::to_string_pretty(&meta).unwrap(),
+    )
+    .unwrap();
+}
+
+fn set_node_capabilities(home: &std::path::Path, id: &str, capabilities: Vec<NodeCapability>) {
+    let dir = node_dir(home, id);
+    let mut meta: Node =
+        serde_json::from_str(&fs::read_to_string(dir.join("dm.json")).unwrap()).unwrap();
+    meta.capabilities = capabilities;
     fs::write(
         dir.join("dm.json"),
         serde_json::to_string_pretty(&meta).unwrap(),
@@ -138,6 +153,182 @@ nodes:
         run_out_dir,
         Some(home.join("runs/run-123/out").to_string_lossy().as_ref())
     );
+}
+
+#[test]
+fn transpile_graph_auto_injects_hidden_dm_bridge_for_v0_bindings() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    setup_managed_node(home, "test-node", ".venv/bin/test-node");
+    set_node_capabilities(
+        home,
+        "test-node",
+        vec![NodeCapability::Detail(NodeCapabilityDetail {
+            name: "display".to_string(),
+            bindings: vec![NodeCapabilityBinding {
+                role: "source".to_string(),
+                port: Some("data".to_string()),
+                channel: Some("inline".to_string()),
+                media: vec!["text".to_string(), "markdown".to_string()],
+                lifecycle: Vec::new(),
+                description: Some("test binding".to_string()),
+            }],
+        })],
+    );
+
+    let yaml_path = home.join("graph.yml");
+    fs::write(
+        &yaml_path,
+        r#"
+nodes:
+  - id: n1
+    node: test-node
+"#,
+    )
+    .unwrap();
+
+    let out = transpile_graph_for_run(home, &yaml_path, "run-123")
+        .unwrap()
+        .yaml;
+    let nodes = out["nodes"].as_sequence().unwrap();
+    assert_eq!(nodes.len(), 2);
+    let source_env = nodes[0]["env"].as_mapping().unwrap();
+    assert_eq!(
+        source_env
+            .get(serde_yaml::Value::String("DM_BRIDGE_OUTPUT_PORT".into()))
+            .and_then(|value| value.as_str()),
+        Some("dm_bridge_output_internal")
+    );
+
+    let bridge = nodes[1].as_mapping().unwrap();
+    assert!(
+        bridge["path"].as_str().is_some(),
+        "expected hidden bridge launcher path"
+    );
+    assert_eq!(
+        bridge["args"].as_str(),
+        Some("bridge --run-id run-123")
+    );
+    assert_eq!(
+        bridge
+            .get(serde_yaml::Value::String("id".into()))
+            .and_then(|value| value.as_str()),
+        Some("__dm_bridge")
+    );
+    let bridge_env = bridge
+        .get(serde_yaml::Value::String("env".into()))
+        .and_then(|value| value.as_mapping())
+        .unwrap();
+    let payload = bridge_env
+        .get(serde_yaml::Value::String("DM_CAPABILITIES_JSON".into()))
+        .and_then(|value| value.as_str())
+        .expect("expected DM_CAPABILITIES_JSON env");
+
+    let json: serde_json::Value = serde_json::from_str(payload).unwrap();
+    assert_eq!(json[0]["yaml_id"], "n1");
+    assert_eq!(json[0]["bindings"][0]["family"], "display");
+    assert_eq!(json[0]["bindings"][0]["channel"], "inline");
+    assert_eq!(json[0]["bridge_input_port"], "dm_display_from_n1");
+    assert_eq!(
+        bridge["inputs"]["dm_display_from_n1"].as_str(),
+        Some("n1/dm_bridge_output_internal")
+    );
+}
+
+#[test]
+fn transpile_graph_skips_hidden_dm_bridge_without_supported_bindings() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    setup_managed_node(home, "test-node", ".venv/bin/test-node");
+    set_node_capabilities(
+        home,
+        "test-node",
+        vec![NodeCapability::Detail(NodeCapabilityDetail {
+            name: "logging".to_string(),
+            bindings: vec![NodeCapabilityBinding {
+                role: "source".to_string(),
+                port: Some("data".to_string()),
+                channel: Some("inline".to_string()),
+                media: vec!["text".to_string()],
+                lifecycle: Vec::new(),
+                description: None,
+            }],
+        })],
+    );
+
+    let yaml_path = home.join("graph.yml");
+    fs::write(
+        &yaml_path,
+        r#"
+nodes:
+  - id: n1
+    node: test-node
+"#,
+    )
+    .unwrap();
+
+    let out = transpile_graph_for_run(home, &yaml_path, "run-123")
+        .unwrap()
+        .yaml;
+    let nodes = out["nodes"].as_sequence().unwrap();
+    assert_eq!(nodes.len(), 1);
+    let env = nodes[0]["env"].as_mapping().unwrap();
+    assert!(!env.contains_key(serde_yaml::Value::String("DM_BRIDGE_OUTPUT_PORT".into())));
+}
+
+#[test]
+fn transpile_graph_injects_widget_bridge_input_mapping() {
+    let tmp = tempdir().unwrap();
+    let home = tmp.path();
+    setup_managed_node(home, "test-node", ".venv/bin/test-node");
+    set_node_capabilities(
+        home,
+        "test-node",
+        vec![NodeCapability::Detail(NodeCapabilityDetail {
+            name: "widget_input".to_string(),
+            bindings: vec![NodeCapabilityBinding {
+                role: "widget".to_string(),
+                port: Some("value".to_string()),
+                channel: Some("input".to_string()),
+                media: vec!["text".to_string()],
+                lifecycle: vec!["run_scoped".to_string()],
+                description: None,
+            }],
+        })],
+    );
+
+    let yaml_path = home.join("graph.yml");
+    fs::write(
+        &yaml_path,
+        r#"
+nodes:
+  - id: prompt
+    node: test-node
+    outputs:
+      - value
+"#,
+    )
+    .unwrap();
+
+    let out = transpile_graph_for_run(home, &yaml_path, "run-123")
+        .unwrap()
+        .yaml;
+    let nodes = out["nodes"].as_sequence().unwrap();
+    let source = nodes[0].as_mapping().unwrap();
+    assert_eq!(
+        source["inputs"]["dm_bridge_input_internal"].as_str(),
+        Some("__dm_bridge/dm_bridge_to_prompt")
+    );
+    assert_eq!(
+        source["env"]["DM_BRIDGE_INPUT_PORT"].as_str(),
+        Some("dm_bridge_input_internal")
+    );
+    assert_eq!(nodes[1]["id"].as_str(), Some("__dm_bridge"));
+    assert_eq!(
+        nodes[1]["args"].as_str(),
+        Some("bridge --run-id run-123")
+    );
+    assert_eq!(nodes[1]["outputs"][0].as_str(), Some("dm_bridge_to_prompt"));
 }
 
 #[test]

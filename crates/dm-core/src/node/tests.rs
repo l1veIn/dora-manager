@@ -132,7 +132,7 @@ fn test_dm_json_path() {
 }
 
 #[test]
-fn test_node_status_preserves_dm_capability_bindings() {
+fn test_node_status_migrates_legacy_dm_bindings_into_capabilities() {
     let dir = tempdir().unwrap();
     let home = dir.path();
     let id = "dm-bound-node";
@@ -168,7 +168,45 @@ fn test_node_status_preserves_dm_capability_bindings() {
     .unwrap();
 
     let status = node_status(home, id).unwrap().unwrap();
-    let dm = status.dm.expect("expected dm capability metadata");
+    assert!(status.dm.is_none());
+    assert_eq!(status.capabilities.len(), 1);
+    let capability = match &status.capabilities[0] {
+        NodeCapability::Detail(detail) => detail,
+        other => panic!("expected structured capability, got {other:?}"),
+    };
+    assert_eq!(capability.name, "display");
+    assert_eq!(capability.bindings.len(), 1);
+    assert_eq!(capability.bindings[0].port.as_deref(), Some("data"));
+}
+
+#[test]
+fn test_dm_capability_view_derives_legacy_shape_from_capabilities() {
+    let node: Node = serde_json::from_value(serde_json::json!({
+        "id": "dm-display",
+        "name": "dm-display",
+        "version": "0.1.0",
+        "installed_at": "1234567890",
+        "source": { "build": "pip install -e .", "github": null },
+        "capabilities": [
+            "configurable",
+            {
+                "name": "display",
+                "bindings": [
+                    {
+                        "role": "source",
+                        "port": "data",
+                        "channel": "inline",
+                        "media": ["text"]
+                    }
+                ]
+            }
+        ]
+    }))
+    .unwrap();
+
+    let dm = node
+        .dm_capability_view()
+        .expect("expected derived dm compatibility view");
     assert_eq!(dm.version, "v0");
     assert_eq!(dm.bindings.len(), 1);
     assert_eq!(dm.bindings[0].family, "display");

@@ -48,10 +48,7 @@ pub fn list_active_runs(home: &Path) -> Result<Vec<RunInstance>> {
 }
 
 pub fn get_run(home: &Path, run_id: &str) -> Result<RunDetail> {
-    let _ = super::service_runtime::refresh_run_statuses(home)?;
-    let mut run = repo::load_run(home, run_id)?;
-    super::service_runtime::sync_run_outputs(home, &mut run)?;
-    repo::save_run(home, &run)?;
+    let run = repo::load_run(home, run_id)?;
 
     Ok(RunDetail {
         summary: to_summary(run.clone()),
@@ -83,10 +80,14 @@ pub fn read_run_log_chunk(
     node_id: &str,
     offset: u64,
 ) -> Result<RunLogChunk> {
-    let _ = super::service_runtime::refresh_run_statuses(home)?;
     let mut run = repo::load_run(home, run_id)?;
-    super::service_runtime::sync_run_outputs(home, &mut run)?;
-    repo::save_run(home, &run)?;
+
+    let log_path = repo::run_logs_dir(home, run_id).join(format!("{}.log", node_id));
+    if !log_path.exists() {
+        // One-time fallback: sync from dora out dir if logs not yet copied
+        let _ = super::service_runtime::sync_run_outputs(home, &mut run);
+        let _ = repo::save_run(home, &run);
+    }
 
     let log_path = repo::run_logs_dir(home, run_id).join(format!("{}.log", node_id));
     let (content, next_offset) = if log_path.exists() {

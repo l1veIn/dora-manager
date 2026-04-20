@@ -2,12 +2,12 @@
   "id": "dm-slider",
   "name": "dm-slider",
   "version": "0.1.0",
-  "installed_at": "1775296853",
-  "description": "A slider widget for the Interaction UI. Emits a numerical value on change.",
+  "installed_at": "1776586074",
   "source": {
     "build": "pip install -e .",
     "github": null
   },
+  "description": "A slider widget for the Interaction UI. Emits a numerical value on change.",
   "executable": ".venv/bin/dm-slider",
   "maintainers": [
     {
@@ -16,9 +16,45 @@
   ],
   "display": {
     "category": "Builtin/Interaction",
-    "tags": ["builtin", "interaction", "input"]
+    "tags": [
+      "builtin",
+      "interaction",
+      "input"
+    ]
   },
-  "capabilities": ["configurable"],
+  "capabilities": [
+    "configurable",
+    {
+      "name": "widget_input",
+      "bindings": [
+        {
+          "role": "widget",
+          "channel": "register",
+          "media": [
+            "widgets"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "stop_aware"
+          ],
+          "description": "Registers a slider widget with the DM interaction plane."
+        },
+        {
+          "role": "widget",
+          "port": "value",
+          "channel": "input",
+          "media": [
+            "number"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "stop_aware"
+          ],
+          "description": "Emits user-selected numeric input on the value output port."
+        }
+      ]
+    }
+  ],
   "runtime": {
     "language": "python",
     "python": ">=3.10",
@@ -32,7 +68,11 @@
       "description": "Emits numerical value on change.",
       "required": false,
       "multiple": false,
-      "schema": { "type": { "name": "float64" } }
+      "schema": {
+        "type": {
+          "name": "float64"
+        }
+      }
     }
   ],
   "files": {
@@ -40,28 +80,6 @@
     "entry": "dm_slider/main.py",
     "tests": [],
     "examples": []
-  },
-  "dm": {
-    "version": "v0",
-    "bindings": [
-      {
-        "family": "widget_input",
-        "role": "widget",
-        "channel": "register",
-        "media": ["widgets"],
-        "lifecycle": ["run_scoped", "stop_aware"],
-        "description": "Registers a slider widget with the DM interaction plane."
-      },
-      {
-        "family": "widget_input",
-        "role": "widget",
-        "port": "value",
-        "channel": "input",
-        "media": ["number"],
-        "lifecycle": ["run_scoped", "stop_aware"],
-        "description": "Emits user-selected numeric input on the value output port."
-      }
-    ]
   },
   "examples": [],
   "config_schema": {

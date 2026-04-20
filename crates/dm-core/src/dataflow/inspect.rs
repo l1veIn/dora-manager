@@ -156,7 +156,7 @@ fn node_requires_media_backend(home: &Path, node_id: &str) -> bool {
     };
     node.capabilities
         .iter()
-        .any(|capability| capability == "media")
+        .any(|capability| capability.name() == "media")
 }
 
 #[cfg(test)]

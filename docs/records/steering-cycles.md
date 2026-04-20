@@ -556,3 +556,175 @@ Round 16 will focus on capability binding v0:
 - The repo has a clear `dm` capability-binding design doc for v0.
 - Node metadata can load and serialize typed DM bindings.
 - At least `dm-text-input` and `dm-display` expose the new contract through the running product surfaces.
+
+## Cycle 16
+
+### Current project judgment
+
+- The pilot is no longer stuck at schema theory:
+  `capabilities` has become the converged metadata surface, transpile now lowers supported bindings into a hidden `dm-bridge`, and builtin widget/display nodes no longer need to handwrite DM-plane HTTP/WS logic themselves.
+- This is materially closer to the constitution than the old state:
+  repeated DM-plane glue has moved out of the builtin nodes and into a shared bridge/runtime path.
+- The main unresolved risk is now runtime truth, not ontology:
+  a real `interaction-demo` run injected `__dm_bridge` correctly, but the live run still failed to surface widget/display interaction state through `/api/runs/:id/interaction`.
+
+### Options considered
+
+- Stop after schema convergence and unit tests
+- Keep broadening bridge coverage to more nodes immediately
+- Hold scope and drive one real runtime bridge path to truthful completion before expanding
+
+### Recommendation
+
+Hold scope and drive one real runtime bridge path to truthful completion before expanding.
+
+### Dissent / warning
+
+- Do not mistake transpile injection plus unit tests for a completed product path while the actual run UI still shows no registered inputs/streams.
+- Do not widen into editor visualization or broader capability families until the hidden bridge proves itself on one real interaction flow.
+
+### Final decision
+
+Round 17 will focus on the first truthful hidden-bridge runtime pass:
+
+1. keep the `capabilities` convergence as the canonical metadata model
+2. keep transpile auto-injecting the hidden `dm-bridge`
+3. validate one narrow runtime path: `dm-text-input -> dora-echo -> dm-display`
+4. diagnose why the current live run still produces empty `/interaction` state even though the transpiled graph and node injection are correct
+5. fix that runtime truth gap before broadening to the other widget families
+
+### Acceptance condition
+
+- A real `interaction-demo` run shows one registered input and one display stream through `/api/runs/:id/interaction`.
+- A web-style `input` message targeted at `prompt/value` crosses the bridge and produces visible echoed output from `display`.
+- The product no longer depends on top-level `dm` metadata for this path.
+
+## Cycle 17
+
+### Current project judgment
+
+- The hidden-bridge path is now partially truthful in live runtime:
+  after clearing stale Dora node processes and starting a fresh run, `interaction-demo` consistently showed one registered `prompt` widget through `/api/runs/:id/interaction`, and `__dm_bridge.log` recorded `emitted widgets for prompt`.
+- The remaining failure has narrowed:
+  web-style `input` messages are accepted and reflected in `current_values`, but they still do not produce any `routed input` bridge log, prompt forwarding log, or display stream snapshot.
+- A second blocker is still underneath that:
+  local Dora runtime startup remains inconsistent, with repeated cases where `dm start` reports a run but `dm status` still says the runtime is not running, and some runs come up with `observed_nodes = 0` plus no log directory at all.
+
+### Options considered
+
+- Keep expanding bridge coverage to more widgets despite the unstable runtime
+- Stop on the first successful widget registration and declare the bridge path effectively done
+- Hold scope on `interaction-demo`, treat runtime consistency plus bridge input polling as the only remaining blockers, and keep the acceptance bar at real echoed output
+
+### Recommendation
+
+Hold scope on `interaction-demo` and treat runtime consistency plus bridge input polling as the only remaining blockers.
+
+### Dissent / warning
+
+- Do not collapse the problem back into server-side illusion just because `current_values` now updates from posted input.
+- Do not claim bridge delivery is working end to end while `streams` remain empty and no prompt/display runtime logs show the input crossing the hidden wiring.
+
+### Final decision
+
+Round 18 will focus on two tightly coupled tasks:
+
+1. stabilize the local Dora runtime lifecycle enough that a fresh `interaction-demo` start reliably yields `observed_nodes = 4` and log files
+2. finish the `web input -> __dm_bridge -> prompt -> echo -> display -> interaction stream` path on that stable runtime
+3. keep all validation pinned to one live run and one live browser/API interaction path
+
+### Acceptance condition
+
+- A fresh `interaction-demo` run reliably creates logs and shows `observed_nodes = 4`.
+- `/api/runs/:id/interaction` shows the registered prompt widget without relying on stale prior state.
+- Posting or submitting one input causes `__dm_bridge` to log routed input, `prompt` to log forwarded value, and `display` to write a stream-visible payload.
+- `/api/runs/:id/interaction` shows at least one non-empty `streams` entry for the echoed output.
+
+## Cycle 18
+
+### Current project judgment
+
+- Manual dogfooding has now proven the front half of the product path with live evidence:
+  a real browser run showed the `Prompt` widget, submitting text updated `/messages?tag=input` and `current_values.value`, and the run stayed at `observed_nodes = 4`.
+- The remaining failure is no longer ambiguous:
+  the missing segment is entirely inside Dora runtime delivery and hidden bridge lifecycle, not in the browser form or `dm-server` message API.
+- This round also exposed a deeper runtime truth problem:
+  repeated fresh runs often produce stale process reuse, missing logs, or `observed_nodes` that do not match real live child processes, making some runs unfit as evidence.
+
+### Options considered
+
+- Keep trying to prove the path on top of the existing single hidden bridge process
+- Split bridge responsibilities so input polling and display relay no longer fight over one Python Dora node loop
+- Stop bridge work and revert nodes back to direct `dm-server` HTTP for short-term demoability
+
+### Recommendation
+
+Keep the hidden bridge direction, but treat Dora runtime lifecycle correctness as the immediate blocker before claiming end-to-end delivery.
+
+### Dissent / warning
+
+- Reverting builtin nodes back to direct server HTTP would likely produce a superficial demo faster, but it would also erase the main architectural gain from this branch.
+- At the same time, continuing to trust stale run/process state would create false positives; every acceptance sample must now be checked against real child processes and real log files, not only `/api/status`.
+
+### Final decision
+
+Round 19 should focus on two things only:
+
+1. make fresh run lifecycle truthful enough that each new run actually spawns fresh processes and fresh logs
+2. once that is stable, finish the hidden bridge return path and require a real echoed stream before calling the branch delivered
+
+### Acceptance condition
+
+- A fresh `interaction-demo` run produces fresh bridge/node processes and fresh logs that correspond to that exact run ID.
+- The input bridge instance stays alive long enough to poll a posted input message.
+- The prompt node receives the hidden bridge payload, the display side emits a relay payload, and `/api/runs/:id/interaction` gains a non-empty `streams` entry.
+
+## Cycle 19
+
+### Current project judgment
+
+- Revisiting the old `dm-panel` implementation materially improved direction:
+  it validated that the bridge belongs on the `dm-cli` / runtime side, not as a long-term Python builtin node package.
+- This branch now has a real CLI-managed hidden bridge path:
+  transpile lowers capability bindings into `__dm_bridge_input` and `__dm_bridge_display`, both launched as `path: dm` with `bridge serve` args.
+- Live truth improved again, but full delivery still did not happen:
+  with manually started Dora coordinator/daemon, a fresh `interaction-demo` run reached `observed_nodes = 5`, both hidden bridge processes existed, and `/api/runs/:id/interaction` again showed the `Prompt` widget.
+- The remaining failures are now concrete implementation/runtime issues rather than architectural ambiguity:
+  - `dm up` / `dm start` still does not reliably keep Dora runtime alive in this environment
+  - bridge startup originally hit `interaction.db` lock contention
+  - after reducing that contention, the end-to-end `input -> prompt -> echo -> display -> stream` loop still did not complete
+
+### Options considered
+
+- Keep the Python `nodes/dm-bridge` runtime as the main line and continue debugging there
+- Pivot fully to `dm-cli` managed bridge ownership and accept a temporary hybrid transport if it closes the loop faster
+- Revert builtin interaction/display nodes to direct `dm-server` HTTP for near-term demoability
+
+### Recommendation
+
+Keep the CLI-managed bridge direction and do not return the long-term design to a Python hidden node.
+
+### Dissent / warning
+
+- Runtime bootstrap is still too weak:
+  in this environment, `dm up` and `dm start` can report progress while Dora disappears immediately, so acceptance samples still require manual runtime verification.
+- A temporary hybrid choice is now acceptable if needed:
+  keeping runtime-managed bridge ownership while using `dm-server` HTTP polling for input is less damaging than reverting the whole bridge back into node-owned HTTP.
+
+### Final decision
+
+Round 20 should stay tightly scoped:
+
+1. keep `dm-core` responsible only for capability lowering and hidden bridge injection
+2. keep `dm-cli` responsible for bridge runtime behavior
+3. use only `interaction-demo` as the acceptance harness until the first non-empty stream appears
+
+### Acceptance condition
+
+- `interaction-demo` starts from a reproducible runtime path without manual stale-process archaeology.
+- The CLI-managed bridge registers the `Prompt` widget.
+- One submitted input produces:
+  - input bridge poll/routing evidence
+  - prompt forward evidence
+  - display relay evidence
+  - a non-empty `/api/runs/:id/interaction.streams`

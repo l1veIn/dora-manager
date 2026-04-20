@@ -38,36 +38,39 @@ This round does not:
 
 ## 4. Schema Shape
 
-`dm.json` gains a first-class `dm` section:
+`dm.json` expresses fine-grained bindings inside structured `capabilities` entries:
 
 ```json
 {
-  "dm": {
-    "version": "v0",
-    "bindings": [
-      {
-        "family": "display",
-        "role": "source",
-        "port": "data",
-        "channel": "inline",
-        "media": ["text", "json", "markdown"]
-      }
-    ]
-  }
+  "capabilities": [
+    "configurable",
+    {
+      "name": "display",
+      "bindings": [
+        {
+          "role": "source",
+          "port": "data",
+          "channel": "inline",
+          "media": ["text", "json", "markdown"]
+        }
+      ]
+    }
+  ]
 }
 ```
 
 ### 4.1 Top-Level Fields
 
-- `version`
-  - Capability binding contract version.
-- `bindings`
-  - List of explicit DM-plane bindings.
+- `capabilities`
+  - Mixed list of coarse string tags and structured capability objects.
 
 ### 4.2 Binding Fields
 
+- `name`
+  - Capability family name such as `display` or `widget_input`.
 - `family`
-  - Which DM-plane capability family this binding belongs to.
+  - Legacy compatibility field only. In the converged schema, the family lives on
+    the containing capability object.
 - `role`
   - The node's role inside that family.
 - `port`
@@ -132,28 +135,29 @@ The first pilot covers two builtin nodes only:
 
 ```json
 {
-  "dm": {
-    "version": "v0",
-    "bindings": [
-      {
-        "family": "widget_input",
-        "role": "widget",
-        "channel": "register",
-        "media": ["widgets"],
-        "lifecycle": ["run_scoped", "stop_aware"],
-        "description": "Registers a text widget with the DM interaction plane."
-      },
-      {
-        "family": "widget_input",
-        "role": "widget",
-        "port": "value",
-        "channel": "input",
-        "media": ["text"],
-        "lifecycle": ["run_scoped", "stop_aware"],
-        "description": "Emits submitted user input onto the value output port."
-      }
-    ]
-  }
+  "capabilities": [
+    "configurable",
+    {
+      "name": "widget_input",
+      "bindings": [
+        {
+          "role": "widget",
+          "channel": "register",
+          "media": ["widgets"],
+          "lifecycle": ["run_scoped", "stop_aware"],
+          "description": "Registers a text widget with the DM interaction plane."
+        },
+        {
+          "role": "widget",
+          "port": "value",
+          "channel": "input",
+          "media": ["text"],
+          "lifecycle": ["run_scoped", "stop_aware"],
+          "description": "Emits submitted user input onto the value output port."
+        }
+      ]
+    }
+  ]
 }
 ```
 
@@ -161,39 +165,47 @@ The first pilot covers two builtin nodes only:
 
 ```json
 {
-  "dm": {
-    "version": "v0",
-    "bindings": [
-      {
-        "family": "display",
-        "role": "source",
-        "port": "data",
-        "channel": "inline",
-        "media": ["text", "json", "markdown"],
-        "description": "Relays inline display content into the DM interaction plane."
-      },
-      {
-        "family": "display",
-        "role": "source",
-        "port": "path",
-        "channel": "artifact",
-        "media": ["image", "audio", "video", "text", "json", "markdown"],
-        "description": "Relays artifact-backed display content into the DM interaction plane."
-      }
-    ]
-  }
+  "capabilities": [
+    "configurable",
+    {
+      "name": "display",
+      "bindings": [
+        {
+          "role": "source",
+          "port": "data",
+          "channel": "inline",
+          "media": ["text", "json", "markdown"],
+          "description": "Relays inline display content into the DM interaction plane."
+        },
+        {
+          "role": "source",
+          "port": "path",
+          "channel": "artifact",
+          "media": ["image", "audio", "video", "text", "json", "markdown"],
+          "description": "Relays artifact-backed display content into the DM interaction plane."
+        }
+      ]
+    }
+  ]
 }
 ```
 
 ## 8. Runtime Interpretation In v0
 
-This first pilot only requires the runtime/tooling stack to:
+This round now includes a first narrow lowering path, not only read-only metadata:
 
-1. parse and return the `dm` section structurally
-2. preserve it through existing node-loading and node-status APIs
-3. expose it in read-oriented surfaces such as node detail pages
+1. parse and return structured capabilities, including binding-bearing capability objects
+2. preserve them through existing node-loading and node-status APIs
+3. expose them in node-facing surfaces such as the detail page
+4. during transpile, auto-inject one hidden `dm-bridge` system node for runs that declare supported bindings
+5. auto-inject the hidden edges and env needed for builtin widget/display nodes to talk to that bridge through the dora data plane
 
-The pilot does not yet require runtime transport rewiring.
+This is intentionally narrow:
+
+- widget registration and browser input can be lowered through the hidden bridge path
+- display emission can be lowered through the hidden bridge path
+- the bridge is injected by transpile rather than authored into user YAML
+- the author-visible graph still does not render the bridge as a normal business node
 
 ## 9. Migration Rule
 
@@ -201,9 +213,10 @@ Existing ad hoc `interaction` metadata is legacy.
 
 For this pilot:
 
-- builtin nodes in the repo should migrate to `dm.bindings`
+- builtin nodes in the repo should migrate to structured `capabilities`
 - older third-party nodes may continue to carry legacy `interaction`
-- runtime code should prefer the new `dm` section when present
+- older third-party nodes may also carry legacy top-level `dm`; loaders should
+  ingest it and normalize it into `capabilities`
 
 ## 10. Why This Is The Right Next Step
 

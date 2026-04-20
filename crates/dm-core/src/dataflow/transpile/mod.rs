@@ -6,7 +6,9 @@
 /// 3. **resolve_paths**          — `node:` → absolute `path:` via `dm.json`
 /// 4. **validate_port_schemas**  — check port schema compatibility
 /// 5. **merge_config**           — four-layer config merge → `env:`
-/// 6. **emit**                   — `DmGraph` → `serde_yaml::Value`
+/// 6. **inject_dm_bridge**       — lower DM capability bindings into a hidden bridge node
+/// 7. **emit**                   — `DmGraph` → `serde_yaml::Value`
+mod bridge;
 mod context;
 mod error;
 mod model;
@@ -64,6 +66,7 @@ pub fn transpile_graph_for_run(
         passes::validate_port_schemas(&ctx, &graph, &mut diags);
         passes::merge_config(&ctx, &mut graph, &mut diags);
         passes::inject_runtime_env(&ctx, &mut graph);
+        passes::inject_dm_bridge(&ctx, &mut graph, &mut diags);
 
         // Log diagnostics as warnings
         for d in &diags {

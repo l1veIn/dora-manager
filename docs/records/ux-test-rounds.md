@@ -840,3 +840,286 @@ Turn the newly agreed DM-plane ontology into an explicit capability-binding cont
 
 - Start the next pilot round from this contract:
   choose one narrow runtime path where a declared DM binding can replace node-local protocol glue rather than only document it.
+
+## Round 17
+
+### Goal
+
+Move the capability-binding pilot from metadata-only truth into the first real hidden-bridge runtime path, centered on `interaction-demo`.
+
+### Tester path
+
+1. Rebuild and restart the local server against the current branch so it can parse the converged `capabilities` schema.
+2. Reinstall the affected builtin nodes:
+   - `dm-bridge`
+   - `dm-text-input`
+   - `dm-display`
+   - companion widget nodes
+3. Start `tests/dataflows/interaction-demo.yml`.
+4. Inspect the transpiled run artifact to confirm hidden bridge injection.
+5. Query `/api/runs/:id/interaction`, `/api/runs/:id/messages/snapshots`, and `/api/runs/:id/messages`.
+6. Send one web-style `input` message directly to the run API as a narrow bridge smoke test.
+
+### Findings
+
+- The old running `dm-server` could not parse the converged metadata shape and returned `500 Failed to parse node metadata` for `/api/nodes/dm-text-input` until it was restarted on the current branch.
+- After restart, the live node API correctly reflected the converged model:
+  `capabilities` now carries structured binding objects and top-level `dm` is `null`.
+- Starting `interaction-demo` produced the expected hidden transpile result:
+  the run's `dataflow.transpiled.yml` included:
+  - injected env on `prompt` (`DM_BRIDGE_INPUT_PORT`)
+  - injected env on `display` (`DM_BRIDGE_OUTPUT_PORT`)
+  - one hidden `__dm_bridge` node
+  - bridge wiring from `display/dm_bridge_output_internal` and to `prompt/dm_bridge_input_internal`
+- The builtin runtime migration also landed:
+  `dm-text-input`, `dm-button`, `dm-slider`, `dm-input-switch`, and `dm-display` now use the dora Node SDK path only, while DM-plane transport moved into the new `dm-bridge` node.
+- The first real runtime dogfood pass did not yet complete the interaction loop:
+  even with the hidden bridge injected, `/api/runs/:id/interaction` remained `{ "inputs": [], "streams": [] }`, and directly POSTing a web-style `input` message only persisted the input record itself without producing echoed display output.
+
+### Fixes shipped
+
+- Converged DM bindings into structured `capabilities` across the node model, API contract, docs, node manifests, and node detail page.
+- Added hidden bridge lowering in transpile:
+  - [crates/dm-core/src/dataflow/transpile/bridge.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/dataflow/transpile/bridge.rs)
+  - [crates/dm-core/src/dataflow/transpile/mod.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/dataflow/transpile/mod.rs)
+  - [crates/dm-core/src/dataflow/transpile/passes.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/dataflow/transpile/passes.rs)
+- Added the builtin hidden bridge node:
+  - [nodes/dm-bridge/dm.json](/Users/yangchen/Desktop/dora-manager/nodes/dm-bridge/dm.json)
+  - [nodes/dm-bridge/pyproject.toml](/Users/yangchen/Desktop/dora-manager/nodes/dm-bridge/pyproject.toml)
+  - [nodes/dm-bridge/dm_bridge/main.py](/Users/yangchen/Desktop/dora-manager/nodes/dm-bridge/dm_bridge/main.py)
+- Migrated builtin widget/display nodes off node-local DM-plane transport code and onto the hidden-bridge dora-port path:
+  - [nodes/dm-text-input/dm_text_input/main.py](/Users/yangchen/Desktop/dora-manager/nodes/dm-text-input/dm_text_input/main.py)
+  - [nodes/dm-button/dm_button/main.py](/Users/yangchen/Desktop/dora-manager/nodes/dm-button/dm_button/main.py)
+  - [nodes/dm-slider/dm_slider/main.py](/Users/yangchen/Desktop/dora-manager/nodes/dm-slider/dm_slider/main.py)
+  - [nodes/dm-input-switch/dm_input_switch/main.py](/Users/yangchen/Desktop/dora-manager/nodes/dm-input-switch/dm_input_switch/main.py)
+  - [nodes/dm-display/dm_display/main.py](/Users/yangchen/Desktop/dora-manager/nodes/dm-display/dm_display/main.py)
+
+### Validation
+
+- `cargo test -p dm-core node::tests -- --nocapture` passed.
+- `cargo test -p dm-core transpile -- --nocapture` passed.
+- `cargo test -p dm-server node_status_returns_structured_capabilities_for_bindings -- --nocapture` passed.
+- `pnpm -C web check` passed with 0 errors and 0 warnings.
+- `python3 -m py_compile` passed for:
+  - `dm-bridge`
+  - `dm-display`
+  - `dm-text-input`
+  - `dm-button`
+  - `dm-slider`
+  - `dm-input-switch`
+- `cargo run -p dm-cli -- node install dm-bridge dm-text-input dm-display dm-button dm-slider dm-input-switch` succeeded.
+- A real `cargo run -p dm-cli -- start tests/dataflows/interaction-demo.yml` pass launched a run and confirmed the hidden bridge node was present in the transpiled YAML.
+
+### Remaining issues
+
+- The first runtime bridge dogfood pass is still incomplete:
+  the live run did not register widgets or streams into `/api/runs/:id/interaction`, and a direct web-style input message did not traverse the full bridge path back to display output.
+- `dm up` / `dm status` also behaved inconsistently in this environment:
+  `dm up` reported success, while `dm status` still claimed the coordinator/daemon was not running.
+- Because the real runtime path is not yet truthful, this round should not be treated as a finished bridge rollout even though schema convergence, transpile lowering, and node migration are in place.
+
+### Next focus
+
+- Diagnose the live hidden-bridge runtime gap on `interaction-demo` until one real run shows registered inputs, accepted user input, and echoed display output end to end.
+
+## Round 18
+
+### Goal
+
+Turn `interaction-demo` from “hidden bridge exists in transpiled YAML” into a live, repeatable runtime path with at least widget registration proved and input routing narrowed to one remaining fault line.
+
+### Tester path
+
+1. Start the local product using `./dev.sh`.
+2. Reinstall the current branch versions of `dm-bridge` and the migrated builtin widget/display nodes.
+3. Clear stale Dora node processes and stop stale runs when runtime state becomes inconsistent.
+4. Re-run `tests/dataflows/interaction-demo.yml` until a fresh run reaches `observed_nodes = 4`.
+5. Check `/api/runs/:id/interaction`, run logs, and `interaction.db`.
+6. Post one web-style `input` message directly to the live run API as the narrowest possible interaction smoke test.
+
+### Findings
+
+- `./dev.sh` is the right top-level launcher, but on this machine it can still collide with an already-running `dm-server` on `127.0.0.1:3210`; the script then reports both servers running even though its own `cargo run -p dm-server` child panicked on `AddrInUse`.
+- The environment/runtime state was materially dirty at the start of the round:
+  old `dm-text-input`, `dm-display`, and `dora-echo` processes from earlier runs were still resident even when `dm status` said the coordinator/daemon was not running.
+- After clearing those stale node processes and starting a fresh run, the live hidden-bridge path improved:
+  `/api/runs/:id/interaction` showed one registered `prompt` widget, `interaction.db` contained the `prompt/widgets` snapshot, and `__dm_bridge.log` recorded `emitted widgets for prompt`.
+- A posted web-style `input` message updated `current_values.value` in `/api/runs/:id/interaction`, proving the server-side input record path is live.
+- The end-to-end bridge/dataflow loop is still incomplete:
+  no `routed input` bridge log appeared, `prompt.log` never showed `received bridge payload`, `display.log` never emitted a relay log, and `/api/runs/:id/interaction` continued to show `streams: []`.
+- Runtime startup is still inconsistent even after cleanup:
+  some fresh `dm start` attempts create a run record but come up with `observed_nodes = 0` and no `logs/` directory at all, while others launch normally with four observed nodes.
+- Browser-first dogfooding was attempted, but the current desktop environment blocked both available tools:
+  Computer Use could not obtain permission for Chrome in this thread, and Playwright failed locally because it tries to create `/.playwright-mcp` on a read-only root filesystem.
+
+### Fixes shipped
+
+- Updated [nodes/dm-bridge/dm_bridge/main.py](/Users/yangchen/Desktop/dora-manager/nodes/dm-bridge/dm_bridge/main.py) so bridge event reception no longer depends on the main loop interleaving `node.next(timeout=...)` with HTTP polling:
+  a background receiver thread now pulls Dora node events into a queue while the main loop continues polling `input` messages and routing outputs.
+- Added extra bridge diagnostics to make the remaining live failure observable:
+  startup now logs discovered widget/display specs, and the input-poll path logs when it actually sees input messages.
+
+### Validation
+
+- `python3 -m py_compile nodes/dm-bridge/dm_bridge/main.py` passed after the threading/logging update.
+- `cargo run -p dm-cli -- node install dm-bridge` succeeded after the bridge update.
+- A fresh live run (`82323686-fcea-4680-b717-1d1296e0a52c`) reached `observed_nodes = 4`, produced logs, and registered the prompt widget into `/api/runs/:id/interaction`.
+- Posting a live web-style input message returned `{"seq":2}` and updated `current_values.value` for the prompt binding.
+
+### Remaining issues
+
+- The true bridge return path is still not proven:
+  the live run still does not show any bridge input-routing log, prompt forwarding log, display relay log, or stream snapshot.
+- Dora runtime lifecycle remains nondeterministic in this environment; the same `dm start` sequence alternates between healthy four-node runs and `observed_nodes = 0` runs with no logs.
+- Because browser automation was blocked by the local desktop environment, this round still falls short of the intended “direct browser delivery” acceptance bar even though the runtime/API path was exercised as far as tooling allowed.
+
+### Next focus
+
+- Make Dora runtime startup deterministic enough that one fresh `interaction-demo` run always reaches a live four-node state with logs.
+- Use the new bridge diagnostics to determine whether the missing path is:
+  - bridge never polling live input messages
+  - bridge polling but not matching the target spec
+  - Dora hidden-edge delivery failing after `send_output`
+- Once that path works, immediately re-run the browser surface and update this log with a true end-to-end input/display success.
+
+## Round 19
+
+### Goal
+
+Convert the narrowed bridge diagnosis into a live end-to-end fix, while refusing to trust misleading runtime samples that do not correspond to real fresh node processes.
+
+### Tester path
+
+1. Use the user's manual browser dogfood result as the source of truth for the current front-half behavior.
+2. Re-run `interaction-demo` repeatedly until a sample produces both fresh log files and fresh child processes.
+3. Inspect bridge/runtime logs for the exact run ID rather than relying only on `/api/status`.
+4. Patch the bridge/runtime execution model, reinstall the affected nodes, and re-run the same narrow sample.
+
+### Findings
+
+- The user's manual dogfooding round proved these live facts on run `b67adf97-05dc-46ec-8380-47b205fea36c`:
+  - the browser showed the `Prompt` widget
+  - submitting text updated `/api/runs/:id/messages?tag=input`
+  - `current_values.value` changed to the submitted value
+  - `streams` remained empty
+- Reading the corresponding run logs removed the remaining ambiguity:
+  `__dm_bridge.log` showed `polled 1 input message(s)` and `routed input -> prompt/value`, so the input bridge already reached `send_output`; the failure was further downstream at Dora delivery into `prompt`.
+- The original single-process bridge model remained unstable:
+  mixing `node.next(...)` with HTTP polling in one Python bridge process produced runs where the bridge exited early or stopped making forward progress without useful logs.
+- A port-renaming attempt did not fix delivery:
+  hidden internal ports were renamed away from `__...`, but healthy runs still stopped after widget registration and never produced prompt/display relay logs.
+- A more structural change was then attempted:
+  transpile now injects two hidden bridge instances instead of one:
+  - `__dm_bridge_input` for `dm-server input -> dora output`
+  - `__dm_bridge_display` for `dora input -> dm-server snapshot`
+- That split did improve architectural truthfulness in one key way:
+  a fresh live run reached `observed_nodes = 5`, and each bridge instance produced its own dedicated log file.
+- Even after the split, runtime lifecycle remained the dominant blocker:
+  some new runs still reused stale earlier child processes, some produced empty fresh log files, and process reality no longer reliably matched the latest run record.
+
+### Fixes shipped
+
+- Renamed injected internal bridge port IDs away from double-underscore names:
+  - `dm_bridge_input_internal`
+  - `dm_bridge_output_internal`
+  - `dm_bridge_to_<yaml_id>`
+  - `dm_display_from_<yaml_id>`
+- Updated transpile lowering so bridge responsibilities can be split into two hidden instances:
+  - [crates/dm-core/src/dataflow/transpile/bridge.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/dataflow/transpile/bridge.rs)
+  - [crates/dm-core/src/dataflow/transpile/passes.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/dataflow/transpile/passes.rs)
+- Refactored [nodes/dm-bridge/dm_bridge/main.py](/Users/yangchen/Desktop/dora-manager/nodes/dm-bridge/dm_bridge/main.py) so input bridging and display relaying can run in separate bridge instances rather than competing inside one mixed event loop.
+- Added extra runtime diagnostics around bridge startup and input polling to make live samples easier to classify.
+
+### Validation
+
+- `cargo test -p dm-core transpile -- --nocapture` passed after the split-bridge transpile changes.
+- `python3 -m py_compile nodes/dm-bridge/dm_bridge/main.py` passed after each bridge runtime refactor.
+- `cargo run -p dm-cli -- node install dm-bridge` succeeded after each bridge runtime refactor.
+- A fresh run after the split (`681920f0-c84b-4bd4-b2df-93a23c8a6e00`) reached `observed_nodes = 5` and produced separate `__dm_bridge_input.log` and `__dm_bridge_display.log` files.
+
+### Remaining issues
+
+- End-to-end delivery is still not complete:
+  no fresh run in this round reached `prompt.log` receipt, `display.log` relay, or a non-empty `streams` array.
+- The most serious blocker is now Dora runtime lifecycle truth:
+  several runs showed stale prior child processes surviving across supposedly fresh runs, or produced fresh run records without corresponding fresh child process/log evidence.
+- Because that runtime state is not trustworthy yet, this round still cannot claim direct delivery of the hidden-bridge path.
+
+### Next focus
+
+- Fix or at least decisively characterize the Dora runtime stale-process / stale-log behavior around repeated `dm start` calls.
+- Only after that, continue on the narrowed bridge path:
+  `__dm_bridge_input send_output -> prompt receive -> echo -> display -> __dm_bridge_display snapshot`.
+
+## Round 20
+
+### Goal
+
+Replace the experimental Python hidden bridge with a CLI-managed bridge path inspired by the old `dm-panel` design, and then push `interaction-demo` as far as possible toward a real end-to-end echoed stream.
+
+### Tester path
+
+1. Read the old `dm-panel` implementation and design notes to recover the original runtime boundary.
+2. Move hidden bridge execution from `nodes/dm-bridge` toward `dm-cli bridge serve`.
+3. Re-run `interaction-demo` on fresh samples, validating the actual spawned command, run logs, and `/interaction` state at each step.
+4. When `dm up` / `dm start` proved unreliable, start Dora coordinator and daemon manually and continue live testing from there.
+
+### Findings
+
+- The old `dm-panel` code confirmed the right long-term boundary:
+  bridge/panel behavior belongs on the `dm-cli` / runtime side, not inside a long-lived Python node package.
+- CLI-managed hidden bridge injection is now live in transpiled YAML:
+  fresh runs showed `__dm_bridge_input` and `__dm_bridge_display` launching as `/Users/yangchen/Desktop/dora-manager/target/debug/dm bridge serve ...`.
+- The branch regained real live truth on one sample:
+  with manually started Dora coordinator/daemon, `interaction-demo` reached `observed_nodes = 5`, `/api/runs/:id/interaction` showed the `Prompt` widget again, and both hidden bridge processes existed at the same time.
+- Capturing raw `DORA_NODE_CONFIG` settled one major uncertainty:
+  Dora passes a valid node-scoped config object to the CLI bridge, so `init_from_env()` is the correct initialization path for the runtime-managed bridge.
+- The first fresh failure after that was concrete:
+  `__dm_bridge_display` died with `database is locked` during `interaction.db` startup contention.
+- After moving schema initialization away from immediate open and reworking input polling, the run was still not delivered end to end:
+  a later sample wrote the browser `input` message and updated `current_values`, but `streams` stayed empty and the runtime remained fragile across repeated runs.
+- Dora runtime bootstrap is still a separate blocker:
+  `dm up` / `dm start` can still lose coordinator+daemon immediately in this environment, while manual `dora coordinator` + `dora daemon` sessions are able to sustain a live test long enough to gather signal.
+
+### Fixes shipped
+
+- Added a CLI-managed bridge implementation at [crates/dm-cli/src/bridge.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-cli/src/bridge.rs).
+- Added hidden CLI bridge subcommands in [crates/dm-cli/src/main.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-cli/src/main.rs).
+- Changed hidden bridge lowering to launch `dm bridge serve` from transpile:
+  - [crates/dm-core/src/dataflow/transpile/bridge.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/dataflow/transpile/bridge.rs)
+  - [crates/dm-core/src/dataflow/transpile/passes.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/dataflow/transpile/passes.rs)
+- Fixed the bridge payload shape so input bridge messages are wrapped as JSON objects expected by widget nodes.
+- Added raw node-config debug dumps for both hidden bridge instances to make Dora runtime truth inspectable.
+- Reduced SQLite startup contention by delaying schema initialization until first write.
+- Switched workspace `reqwest` to include blocking support and reworked bridge input polling accordingly.
+
+### Validation
+
+- `cargo build -p dm-cli` passed repeatedly after the CLI bridge changes.
+- `cargo test -p dm-core transpile -- --nocapture` remained green after launcher lowering changes.
+- A fresh run (`aff4a38f-...`) proved the hidden bridge launcher path was correct in `dataflow.transpiled.yml`:
+  `path: /Users/yangchen/Desktop/dora-manager/target/debug/dm` and `args: bridge serve ...`.
+- A fresh run (`2a45b401-...`) reached:
+  - `runtime_running = true`
+  - `observed_nodes = 5`
+  - visible `Prompt` widget in `/api/runs/:id/interaction`
+  - both CLI bridge processes present in `ps`
+- Raw node config was successfully captured in:
+  - `/Users/yangchen/.dm/runs/.../logs/bridge-input.node-config.yaml`
+  - `/Users/yangchen/.dm/runs/.../logs/bridge-display.node-config.yaml`
+
+### Remaining issues
+
+- Full end-to-end delivery still did not land this round:
+  no sample reached `prompt` forward logs, `display` relay logs, or a non-empty `streams` array.
+- Runtime bootstrap through `dm up` / `dm start` remains unreliable enough that manual Dora startup was still required for the best live sample.
+- The bridge runtime still needs one more narrowing pass around:
+  - input polling visibility after the web message is inserted
+  - display bridge write/read coordination after startup
+
+### Next focus
+
+- Keep the CLI-managed bridge as the only active long-term direction.
+- Make one runtime bootstrap path reproducible without manual Dora sessions.
+- Then finish the last narrow loop:
+  `web input -> __dm_bridge_input -> prompt -> echo -> display -> __dm_bridge_display -> interaction stream`.

@@ -21,8 +21,9 @@ pub use local::{
     read_node_file, read_node_file_bytes, save_node_config, uninstall_node,
 };
 pub use model::{
-    Node, NodeDisplay, NodeDm, NodeDmBinding, NodeExample, NodeFiles, NodeInteractionLegacy,
-    NodeMaintainer, NodePort, NodePortDirection, NodeRepository, NodeRuntime, NodeSource,
+    Node, NodeCapability, NodeCapabilityBinding, NodeCapabilityDetail, NodeDisplay, NodeDm,
+    NodeDmBinding, NodeExample, NodeFiles, NodeInteractionLegacy, NodeMaintainer, NodePort,
+    NodePortDirection, NodeRepository, NodeRuntime, NodeSource,
 };
 pub use paths::{dm_json_path, is_managed_node, node_dir, resolve_dm_json_path, resolve_node_dir};
 

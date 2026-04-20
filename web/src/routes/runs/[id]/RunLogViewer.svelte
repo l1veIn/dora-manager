@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { onMount, onDestroy } from "svelte";
-    import { get, getText } from "$lib/api";
+    import { getContext } from "svelte";
+    import { getText } from "$lib/api";
     import { Button } from "$lib/components/ui/button/index.js";
-    import { RefreshCw, Play, Square, Download, X } from "lucide-svelte";
+    import { RefreshCw, Download } from "lucide-svelte";
 
     let {
         runId = "",
@@ -20,76 +20,31 @@
         onClose?: () => void;
     }>();
 
-    let logContent = $state<string>("");
+    // Direct access to shared $state proxy — bypasses prop chain entirely
+    const logsMap = getContext<Record<string, string>>('runLogs');
+
+    let fetchedLog = $state<string>("");
     let loading = $state(false);
-    let polling = $state(false);
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
-    let currentOffset = $state(0);
-    let tailInFlight = $state(false);
     let activeLogKey = $state("");
 
     let logContainer = $state<HTMLElement | null>(null);
     let autoScroll = $state(true);
+
+    // Active run: read directly from shared $state proxy. Completed run: HTTP fetch.
+    let logContent = $derived(isRunActive ? (logsMap?.[nodeId] ?? "") : fetchedLog);
 
     async function fetchFullLog() {
         if (!runId || !nodeId) return;
         loading = true;
         try {
             const text = await getText(`/runs/${runId}/logs/${nodeId}`);
-            logContent = text;
-            currentOffset = text.length;
+            fetchedLog = text;
         } catch (e) {
-            logContent = "(Failed to load log)";
+            fetchedLog = "(Failed to load log)";
         } finally {
             loading = false;
             scrollToBottom();
         }
-    }
-
-    async function tailLog() {
-        if (!runId || !nodeId || tailInFlight) return;
-        tailInFlight = true;
-        try {
-            const chunk: any = await get(
-                `/runs/${runId}/logs/${nodeId}/tail?offset=${currentOffset}`,
-            );
-            let newText = chunk.content ?? chunk.text ?? "";
-            let newOffset = chunk.next_offset ?? currentOffset + newText.length;
-
-            if (newText && typeof newText === "string") {
-                logContent += newText;
-                currentOffset = newOffset;
-                if (autoScroll) scrollToBottom();
-            } else if (newText && Array.isArray(newText)) {
-                // If it happens to be lines
-                logContent += newText.join("\n") + "\n";
-                currentOffset = newOffset;
-                if (autoScroll) scrollToBottom();
-            }
-        } catch (e) {
-            stopPolling();
-        } finally {
-            tailInFlight = false;
-        }
-    }
-
-    function startPolling() {
-        if (polling) return;
-        polling = true;
-        pollInterval = setInterval(tailLog, 2000);
-    }
-
-    function stopPolling() {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-        }
-        polling = false;
-    }
-
-    function togglePlayback() {
-        if (polling) stopPolling();
-        else startPolling();
     }
 
     function scrollToBottom() {
@@ -105,25 +60,24 @@
     function handleScroll() {
         if (!logContainer) return;
         const { scrollTop, scrollHeight, clientHeight } = logContainer;
-        const isAtBottom =
+        autoScroll =
             Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
-        autoScroll = isAtBottom;
     }
 
     function escapeHtml(unsafe: string) {
         return unsafe
-             .replace(/&/g, "&amp;")
-             .replace(/</g, "&lt;")
-             .replace(/>/g, "&gt;")
-             .replace(/"/g, "&quot;")
-             .replace(/'/g, "&#039;");
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 
     let formattedLog = $derived.by(() => {
         if (!logContent) return "";
         return logContent
             .split('\n')
-            .map(line => {
+            .map((line: string) => {
                 const escaped = escapeHtml(line);
                 if (escaped.includes("[DM-IO]")) {
                     return `<span class="text-sky-500">${escaped}</span>`;
@@ -133,39 +87,21 @@
             .join('\n');
     });
 
+    // Auto-scroll when new logs arrive
     $effect(() => {
-        const nextKey = runId && nodeId ? `${runId}:${nodeId}` : "";
-
-        if (nextKey !== activeLogKey) {
-            activeLogKey = nextKey;
-            stopPolling();
-            logContent = "";
-            currentOffset = 0;
-
-            if (runId && nodeId) {
-                fetchFullLog().then(() => {
-                    if (isRunActive) {
-                        startPolling();
-                    }
-                });
-            }
-        }
-
-        return () => {
-            stopPolling();
-        };
+        const _ = logContent;
+        if (autoScroll && logContainer) scrollToBottom();
     });
 
+    // Fetch full log for completed runs (initial + node switch)
     $effect(() => {
-        if (!runId || !nodeId) {
-            stopPolling();
-            return;
-        }
+        const key = runId && nodeId ? `${runId}:${nodeId}` : "";
+        if (key === activeLogKey) return;
+        activeLogKey = key;
+        fetchedLog = "";
 
-        if (isRunActive) {
-            startPolling();
-        } else {
-            stopPolling();
+        if (key && !isRunActive) {
+            fetchFullLog();
         }
     });
 </script>
@@ -195,21 +131,6 @@
         </div>
 
         <div class="flex items-center gap-1.5 text-muted-foreground">
-            {#if isRunActive && nodeId}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 rounded hover:bg-muted hover:text-foreground"
-                    onclick={togglePlayback}
-                    title={polling ? "Pause live tail" : "Resume live tail"}
-                >
-                    {#if polling}
-                        <Square class="size-3.5" />
-                    {:else}
-                        <Play class="size-3.5" />
-                    {/if}
-                </Button>
-            {/if}
             <Button
                 variant="ghost"
                 size="icon"
