@@ -31,7 +31,8 @@ pub use nodes::{
 pub use run_ws::run_ws;
 pub use runs::{
     delete_runs, get_active_run, get_run, get_run_dataflow, get_run_logs, get_run_metrics,
-    get_run_transpiled, get_run_view, list_runs, start_run, stop_run, tail_run_logs,
+    get_run_transpiled, get_run_view, list_runs, start_run, stop_run, stream_run_logs,
+    tail_run_logs,
 };
 pub use runtime::{down, install, uninstall, up, use_version};
 pub use system::{

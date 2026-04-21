@@ -1,7 +1,16 @@
+use std::convert::Infallible;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::Path as FsPath;
+use std::time::Duration;
+
+use async_stream::stream;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::Json;
+use futures_util::Stream;
 use serde::Deserialize;
 
 use crate::handlers::err;
@@ -21,6 +30,11 @@ pub struct PaginationParams {
 #[derive(Deserialize, ToSchema)]
 pub struct LogTailParams {
     pub offset: Option<u64>,
+}
+
+#[derive(Deserialize)]
+pub struct LogStreamParams {
+    pub tail_lines: Option<usize>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -173,6 +187,22 @@ pub async fn get_run_logs(
     }
 }
 
+/// GET /api/runs/:id/logs/:node_id/stream?tail_lines=500
+pub async fn stream_run_logs(
+    State(state): State<AppState>,
+    Path((id, node_id)): Path<(String, String)>,
+    Query(params): Query<LogStreamParams>,
+) -> impl IntoResponse {
+    let tail_lines = params.tail_lines.unwrap_or(500).clamp(50, 5_000);
+    let stream = build_log_stream(state, id, node_id, tail_lines);
+
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(10))
+            .text(": keep-alive"),
+    )
+}
+
 /// GET /api/runs/:id/logs/:node_id/tail?offset=0
 pub async fn tail_run_logs(
     State(state): State<AppState>,
@@ -184,6 +214,94 @@ pub async fn tail_run_logs(
         Ok(chunk) => Json(chunk).into_response(),
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
+}
+
+fn build_log_stream(
+    state: AppState,
+    run_id: String,
+    node_id: String,
+    tail_lines: usize,
+) -> impl Stream<Item = Result<Event, Infallible>> {
+    stream! {
+        let log_path = dm_core::runs::run_logs_dir(&state.home, &run_id).join(format!("{node_id}.log"));
+        let (snapshot, mut offset) = match read_tail_text(&log_path, tail_lines) {
+            Ok(result) => result,
+            Err(e) => {
+                yield Ok(Event::default().event("error").data(format!("Failed to read log: {e}")));
+                return;
+            }
+        };
+
+        yield Ok(Event::default().event("snapshot").data(snapshot));
+
+        loop {
+            match dm_core::runs::read_run_log_chunk(&state.home, &run_id, &node_id, offset) {
+                Ok(chunk) => {
+                    offset = chunk.next_offset;
+                    if !chunk.content.is_empty() {
+                        yield Ok(Event::default().event("append").data(chunk.content));
+                    }
+
+                    if chunk.finished {
+                        yield Ok(Event::default().event("eof").data(chunk.status));
+                        break;
+                    }
+                }
+                Err(e) => {
+                    yield Ok(Event::default().event("error").data(e.to_string()));
+                    break;
+                }
+            }
+
+            tokio::time::sleep(Duration::from_millis(350)).await;
+        }
+    }
+}
+
+fn read_tail_text(path: &FsPath, tail_lines: usize) -> anyhow::Result<(String, u64)> {
+    if !path.exists() {
+        return Ok((String::new(), 0));
+    }
+
+    let mut file = File::open(path)?;
+    let len = file.metadata()?.len();
+    if len == 0 {
+        return Ok((String::new(), 0));
+    }
+
+    let mut cursor = len;
+    let mut chunks: Vec<Vec<u8>> = Vec::new();
+    let mut newline_count = 0usize;
+    let chunk_size: u64 = 8 * 1024;
+
+    while cursor > 0 && newline_count <= tail_lines {
+        let read_size = cursor.min(chunk_size);
+        cursor -= read_size;
+        file.seek(SeekFrom::Start(cursor))?;
+
+        let mut buf = vec![0; read_size as usize];
+        file.read_exact(&mut buf)?;
+        newline_count += buf.iter().filter(|b| **b == b'\n').count();
+        chunks.push(buf);
+    }
+
+    chunks.reverse();
+    let mut all = Vec::new();
+    for chunk in chunks {
+        all.extend(chunk);
+    }
+
+    let text = String::from_utf8_lossy(&all).to_string();
+    let lines: Vec<&str> = text.lines().collect();
+    let start = lines.len().saturating_sub(tail_lines);
+    let tail = lines[start..].join("\n");
+    let tail = if text.ends_with('\n') && !tail.is_empty() {
+        format!("{tail}\n")
+    } else {
+        tail
+    };
+
+    Ok((tail, len))
 }
 
 /// POST /api/runs/start

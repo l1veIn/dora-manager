@@ -1494,6 +1494,39 @@ async fn tail_run_logs_returns_incremental_chunks() {
 }
 
 #[tokio::test]
+async fn stream_run_logs_returns_snapshot_and_eof_for_completed_run() {
+    let (_tmp, state) = test_state();
+    let run_id = "run-stream";
+    dm_core::runs::create_layout(&state.home, run_id).unwrap();
+    let run = dm_core::runs::RunInstance {
+        run_id: run_id.to_string(),
+        dataflow_name: "stream-demo".to_string(),
+        started_at: "2026-03-06T00:00:00Z".to_string(),
+        stopped_at: Some("2026-03-06T00:01:00Z".to_string()),
+        status: dm_core::runs::RunStatus::Succeeded,
+        ..Default::default()
+    };
+    dm_core::runs::save_run(&state.home, &run).unwrap();
+    let log_path = dm_core::runs::run_logs_dir(&state.home, run_id).join("worker.log");
+    std::fs::write(&log_path, "line 1\nline 2\nline 3\n").unwrap();
+
+    let resp = handlers::stream_run_logs(
+        State(state),
+        Path((run_id.to_string(), "worker".to_string())),
+        Query(serde_json::from_value(serde_json::json!({ "tail_lines": 2 })).unwrap()),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(resp).await;
+    assert!(body.contains("event: snapshot"));
+    assert!(body.contains("data: line 2"));
+    assert!(body.contains("data: line 3"));
+    assert!(body.contains("event: eof"));
+}
+
+#[tokio::test]
 async fn get_run_transpiled_returns_transpiled_snapshot() {
     let (_tmp, state) = test_state();
     setup_fake_dora_home_with_active_file(&state.home, "0.4.1");

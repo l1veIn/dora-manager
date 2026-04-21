@@ -192,6 +192,10 @@ async fn main() {
         .route("/api/runs/delete", post(handlers::delete_runs))
         .route("/api/runs/{id}/logs/{node_id}", get(handlers::get_run_logs))
         .route(
+            "/api/runs/{id}/logs/{node_id}/stream",
+            get(handlers::stream_run_logs),
+        )
+        .route(
             "/api/runs/{id}/logs/{node_id}/tail",
             get(handlers::tail_run_logs),
         )

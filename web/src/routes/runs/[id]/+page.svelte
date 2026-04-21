@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from "$app/stores";
-    import { onMount, onDestroy, setContext } from "svelte";
+    import { onMount, onDestroy } from "svelte";
     import { browser } from "$app/environment";
     import { get, post } from "$lib/api";
     import { goto } from "$app/navigation";
@@ -50,12 +50,6 @@
     });
     let messageSocket: WebSocket | null = null;
     let reconnectMessageSocket: ReturnType<typeof setTimeout> | null = null;
-
-    // ── Shared log WS (one connection for all Terminal panels) ──
-    let logsMap = $state<Record<string, string>>({});
-    setContext('runLogs', logsMap);
-    let logSocket: WebSocket | null = null;
-    let logReconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let snapshotRefreshInFlight: Promise<void> | null = null;
     let inputValuesRefreshInFlight: Promise<void> | null = null;
     let latestInputSeq = $state(0);
@@ -472,60 +466,11 @@
         messageSocket = socket;
     }
 
-    // ── Log WS ──
-
-    function closeLogSocket() {
-        if (logReconnectTimer) {
-            clearTimeout(logReconnectTimer);
-            logReconnectTimer = null;
-        }
-        if (logSocket) {
-            logSocket.onclose = null;
-            logSocket.close();
-            logSocket = null;
-        }
-    }
-
-    function connectLogSocket() {
-        if (!browser || !runId) return;
-        closeLogSocket();
-
-        const proto = location.protocol === "https:" ? "wss:" : "ws:";
-        const socket = new WebSocket(
-            `${proto}//${location.host}/api/runs/${runId}/ws`,
-        );
-
-        socket.onmessage = (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-                if (msg.type === "logs" && msg.nodeId) {
-                    const existing = logsMap[msg.nodeId] ?? "";
-                    logsMap[msg.nodeId] = existing + msg.lines.join("\n") + "\n";
-                }
-            } catch {}
-        };
-
-        socket.onclose = () => {
-            if (logSocket === socket) {
-                logSocket = null;
-            }
-            if (isRunActive) {
-                logReconnectTimer = setTimeout(() => {
-                    logReconnectTimer = null;
-                    connectLogSocket();
-                }, 2000);
-            }
-        };
-
-        logSocket = socket;
-    }
-
     onMount(() => {
         fetchRunDetail();
         fetchSnapshots();
         fetchInputValues();
         connectMessageSocket();
-        connectLogSocket();
         mainPolling = setInterval(() => {
             if (shouldPollRun) {
                 fetchRunDetail();
@@ -538,7 +483,6 @@
     onDestroy(() => {
         if (mainPolling) clearInterval(mainPolling);
         closeMessageSocket();
-        closeLogSocket();
     });
 </script>
 

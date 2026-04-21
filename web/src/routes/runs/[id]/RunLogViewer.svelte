@@ -1,8 +1,10 @@
 <script lang="ts">
-    import { getContext } from "svelte";
+    import { onMount } from "svelte";
     import { getText } from "$lib/api";
     import { Button } from "$lib/components/ui/button/index.js";
-    import { RefreshCw, Download } from "lucide-svelte";
+    import { createManagedTerminal, type ManagedTerminal } from "$lib/terminal/xterm";
+    import { RefreshCw, Download, Dot } from "lucide-svelte";
+    import "@xterm/xterm/css/xterm.css";
 
     let {
         runId = "",
@@ -10,7 +12,6 @@
         isRunActive = false,
         nodes = [],
         onNodeChange,
-        onClose,
     } = $props<{
         runId: string;
         nodeId: string;
@@ -20,99 +21,181 @@
         onClose?: () => void;
     }>();
 
-    // Direct access to shared $state proxy — bypasses prop chain entirely
-    const logsMap = getContext<Record<string, string>>('runLogs');
-
-    let fetchedLog = $state<string>("");
+    let terminalContainer = $state<HTMLDivElement | null>(null);
+    let terminal = $state<ManagedTerminal | null>(null);
+    let stream = $state<EventSource | null>(null);
+    let resizeObserver = $state<ResizeObserver | null>(null);
     let loading = $state(false);
-    let activeLogKey = $state("");
+    let streamState = $state<"idle" | "connecting" | "live" | "closed" | "error">("idle");
+    let activeViewKey = $state("");
+    let viewKey = $derived(runId && nodeId ? `${runId}:${nodeId}:${isRunActive ? "live" : "done"}` : "");
 
-    let logContainer = $state<HTMLElement | null>(null);
-    let autoScroll = $state(true);
+    function closeStream() {
+        if (stream) {
+            stream.close();
+            stream = null;
+        }
+    }
 
-    // Active run: read directly from shared $state proxy. Completed run: HTTP fetch.
-    let logContent = $derived(isRunActive ? (logsMap?.[nodeId] ?? "") : fetchedLog);
+    function renderText(text: string) {
+        terminal?.resetWithText(text);
+        terminal?.fit();
+    }
+
+    function appendText(text: string) {
+        terminal?.write(text);
+    }
 
     async function fetchFullLog() {
-        if (!runId || !nodeId) return;
+        if (!runId || !nodeId) return "";
+        return await getText(`/runs/${runId}/logs/${nodeId}`);
+    }
+
+    async function renderFullLog(expectedKey: string) {
         loading = true;
         try {
-            const text = await getText(`/runs/${runId}/logs/${nodeId}`);
-            fetchedLog = text;
+            const text = await fetchFullLog();
+            if (activeViewKey !== expectedKey) return;
+            renderText(text);
+            streamState = "closed";
         } catch (e) {
-            fetchedLog = "(Failed to load log)";
+            if (activeViewKey !== expectedKey) return;
+            renderText("(Failed to load log)");
+            streamState = "error";
         } finally {
+            if (activeViewKey === expectedKey) {
+                loading = false;
+            }
+        }
+    }
+
+    function connectStream(expectedKey: string) {
+        if (!runId || !nodeId) return;
+        loading = true;
+        streamState = "connecting";
+
+        const params = new URLSearchParams({ tail_lines: "800" });
+        const source = new EventSource(`/api/runs/${runId}/logs/${nodeId}/stream?${params.toString()}`);
+
+        const ensureCurrent = () => activeViewKey === expectedKey;
+
+        source.onopen = () => {
+            if (!ensureCurrent()) return;
             loading = false;
-            scrollToBottom();
+            streamState = "live";
+        };
+
+        source.addEventListener("snapshot", (event) => {
+            if (!ensureCurrent()) return;
+            renderText((event as MessageEvent).data ?? "");
+            loading = false;
+            streamState = "live";
+        });
+
+        source.addEventListener("append", (event) => {
+            if (!ensureCurrent()) return;
+            appendText((event as MessageEvent).data ?? "");
+            streamState = "live";
+        });
+
+        source.addEventListener("eof", () => {
+            if (!ensureCurrent()) return;
+            loading = false;
+            streamState = "closed";
+            source.close();
+            if (stream === source) {
+                stream = null;
+            }
+        });
+
+        source.addEventListener("error", (event) => {
+            if (!ensureCurrent()) return;
+            const message = (event as MessageEvent).data;
+            if (message) {
+                renderText(String(message));
+            }
+            loading = false;
+            streamState = "error";
+        });
+
+        stream = source;
+    }
+
+    async function loadView(nextKey: string) {
+        activeViewKey = nextKey;
+        closeStream();
+
+        if (!terminal) return;
+
+        if (!runId || !nodeId) {
+            loading = false;
+            streamState = "idle";
+            renderText("");
+            return;
+        }
+
+        if (isRunActive) {
+            renderText("");
+            connectStream(nextKey);
+        } else {
+            await renderFullLog(nextKey);
         }
     }
 
-    function scrollToBottom() {
-        if (logContainer && autoScroll) {
-            setTimeout(() => {
-                if (logContainer) {
-                    logContainer.scrollTop = logContainer.scrollHeight;
-                }
-            }, 10);
+    async function refreshView() {
+        await loadView(viewKey);
+    }
+
+    async function downloadFullLog() {
+        if (!runId || !nodeId) return;
+        const text = await fetchFullLog();
+        const blob = new Blob([text], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${runId}-${nodeId}.log`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    let liveHint = $derived(
+        streamState === "live"
+            ? "Live"
+            : streamState === "connecting"
+                ? "Connecting"
+                : streamState === "error"
+                    ? "Stream error"
+                    : isRunActive
+                        ? "Waiting"
+                        : "Static",
+    );
+
+    onMount(() => {
+        if (terminalContainer) {
+            terminal = createManagedTerminal(terminalContainer);
+            resizeObserver = new ResizeObserver(() => terminal?.fit());
+            resizeObserver.observe(terminalContainer);
         }
-    }
 
-    function handleScroll() {
-        if (!logContainer) return;
-        const { scrollTop, scrollHeight, clientHeight } = logContainer;
-        autoScroll =
-            Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
-    }
+        void loadView(viewKey);
 
-    function escapeHtml(unsafe: string) {
-        return unsafe
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-    let formattedLog = $derived.by(() => {
-        if (!logContent) return "";
-        return logContent
-            .split('\n')
-            .map((line: string) => {
-                const escaped = escapeHtml(line);
-                if (escaped.includes("[DM-IO]")) {
-                    return `<span class="text-sky-500">${escaped}</span>`;
-                }
-                return escaped;
-            })
-            .join('\n');
+        return () => {
+            closeStream();
+            resizeObserver?.disconnect();
+            terminal?.dispose();
+        };
     });
 
-    // Auto-scroll when new logs arrive
     $effect(() => {
-        const _ = logContent;
-        if (autoScroll && logContainer) scrollToBottom();
-    });
-
-    // Fetch full log for completed runs (initial + node switch)
-    $effect(() => {
-        const key = runId && nodeId ? `${runId}:${nodeId}` : "";
-        if (key === activeLogKey) return;
-        activeLogKey = key;
-        fetchedLog = "";
-
-        if (key && !isRunActive) {
-            fetchFullLog();
-        }
+        const key = viewKey;
+        if (!terminal || key === activeViewKey) return;
+        void loadView(key);
     });
 </script>
 
-<div
-    class="flex flex-col h-full overflow-hidden w-full bg-background text-foreground"
->
-    <div
-        class="px-4 border-b bg-muted/30 flex items-center justify-between shrink-0 h-11"
-    >
-        <div class="flex items-center gap-2">
+<div class="flex flex-col h-full overflow-hidden w-full bg-background text-foreground">
+    <div class="px-4 border-b bg-muted/30 flex items-center justify-between shrink-0 h-11">
+        <div class="flex items-center gap-2 min-w-0">
             <select
                 class="text-xs font-mono text-muted-foreground bg-muted hover:bg-muted/80 md:px-2 md:py-0.5 rounded px-1.5 py-0 border-0 outline-none ring-0 focus:ring-1 focus:ring-primary cursor-pointer max-w-[140px] truncate"
                 value={nodeId}
@@ -121,13 +204,17 @@
                     if (onNodeChange) onNodeChange(id);
                 }}
             >
-                {#if !nodeId}<option value="" disabled hidden
-                        >(None Selected)</option
-                    >{/if}
+                {#if !nodeId}<option value="" disabled hidden>(None Selected)</option>{/if}
                 {#each nodes as nItem (nItem.id)}
                     <option value={nItem.id}>{nItem.id}</option>
                 {/each}
             </select>
+            {#if nodeId}
+                <div class="flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
+                    <Dot class="size-3.5 {streamState === 'live' ? 'text-emerald-500' : streamState === 'error' ? 'text-red-500' : 'text-muted-foreground'}" />
+                    {liveHint}
+                </div>
+            {/if}
         </div>
 
         <div class="flex items-center gap-1.5 text-muted-foreground">
@@ -135,9 +222,9 @@
                 variant="ghost"
                 size="icon"
                 class="h-7 w-7 rounded hover:bg-muted hover:text-foreground"
-                onclick={fetchFullLog}
+                onclick={refreshView}
                 disabled={loading || !nodeId}
-                title="Refresh full log"
+                title={isRunActive ? "Reconnect live stream" : "Reload full log"}
             >
                 <RefreshCw class="size-3.5 {loading ? 'animate-spin' : ''}" />
             </Button>
@@ -145,51 +232,24 @@
                 variant="ghost"
                 size="icon"
                 class="h-7 w-7 rounded hover:bg-muted hover:text-foreground"
-                onclick={() => {
-                    const blob = new Blob([logContent], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${runId}-${nodeId}.log`;
-                    a.click();
-                }}
-                disabled={!logContent}
-                title="Download"
+                onclick={downloadFullLog}
+                disabled={!nodeId}
+                title="Download full log"
             >
                 <Download class="size-3.5" />
             </Button>
         </div>
     </div>
 
-    <div
-        class="p-0 flex-1 overflow-auto h-full relative"
-        bind:this={logContainer}
-        onscroll={handleScroll}
-    >
+    <div class="flex-1 min-h-0 relative bg-[#0b1020]">
         {#if !nodeId}
-            <div
-                class="absolute inset-0 flex flex-col gap-3 items-center justify-center text-muted-foreground text-sm font-mono"
-            >
-                <div>
-                    > Select a node from the top left dropdown to view logs
-                </div>
-            </div>
-        {:else if loading && !logContent}
-            <div
-                class="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm font-mono"
-            >
-                > Loading trace...
-            </div>
-        {:else}
-            <div
-                class="p-4 font-mono text-[13px] whitespace-pre-wrap break-all leading-relaxed text-foreground selection:bg-muted"
-            >
-                {#if logContent === ""}
-                    (NO LOG OUTPUT)
-                {:else}
-                    {@html formattedLog}
-                {/if}
+            <div class="absolute inset-0 flex flex-col gap-3 items-center justify-center text-slate-400 text-sm font-mono">
+                <div>> Select a node from the top left dropdown to view logs</div>
             </div>
         {/if}
+
+        <div class:hidden={!nodeId} class="absolute inset-0 overflow-hidden p-2">
+            <div bind:this={terminalContainer} class="h-full w-full rounded-md border border-slate-800 bg-[#0b1020]"></div>
+        </div>
     </div>
 </div>
