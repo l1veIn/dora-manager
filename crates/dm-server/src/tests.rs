@@ -1500,6 +1500,7 @@ async fn stream_run_logs_returns_snapshot_and_eof_for_completed_run() {
     dm_core::runs::create_layout(&state.home, run_id).unwrap();
     let run = dm_core::runs::RunInstance {
         run_id: run_id.to_string(),
+        dora_uuid: Some("uuid-stream".to_string()),
         dataflow_name: "stream-demo".to_string(),
         started_at: "2026-03-06T00:00:00Z".to_string(),
         stopped_at: Some("2026-03-06T00:01:00Z".to_string()),
@@ -1507,7 +1508,10 @@ async fn stream_run_logs_returns_snapshot_and_eof_for_completed_run() {
         ..Default::default()
     };
     dm_core::runs::save_run(&state.home, &run).unwrap();
-    let log_path = dm_core::runs::run_logs_dir(&state.home, run_id).join("worker.log");
+    let log_path = dm_core::runs::run_out_dir(&state.home, run_id)
+        .join("uuid-stream")
+        .join("log_worker.txt");
+    std::fs::create_dir_all(log_path.parent().unwrap()).unwrap();
     std::fs::write(&log_path, "line 1\nline 2\nline 3\n").unwrap();
 
     let resp = handlers::stream_run_logs(

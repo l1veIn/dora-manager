@@ -14,7 +14,7 @@ mod tests {
     };
     use crate::runs::repo;
     use crate::runs::runtime::{RuntimeBackend, RuntimeDataflow, STOP_TIMEOUT_SECS};
-    use crate::runs::service::{service_runtime, service_start};
+    use crate::runs::service::{service_query, service_runtime, service_start};
     use crate::runs::state::build_outcome;
 
     #[derive(Clone)]
@@ -234,13 +234,70 @@ mod tests {
         assert_eq!(run.node_count_observed, 1);
         assert_eq!(run.nodes_observed, vec!["worker".to_string()]);
         assert_eq!(
-            fs::read_to_string(repo::run_logs_dir(home, "run-stop-ok").join("worker.log")).unwrap(),
+            fs::read_to_string(
+                repo::run_out_dir(home, "run-stop-ok")
+                    .join("uuid-stop-ok")
+                    .join("log_worker.txt")
+            )
+            .unwrap(),
             "worker log line"
         );
         assert_eq!(
             backend.stop_calls.lock().unwrap().as_slice(),
             &["uuid-stop-ok".to_string()]
         );
+    }
+
+    #[test]
+    fn get_run_includes_expected_nodes_before_live_logs_exist() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+
+        let run = RunInstance {
+            run_id: "run-expected-nodes".to_string(),
+            dora_uuid: Some("uuid-expected-nodes".to_string()),
+            dataflow_name: "demo".to_string(),
+            dataflow_hash: "sha256:test".to_string(),
+            started_at: "2026-03-09T00:00:00Z".to_string(),
+            node_count_expected: 3,
+            nodes_expected: vec![
+                "__dm_bridge".to_string(),
+                "display".to_string(),
+                "echo".to_string(),
+            ],
+            outcome: build_outcome(RunStatus::Running, None, None, None),
+            ..RunInstance::default()
+        };
+
+        write_run(home, run);
+
+        let detail = service_query::get_run(home, "run-expected-nodes").unwrap();
+        let node_ids = detail
+            .nodes
+            .into_iter()
+            .map(|node| node.id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(node_ids, vec!["__dm_bridge", "display", "echo"]);
+    }
+
+    #[test]
+    fn read_run_log_reads_live_dora_output_without_logs_copy() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+        write_running_run(home, "run-live-log-read", Some("uuid-live-log-read"));
+        write_runtime_log(
+            home,
+            "run-live-log-read",
+            "uuid-live-log-read",
+            "worker",
+            "worker live line",
+        );
+
+        let content = service_query::read_run_log(home, "run-live-log-read", "worker").unwrap();
+
+        assert_eq!(content, "worker live line");
+        assert!(!repo::run_logs_dir(home, "run-live-log-read").exists());
     }
 
     #[tokio::test]

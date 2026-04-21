@@ -48,21 +48,34 @@ pub fn list_active_runs(home: &Path) -> Result<Vec<RunInstance>> {
 }
 
 pub fn get_run(home: &Path, run_id: &str) -> Result<RunDetail> {
-    let run = repo::load_run(home, run_id)?;
+    let mut run = repo::load_run(home, run_id)?;
+    if run.status.is_running() {
+        let _ = super::service_runtime::sync_run_outputs(home, &mut run);
+        let _ = repo::save_run(home, &run);
+    }
+    let mut nodes = repo::list_run_nodes(home, &run.run_id)?;
+    for node_id in run
+        .nodes_expected
+        .iter()
+        .chain(run.nodes_observed.iter())
+    {
+        if nodes.iter().any(|node| node.id == *node_id) {
+            continue;
+        }
+        nodes.push(crate::runs::model::RunNode {
+            id: node_id.clone(),
+            log_size: 0,
+        });
+    }
+    nodes.sort_by(|a, b| a.id.cmp(&b.id));
 
     Ok(RunDetail {
         summary: to_summary(run.clone()),
-        nodes: repo::list_run_nodes(home, &run.run_id)?,
+        nodes,
     })
 }
 
 pub fn read_run_log(home: &Path, run_id: &str, node_id: &str) -> Result<String> {
-    let path = repo::run_logs_dir(home, run_id).join(format!("{}.log", node_id));
-    if !path.exists() {
-        let mut run = repo::load_run(home, run_id)?;
-        super::service_runtime::sync_run_outputs(home, &mut run)?;
-        repo::save_run(home, &run)?;
-    }
     repo::read_run_log_file(home, run_id, node_id)
 }
 
@@ -80,20 +93,10 @@ pub fn read_run_log_chunk(
     node_id: &str,
     offset: u64,
 ) -> Result<RunLogChunk> {
-    let mut run = repo::load_run(home, run_id)?;
-
-    let log_path = repo::run_logs_dir(home, run_id).join(format!("{}.log", node_id));
-    if !log_path.exists() {
-        // One-time fallback: sync from dora out dir if logs not yet copied
-        let _ = super::service_runtime::sync_run_outputs(home, &mut run);
-        let _ = repo::save_run(home, &run);
-    }
-
-    let log_path = repo::run_logs_dir(home, run_id).join(format!("{}.log", node_id));
-    let (content, next_offset) = if log_path.exists() {
-        repo::read_run_log_chunk(home, run_id, node_id, offset)?
-    } else {
-        (String::new(), 0)
+    let run = repo::load_run(home, run_id)?;
+    let (content, next_offset) = match repo::read_run_log_chunk(home, run_id, node_id, offset) {
+        Ok(chunk) => chunk,
+        Err(_) => (String::new(), 0),
     };
 
     Ok(RunLogChunk {

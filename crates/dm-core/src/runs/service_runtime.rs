@@ -272,10 +272,6 @@ pub fn sync_run_outputs(home: &Path, run: &mut RunInstance) -> Result<()> {
         return Ok(());
     }
 
-    let logs_dir = repo::run_logs_dir(home, &run.run_id);
-    fs::create_dir_all(&logs_dir)
-        .with_context(|| format!("Failed to create logs dir {}", logs_dir.display()))?;
-
     let mut nodes = Vec::new();
     for entry in fs::read_dir(&source_dir)
         .with_context(|| format!("Failed to read Dora output dir {}", source_dir.display()))?
@@ -288,15 +284,6 @@ pub fn sync_run_outputs(home: &Path, run: &mut RunInstance) -> Result<()> {
         else {
             continue;
         };
-
-        let target = logs_dir.join(format!("{}.log", node_id));
-        fs::copy(entry.path(), &target).with_context(|| {
-            format!(
-                "Failed to copy node log {} to {}",
-                entry.path().display(),
-                target.display()
-            )
-        })?;
         nodes.push(node_id.to_string());
     }
 

@@ -223,7 +223,13 @@ fn build_log_stream(
     tail_lines: usize,
 ) -> impl Stream<Item = Result<Event, Infallible>> {
     stream! {
-        let log_path = dm_core::runs::run_logs_dir(&state.home, &run_id).join(format!("{node_id}.log"));
+        let log_path = match dm_core::runs::resolve_run_log_path(&state.home, &run_id, &node_id) {
+            Ok(path) => path,
+            Err(e) => {
+                yield Ok(Event::default().event("error").data(e.to_string()));
+                return;
+            }
+        };
         let (snapshot, mut offset) = match read_tail_text(&log_path, tail_lines) {
             Ok(result) => result,
             Err(e) => {

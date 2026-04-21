@@ -11,7 +11,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::mpsc;
 
 use crate::state::AppState;
-use dm_core::runs::{run_logs_dir, run_out_dir};
+use dm_core::runs::run_out_dir;
 
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -52,7 +52,7 @@ fn resolve_logs_dir(home: &Path, run_id: &str) -> (PathBuf, bool) {
             }
         }
     }
-    (run_logs_dir(home, run_id), false)
+    (PathBuf::new(), true)
 }
 
 fn node_id_from_filename(filename: &str, is_live: bool) -> Option<String> {

@@ -121,24 +121,13 @@
                     <dd class="font-mono text-xs">{run.exit_code ?? "-"}</dd>
                 </div>
 
-                {#if run.log_sync?.state}
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs text-muted-foreground font-medium">
-                            Log Sync
-                        </dt>
-                        <dd class="font-mono text-[10px] uppercase">
-                            {run.log_sync.state}
-                        </dd>
-                    </div>
-                {/if}
-
                 <div class="flex items-center justify-between">
                     <dt class="text-xs text-muted-foreground font-medium">
                         Observed Nodes
                     </dt>
                     <dd
                         class="font-mono text-xs text-foreground"
-                        title="Nodes discovered from synced logs for this run."
+                        title="Nodes discovered from this run's live Dora output."
                     >
                         {observedNodeSummary(run)}
                     </dd>

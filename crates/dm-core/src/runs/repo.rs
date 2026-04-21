@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 use super::model::RunInstance;
 
@@ -40,8 +40,6 @@ pub fn run_out_dir(home: &Path, run_id: &str) -> PathBuf {
 
 pub fn create_layout(home: &Path, run_id: &str) -> Result<PathBuf> {
     let dir = run_dir(home, run_id);
-    fs::create_dir_all(run_logs_dir(home, run_id))
-        .with_context(|| format!("Failed to create logs dir for run '{}'", run_id))?;
     fs::create_dir_all(run_out_dir(home, run_id))
         .with_context(|| format!("Failed to create output dir for run '{}'", run_id))?;
     Ok(dir)
@@ -106,8 +104,30 @@ pub fn read_run_view(home: &Path, run_id: &str) -> Result<String> {
         .with_context(|| format!("Failed to read run view.json {}", path.display()))
 }
 
+pub fn resolve_run_log_path(home: &Path, run_id: &str, node_id: &str) -> Result<PathBuf> {
+    let run = load_run(home, run_id)?;
+    if let Some(dora_uuid) = run.dora_uuid.as_deref() {
+        return Ok(
+            run_out_dir(home, run_id)
+                .join(dora_uuid)
+                .join(format!("log_{node_id}.txt")),
+        );
+    }
+
+    let legacy_path = run_logs_dir(home, run_id).join(format!("{node_id}.log"));
+    if legacy_path.exists() {
+        return Ok(legacy_path);
+    }
+
+    Err(anyhow!(
+        "Failed to resolve log file for run '{}' node '{}'",
+        run_id,
+        node_id
+    ))
+}
+
 pub fn read_run_log_file(home: &Path, run_id: &str, node_id: &str) -> Result<String> {
-    let path = run_logs_dir(home, run_id).join(format!("{}.log", node_id));
+    let path = resolve_run_log_path(home, run_id, node_id)?;
     fs::read_to_string(&path).with_context(|| format!("Failed to read node log {}", path.display()))
 }
 
@@ -117,7 +137,7 @@ pub fn read_run_log_chunk(
     node_id: &str,
     offset: u64,
 ) -> Result<(String, u64)> {
-    let path = run_logs_dir(home, run_id).join(format!("{}.log", node_id));
+    let path = resolve_run_log_path(home, run_id, node_id)?;
     let mut file = fs::File::open(&path)
         .with_context(|| format!("Failed to read node log {}", path.display()))?;
     let len = file
@@ -135,7 +155,17 @@ pub fn read_run_log_chunk(
 }
 
 pub fn list_run_nodes(home: &Path, run_id: &str) -> Result<Vec<super::model::RunNode>> {
-    let logs_dir = run_logs_dir(home, run_id);
+    let run = load_run(home, run_id)?;
+    let logs_dir = if let Some(dora_uuid) = run.dora_uuid.as_deref() {
+        let live_dir = run_out_dir(home, run_id).join(dora_uuid);
+        if live_dir.exists() {
+            live_dir
+        } else {
+            run_logs_dir(home, run_id)
+        }
+    } else {
+        run_logs_dir(home, run_id)
+    };
     let mut nodes = Vec::new();
     if !logs_dir.exists() {
         return Ok(nodes);
@@ -149,11 +179,15 @@ pub fn list_run_nodes(home: &Path, run_id: &str) -> Result<Vec<super::model::Run
         if !path.is_file() {
             continue;
         }
-        let Some(node_id) = path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .map(|stem| stem.to_string())
-        else {
+        let filename = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+        let node_id = if let Some(node_id) = filename
+            .strip_prefix("log_")
+            .and_then(|name| name.strip_suffix(".txt"))
+        {
+            node_id.to_string()
+        } else if let Some(node_id) = path.file_stem().and_then(|stem| stem.to_str()) {
+            node_id.to_string()
+        } else {
             continue;
         };
         let log_size = entry.metadata().map(|m| m.len()).unwrap_or(0);
