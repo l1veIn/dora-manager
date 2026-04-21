@@ -30,6 +30,7 @@
     let container = $state<HTMLElement | null>(null);
     let isUserScrolling = $state(false);
     let lastInitialLoadToken = $state<number | null>(null);
+    let lastProcessedRefreshToken = $state<number | null>(null);
 
     let availableNodes = $derived(
         context.snapshots
@@ -113,6 +114,10 @@
     $effect(() => {
         const refreshToken = context.refreshToken;
         untrack(() => {
+            if (lastProcessedRefreshToken === refreshToken) {
+                return;
+            }
+            lastProcessedRefreshToken = refreshToken;
             if (history.messages.length > 0) {
                 history.loadNew(() => {
                     if (!isUserScrolling) scrollToBottom();
