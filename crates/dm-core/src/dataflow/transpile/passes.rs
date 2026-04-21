@@ -2,9 +2,8 @@ use crate::node::{self, Node};
 
 use super::bridge::{
     bridge_specs_json, build_bridge_node_spec, ensure_input_mapping, ensure_output_port,
-    DM_BRIDGE_INPUT_ENV_KEY, DM_BRIDGE_OUTPUT_ENV_KEY, DM_CAPABILITIES_ENV_KEY,
-    DM_CLI_BIN_ENV_KEY, HIDDEN_DM_BRIDGE_YAML_ID, NODE_DM_BRIDGE_INPUT_PORT,
-    NODE_DM_BRIDGE_OUTPUT_PORT,
+    DM_BRIDGE_INPUT_ENV_KEY, DM_BRIDGE_OUTPUT_ENV_KEY, DM_CAPABILITIES_ENV_KEY, DM_CLI_BIN_ENV_KEY,
+    HIDDEN_DM_BRIDGE_YAML_ID, NODE_DM_BRIDGE_INPUT_PORT, NODE_DM_BRIDGE_OUTPUT_PORT,
 };
 use super::context::TranspileContext;
 use super::error::{DiagnosticKind, TranspileDiagnostic};

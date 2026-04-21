@@ -127,6 +127,31 @@ pub fn list_dataflows_blocking(home: &Path, verbose: bool) -> Result<Vec<Dataflo
     )))
 }
 
+pub fn check_runtime_blocking(home: &Path, verbose: bool) -> Result<(bool, String)> {
+    let bin = active_dora_bin(home)?;
+    if verbose {
+        eprintln!("[dm] exec: {} check", bin.display());
+    }
+
+    let output = StdCommand::new(&bin)
+        .arg("check")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .with_context(|| format!("Failed to run dora at {}", bin.display()))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Ok((
+        output.status.success(),
+        if output.status.success() {
+            stdout
+        } else {
+            stderr
+        },
+    ))
+}
+
 pub(crate) fn parse_runtime_infos(stdout: &str) -> Vec<DataflowRuntimeInfo> {
     stdout
         .lines()

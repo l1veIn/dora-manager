@@ -121,7 +121,8 @@ dm-server
 ./dev.sh
 ```
 
-`./dev.sh` builds the web app if needed, starts `cargo run -p dm-server`, and launches the web dev server with hot reload.
+`./dev.sh` installs web dependencies on first run if needed, starts `cargo run -p dm-server` from the repo root, and launches the SvelteKit dev server with hot reload. If port `5173` is busy, Vite will move to the next free port and print the actual URL in the terminal.
+If `3210` is already occupied by another `dm-server`, the script reuses that backend and starts only the frontend dev server. If `3210` is occupied by something else, stop that process before rerunning `./dev.sh`.
 
 If you want to run the embedded release binary from the repo instead:
 
@@ -134,13 +135,16 @@ cargo build --release
 ./target/release/dm-server
 ```
 
-Open [http://127.0.0.1:3210](http://127.0.0.1:3210) to access the Visual Editor.
+For a source checkout, open the frontend URL printed by `./dev.sh` for the Svelte dev UI. The backend API remains on [http://127.0.0.1:3210](http://127.0.0.1:3210), or on the existing `dm-server` already bound there.
 
 ### 3. Run a Demo
 
 ```bash
-# Zero-dependency demo — works immediately
+# Zero-dependency demo — works immediately from an installed release
 dm start demos/demo-hello-timer.yml
+
+# From a source checkout, use the local binary explicitly
+./target/debug/dm start demos/demo-hello-timer.yml
 ```
 
 Open the running instance in the Web UI to see real-time output.
@@ -169,13 +173,13 @@ Ready-to-run demos are available in the `demos/` directory. All built-in demos u
 
 ```bash
 # Hello Timer — simplest demo, verifies engine + UI
-dm start demos/demo-hello-timer.yml
+./target/debug/dm start demos/demo-hello-timer.yml
 
 # Interactive Widgets — slider, button, text input, switch
-dm start demos/demo-interactive-widgets.yml
+./target/debug/dm start demos/demo-interactive-widgets.yml
 
 # Logic Gate Pipeline — AND gate + conditional flow control
-dm start demos/demo-logic-gate.yml
+./target/debug/dm start demos/demo-logic-gate.yml
 
 # Robotics Object Detection — webcam + YOLOv8 (requires opencv-video-capture + dora-yolo)
 dm node install opencv-video-capture
@@ -183,7 +187,8 @@ dm node install dora-yolo
 dm start demos/robotics-object-detection.yml
 ```
 
-Open http://127.0.0.1:3210 and navigate to the running instance to interact with the demo.
+From a source checkout running `./dev.sh`, open `http://127.0.0.1:5173`.
+If you are using installed binaries without the Vite dev server, open `http://127.0.0.1:3210`.
 
 ## 📸 Try it out: OpenCV Camera Pipeline
 

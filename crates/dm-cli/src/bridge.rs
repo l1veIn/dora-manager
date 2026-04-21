@@ -2,10 +2,12 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use dora_node_api::arrow::array::{BooleanArray, Float64Array, Int64Array, StringArray, UInt8Array};
+use dora_node_api::arrow::array::{
+    BooleanArray, Float64Array, Int64Array, StringArray, UInt8Array,
+};
 use dora_node_api::{DoraNode, Event};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 
 type ReadHalf = tokio::io::ReadHalf<tokio::net::UnixStream>;
@@ -56,8 +58,8 @@ pub async fn bridge_serve(home: &Path, run_id: &str) -> Result<()> {
     let specs = parse_specs();
     let sock_path = home.join("bridge.sock");
 
-    let (mut node, mut events) = DoraNode::init_from_env()
-        .map_err(|e| anyhow::anyhow!("Failed to init bridge: {e}"))?;
+    let (mut node, mut events) =
+        DoraNode::init_from_env().map_err(|e| anyhow::anyhow!("Failed to init bridge: {e}"))?;
 
     // Widget routing table
     let mut widget_specs = std::collections::BTreeMap::new();
@@ -85,7 +87,11 @@ pub async fn bridge_serve(home: &Path, run_id: &str) -> Result<()> {
 
     // Connect to server
     let (lines, mut writer) = connect_with_retry(&sock_path).await?;
-    write_line(&mut writer, &json!({"action":"init","run_id":run_id}).to_string()).await?;
+    write_line(
+        &mut writer,
+        &json!({"action":"init","run_id":run_id}).to_string(),
+    )
+    .await?;
     for (yaml_id, (_, payload)) in &widget_specs {
         let msg = json!({"action":"push","from":yaml_id,"tag":"widgets","payload":payload});
         write_line(&mut writer, &msg.to_string()).await?;
@@ -97,18 +103,16 @@ pub async fn bridge_serve(home: &Path, run_id: &str) -> Result<()> {
 
     // Producer 1: dora events (sync thread → channel)
     let dora_tx = tx.clone();
-    std::thread::spawn(move || {
-        loop {
-            match events.recv() {
-                Some(event @ Event::Stop(_)) => {
-                    let _ = dora_tx.blocking_send(Task::DoraEvent(event));
-                    break;
-                }
-                Some(event) => {
-                    let _ = dora_tx.blocking_send(Task::DoraEvent(event));
-                }
-                None => break,
+    std::thread::spawn(move || loop {
+        match events.recv() {
+            Some(event @ Event::Stop(_)) => {
+                let _ = dora_tx.blocking_send(Task::DoraEvent(event));
+                break;
             }
+            Some(event) => {
+                let _ = dora_tx.blocking_send(Task::DoraEvent(event));
+            }
+            None => break,
         }
     });
 
@@ -210,13 +214,19 @@ async fn connect_with_retry(sock_path: &Path) -> Result<(Lines, BufWriter<WriteH
                 return Ok((lines, BufWriter::new(write_half)));
             }
             Err(_) if attempt < 19 => {
-                eprintln!("[{}] [bridge] socket not ready, retry in {delay:?}...", now_ts());
+                eprintln!(
+                    "[{}] [bridge] socket not ready, retry in {delay:?}...",
+                    now_ts()
+                );
                 tokio::time::sleep(delay).await;
                 delay = (delay * 2).min(Duration::from_secs(5));
             }
             Err(e) => {
                 return Err(e).with_context(|| {
-                    format!("Failed to connect to bridge socket at {}", sock_path.display())
+                    format!(
+                        "Failed to connect to bridge socket at {}",
+                        sock_path.display()
+                    )
                 })
             }
         }
@@ -247,7 +257,11 @@ fn widget_payload(spec: &BridgeSpec) -> Value {
     let output_id = binding.port.clone().unwrap_or_else(|| "value".to_string());
     let widget = match spec.node_id.as_str() {
         "dm-text-input" => {
-            let multiline = spec.env.get("MULTILINE").map(|v| v == "true").unwrap_or(false);
+            let multiline = spec
+                .env
+                .get("MULTILINE")
+                .map(|v| v == "true")
+                .unwrap_or(false);
             json!({
                 "type": if multiline { "textarea" } else { "input" },
                 "label": label,

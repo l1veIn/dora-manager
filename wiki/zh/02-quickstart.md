@@ -1,324 +1,271 @@
-本页是 Dora Manager 的 **实操入门指南**。最快方式：一行命令完成安装。
+本页是一份 **面向新用户的端到端入门指南**：从安装 Dora Manager 到在浏览器中看到第一个数据流实时输出，最快只需 **三行命令**。无论你选择预编译二进制还是源码构建，都能在 5 分钟内跑通完整流程。我们会在过程中穿插关键概念解释，帮助你建立对系统运作方式的直觉，而不必一开始就深入架构细节。
+
+Sources: [README.md](https://github.com/l1veIn/dora-manager/blob/main/README.md), [README_zh.md](https://github.com/l1veIn/dora-manager/blob/main/README_zh.md)
 
 ---
 
-## 快速安装（一行命令）
+## 第一步：选择安装方式
+
+Dora Manager 提供两种安装路径。选择最适合你当前场景的一种即可——两者的最终效果完全一致。
+
+```mermaid
+flowchart TD
+    Start["我想使用 Dora Manager"] --> Q1{"需要修改源码？"}
+    Q1 -- "不需要，只想用" --> A["方式 A：一行安装脚本"]
+    Q1 -- "需要，我要开发" --> B["方式 B：从源码构建"]
+
+    A --> A1["curl ... | bash"]
+    A1 --> A2["下载 dm + dm-server 到 ~/.local/bin"]
+    A2 --> A3["自动检查 Rust / Python / uv"]
+    A3 --> A4["运行 dm setup 安装 dora-rs 运行时"]
+    A4 --> Done["✅ 安装完成"]
+
+    B --> B1["git clone 仓库"]
+    B1 --> B2["cd web && npm install && npm run build"]
+    B2 --> B3["cargo build --release"]
+    B3 --> B4["./target/release/dm setup"]
+    B4 --> Done
+
+    style A fill:#dbeafe,stroke:#2563eb
+    style B fill:#fef3c7,stroke:#d97706
+    style Done fill:#dcfce7,stroke:#16a34a
+```
+
+### 方式 A：一行命令安装（推荐新用户）
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/l1veIn/dora-manager/master/scripts/install.sh | bash
 ```
 
-安装脚本会自动：
-1. 检测系统（macOS/Linux）和架构（x86_64/aarch64）
-2. 从 GitHub Releases 下载最新版 `dm` + `dm-server` 到 `~/.local/bin`
-3. 检查 Rust、Python、uv 环境（缺失时提示安装方式）
-4. 运行 `dm setup` 安装 dora-rs 运行时
+安装脚本会自动完成以下全部工作：**检测操作系统与 CPU 架构**（支持 macOS 和 Linux 的 x86_64 / aarch64）→ **从 GitHub Releases 下载最新版 `dm` 和 `dm-server` 二进制文件**到 `~/.local/bin` → **检查 Rust、Python、uv 环境**（缺失时给出安装建议，不会阻塞流程）→ **执行 `dm setup` 安装 dora-rs 运行时**。整个过程中任何一步失败都会给出明确的错误信息和修复建议。
+
+Sources: [scripts/install.sh](https://github.com/l1veIn/dora-manager/blob/main/scripts/install.sh#L1-L43)
+
+安装脚本支持以下可选参数，按需使用：
+
+| 参数 | 作用 | 示例 |
+|------|------|------|
+| `--skip-setup` | 跳过 `dm setup`（不安装 dora-rs 运行时） | `bash -s -- --skip-setup` |
+| `--skip-deps` | 跳过 Rust / Python / uv 依赖检查 | `bash -s -- --skip-deps` |
+| `--version VER` | 安装指定版本而非最新版 | `bash -s -- --version v0.1.0` |
+| `--bin-dir PATH` | 自定义二进制安装目录（默认 `~/.local/bin`） | `bash -s -- --bin-dir /usr/local/bin` |
+
+Sources: [scripts/install.sh](https://github.com/l1veIn/dora-manager/blob/main/scripts/install.sh#L30-L42)
+
+> **首次安装后**：如果 `~/.local/bin` 不在你的 `PATH` 中，脚本会提示你将 `export PATH="$PATH:$HOME/.local/bin"` 添加到 shell 配置文件（`~/.bashrc`、`~/.zshrc` 等），然后 `source` 生效。
+
+Sources: [scripts/install.sh](https://github.com/l1veIn/dora-manager/blob/main/scripts/install.sh#L215-L228)
+
+### 方式 B：从源码构建（开发者）
+
+如果你计划参与开发或需要定制构建，请先确认环境满足以下要求：
+
+| 依赖 | 最低版本 | 用途 |
+|------|---------|------|
+| **Rust** | stable | 编译三个 Rust crate（`dm-core`、`dm-cli`、`dm-server`） |
+| **Node.js** | 20+ | 编译 SvelteKit 前端面板 |
+| **npm** | 随 Node.js | 前端依赖管理 |
+| **Python** | 3.10+ | 部分节点的虚拟环境构建 |
+| **uv**（推荐） | 任意 | 加速 Python 虚拟环境创建 |
+
+项目通过 `rust-toolchain.toml` 固定使用 Rust stable 通道，并自动启用 `clippy` 和 `rustfmt` 组件。
+
+Sources: [rust-toolchain.toml](https://github.com/l1veIn/dora-manager/blob/main/rust-toolchain.toml), [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.toml)
+
+**关键：构建顺序不可颠倒**。Dora Manager 采用前后端静态嵌入策略——SvelteKit 前端通过 `adapter-static` 编译为纯静态资源，再由 `rust_embed` 宏在 Rust 编译期整体嵌入 `dm-server` 二进制。你必须 **先编译前端、再编译后端**：
 
 ```bash
-# 安装完成后的快速验证
-dm doctor                         # 检查环境
-dm-server                         # 启动 Web UI (port 3210)
-dm start demos/demo-hello-timer.yml  # 运行 demo
-```
+# 1. 克隆仓库
+git clone https://github.com/l1veIn/dora-manager.git
+cd dora-manager
 
----
-
-## 从源码构建（开发者）
-
-如果你需要修改代码或参与开发，请按以下步骤从源码构建。
-
-| 依赖 | 最低版本 | 用途 | 安装方式 |
-|------|---------|------|---------|
-| **Rust** | stable | 编译 `dm-core`、`dm-cli`、`dm-server` | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| **Node.js** | 20+ | 编译 SvelteKit 前端面板 | [nodejs.org](https://nodejs.org) 或 `brew install node@20` |
-| **npm** | 随 Node.js 安装 | 前端依赖管理 | 自动包含 |
-| **Python** | 3.10+ | 节点虚拟环境与 `pip install -e .` 构建 | `brew install python@3.11` 或系统包管理器 |
-| **uv**（推荐） | 任意 | 加速 Python 虚拟环境创建 | `pip install uv` |
-
-项目通过 `rust-toolchain.toml` 固定 Rust 工具链为 stable 通道并启用 `clippy` 和 `rustfmt` 组件。CI 流水线已在 macOS（aarch64）和 Linux（x86_64）平台上验证通过，Windows 暂未官方支持。
-
-Sources: [rust-toolchain.toml](https://github.com/l1veIn/dora-manager/blob/master/rust-toolchain.toml), [.github/workflows/ci.yml](https://github.com/l1veIn/dora-manager/blob/master/.github/workflows/ci.yml#L13-L28), [crates/dm-core/src/env.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/env.rs#L1-L76)
-
-## 整体构建流程总览
-
-Dora Manager 采用 **前后端静态嵌入** 的分发策略——SvelteKit 前端通过 `adapter-static` 编译为纯静态资源，再由 `rust_embed` 在编译期嵌入 Rust 二进制。这意味着你必须 **先编译前端、再编译后端**，顺序不可颠倒。
-
-```mermaid
-flowchart LR
-    A["npm install"] --> B["npm run build"]
-    B --> C["web/build/ 静态资源"]
-    C --> D["cargo build --release"]
-    D --> E["dm-cli 二进制"]
-    D --> F["dm-server 二进制\n（含嵌入前端）"]
-
-    style C fill:#fef3c7,stroke:#d97706
-    style F fill:#dcfce7,stroke:#16a34a
-```
-
-构建产出的两个二进制各有分工：`dm` 是命令行工具，负责环境管理、节点安装和数据流启动；`dm-server` 是 Axum HTTP 服务，内嵌 Web 面板并提供 RESTful API，默认监听 `3210` 端口。
-
-Sources: [web/svelte.config.js](https://github.com/l1veIn/dora-manager/blob/master/web/svelte.config.js#L1-L15), [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-server/src/main.rs#L20-L22), [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/master/Cargo.toml)
-
-## 第一步：编译项目
-
-### 1.1 编译前端面板
-
-```bash
+# 2. 编译前端（输出到 web/build/）
 cd web
-npm install        # 安装 SvelteKit 及所有依赖
-npm run build      # 输出静态资源到 web/build/
+npm install
+npm run build
 cd ..
-```
 
-`npm run build` 执行的是 `vite build`，配合 `@sveltejs/adapter-static` 将 SvelteKit 应用编译为纯 HTML/JS/CSS 文件，输出到 `web/build/` 目录。这些文件随后将被 `rust_embed` 宏在 Rust 编译期整体嵌入到 `dm-server` 二进制中。
-
-Sources: [web/package.json](https://github.com/l1veIn/dora-manager/blob/master/web/package.json#L7-L9), [web/svelte.config.js](https://github.com/l1veIn/dora-manager/blob/master/web/svelte.config.js#L1-L15)
-
-### 1.2 编译 Rust 后端
-
-```bash
+# 3. 编译后端（会自动嵌入 web/build/ 中的前端资源）
 cargo build --release
-```
 
-该命令编译工作区中的三个 crate：`dm-core`（核心库）、`dm-cli`（CLI 二进制 `dm`）和 `dm-server`（HTTP 服务二进制）。Release 模式启用了 LTO、单 codegen-unit 和 strip，生成体积更小、性能更优的二进制。编译产物位于 `target/release/` 目录下。
-
-Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/master/Cargo.toml), [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-server/src/main.rs#L78-L243)
-
-### 1.3 一键开发模式（可选）
-
-如果你希望前后端同时运行并支持热更新，可以使用项目自带的开发脚本：
-
-```bash
-./dev.sh
-```
-
-`dev.sh` 会自动执行以下操作：检查 Rust 和 Node.js 是否已安装 → 编译前端 → 启动 `dm-server`（Rust 后端，端口 3210）→ 启动 SvelteKit 开发服务器（HMR 热更新）。按 `Ctrl+C` 可同时停止两个进程。
-
-Sources: [dev.sh](https://github.com/l1veIn/dora-manager/blob/master/dev.sh)
-
-## 第二步：初始化环境
-
-编译完成后，首次使用前需要完成环境初始化——安装 dora-rs 运行时并验证依赖完整性。
-
-### 2.1 一键安装（推荐）
-
-```bash
+# 4. 初始化 dora-rs 运行时
 ./target/release/dm setup
 ```
 
-`dm setup` 是一站式引导命令，会依次完成：检查 Python → 安装 uv（如缺失） → 下载并安装最新版 dora-rs CLI。安装完成后，dora 二进制存放在 `~/.dm/versions/<版本号>/dora`，当前激活版本记录在 `~/.dm/config.toml` 中。
+编译成功后，`target/release/` 目录下会出现两个二进制文件：`dm`（命令行工具）和 `dm-server`（内嵌 Web 面板的 HTTP 服务）。
 
-Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-cli/src/main.rs#L260-L302), [crates/dm-core/src/api/setup.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/api/setup.rs#L1-L55)
+Sources: [README.md](https://github.com/l1veIn/dora-manager/blob/main/README.md), [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.toml)
 
-### 2.2 分步安装
+---
 
-如果你更偏好手动控制每一步：
+## 第二步：启动服务
 
-```bash
-# 下载并安装最新版 dora-rs（含进度条）
-./target/release/dm install
+安装完成后，你需要启动 **dm-server**——一个基于 Axum 框架的 HTTP 服务，它内嵌了完整的 Web 可视化管理面板。根据你的安装方式，启动命令略有不同：
 
-# 诊断环境健康状态
-./target/release/dm doctor
+| 安装方式 | 启动命令 | 说明 |
+|---------|---------|------|
+| 方式 A（预编译） | `dm-server` | 二进制已安装在 `~/.local/bin` |
+| 方式 B（源码构建） | `./target/release/dm-server` | 二进制在仓库 `target/release/` |
+| 开发模式（源码） | `./dev.sh` | 同时启动后端 + 前端 HMR 热更新 |
 
-# 切换到特定版本（可选）
-./target/release/dm use 0.4.1
+启动成功后，终端将输出：
+
+```
+🚀 dm-server listening on http://127.0.0.1:3210
 ```
 
-`dm doctor` 会逐项检查 Python、uv、Rust 的可用性，并列出已安装的 dora 版本及其激活状态。如果所有检查通过，输出末尾会显示 `all_ok: true`。
+此时在浏览器中访问 **[http://127.0.0.1:3210](http://127.0.0.1:3210)** 即可进入可视化管理面板。如果你使用的是源码开发模式（`./dev.sh`），前端开发服务器会同时运行并提供 HMR 热更新，修改前端代码后浏览器自动刷新。
 
-Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-cli/src/main.rs#L182-L205), [crates/dm-core/src/api/doctor.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/api/doctor.rs#L1-L62)
+Sources: [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L227-L243), [dev.sh](https://github.com/l1veIn/dora-manager/blob/main/dev.sh)
 
-## 第三步：启动服务与运行时
+> **关于 `./dev.sh`**：该脚本会依次执行——检查 Rust 和 Node.js 是否已安装 → 安装前端依赖（首次）→ 启动 `cargo run -p dm-server`（后端，端口 3210）→ 启动 `npm run dev`（前端 HMR 开发服务器）。按 `Ctrl+C` 可同时优雅停止两个进程。
 
-### 3.1 启动 HTTP 服务
+Sources: [dev.sh](https://github.com/l1veIn/dora-manager/blob/main/dev.sh)
 
-```bash
-./target/release/dm-server
-```
+---
 
-启动后终端输出 `🚀 dm-server listening on http://127.0.0.1:3210`，此时在浏览器中访问 [http://127.0.0.1:3210](http://127.0.0.1:3210) 即可进入可视化管理面板。服务内嵌了 Swagger UI，可通过 [http://127.0.0.1:3210/swagger-ui](http://127.0.0.1:3210/swagger-ui) 查看完整的 API 文档。
+## 第三步：运行第一个数据流
 
-Sources: [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-server/src/main.rs#L227-L243)
+服务启动后，你已经 80% 的准备工作完成了。现在让我们用一个 **零依赖内置 demo** 来验证一切正常。
 
-### 3.2 启动 dora 运行时
-
-数据流执行依赖 dora-rs 的 coordinator + daemon 进程：
+### 运行 Hello Timer Demo
 
 ```bash
-./target/release/dm up
-```
-
-也可以通过 HTTP API 触发：
-
-```bash
-curl -X POST http://127.0.0.1:3210/api/up
-```
-
-> **注意**：使用 `dm start` 启动数据流时，系统会自动检测运行时状态；若未运行则自动执行 `up`，因此这一步可以省略。
-
-Sources: [crates/dm-core/src/api/runtime.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/api/runtime.rs#L132-L194), [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-server/src/main.rs#L108-L109)
-
-## 新的启动方式（零依赖）
-
-Dora Manager 现在支持更便捷的数据流启动方式，无需手动安装节点。
-
-### 一键启动示例数据流
-
-项目内置了示例数据流，可以直接启动：
-
-```bash
+# 预编译安装
 dm start demos/demo-hello-timer.yml
+
+# 或源码构建
+./target/release/dm start demos/demo-hello-timer.yml
 ```
 
-该命令会自动处理所有依赖，包括自动安装缺失的节点。
-
-### 从 URL 启动数据流
-
-你也可以直接从 URL 启动数据流：
-
-```bash
-dm start https://example.com/dataflow.yml
-```
-
-系统会自动下载 YAML 文件并启动数据流。
-
-### 节点自动安装行为
-
-当启动数据流时，如果发现有节点未安装，系统会自动尝试安装这些节点。这意味着你无需手动运行 `dm node install` 命令，`dm start` 会处理所有依赖。
-
-自动安装流程：
-1. 解析数据流 YAML，识别所有引用的节点
-2. 检查节点是否已安装在 `~/.dm/nodes/` 目录下
-3. 如果未安装，根据节点的 `source` 信息自动安装
-4. 安装完成后继续启动数据流
-
-## 第四步：运行第一个数据流
-
-现在一切就绪，让我们创建并运行一个最简单的交互式数据流——用户输入文本，经过回显后显示在面板上。
-
-### 4.1 创建数据流 YAML
-
-在项目根目录创建 `my-first-flow.yml` 文件：
-
-```yaml
-nodes:
-  - id: prompt
-    node: dm-text-input
-    outputs:
-      - value
-    config:
-      label: "输入提示词"
-      placeholder: "在这里输入文字..."
-      multiline: true
-
-  - id: echo
-    node: dora-echo
-    inputs:
-      value: prompt/value
-    outputs:
-      - value
-
-  - id: display
-    node: dm-display
-    inputs:
-      data: echo/value
-    config:
-      label: "回显输出"
-      render: text
-```
-
-这个数据流定义了三个节点实例的拓扑连接。理解这个 YAML 的关键在于区分 **节点引用**（`node:` 字段）和 **节点实例 ID**（`id:` 字段）：`node: dm-text-input` 引用已安装的节点类型，`id: prompt` 是本数据流中该实例的唯一标识。连线通过 `inputs` 中 `实例ID/端口名` 的格式声明——`value: prompt/value` 表示 `echo` 实例的 `value` 输入端口连接到 `prompt` 实例的 `value` 输出端口。
+这个数据流是 Dora Manager 最简开箱即用示例，它只使用内置节点，**无需安装任何额外依赖**。数据流拓扑非常简洁：
 
 ```mermaid
 flowchart LR
-    A["prompt<br/><small>dm-text-input</small>"] -->|"value"| B["echo<br/><small>dora-echo</small>"]
-    B -->|"value"| C["display<br/><small>dm-display</small>"]
-    
-    style A fill:#dbeafe,stroke:#2563eb
-    style B fill:#fef3c7,stroke:#d97706
-    style C fill:#dcfce7,stroke:#16a34a
+    T["dora/timer<br/><small>每 1000ms</small>"] -->|"tick"| E["echo<br/><small>dora-echo</small>"]
+    E -->|"value"| D["display<br/><small>dm-display</small>"]
+
+    style T fill:#f3f4f6,stroke:#6b7280
+    style E fill:#fef3c7,stroke:#d97706
+    style D fill:#dcfce7,stroke:#16a34a
 ```
 
-Sources: [tests/dataflows/interaction-demo.yml](https://github.com/l1veIn/dora-manager/blob/master/tests/dataflows/interaction-demo.yml#L1-L25)
+**发生了什么？** Timer 虚拟节点每秒发送一个心跳事件 → `dora-echo` 节点接收并原样转发 → `dm-display` 节点将文本推送到 Web UI 的面板区域。如果你在浏览器中打开对应运行实例的页面，右侧面板将每秒刷新一条消息。
 
-### 4.2 理解 `dm start` 的执行管线
+Sources: [demos/demo-hello-timer.yml](demos/demo-hello-timer.yml#L1-L39)
 
-当你执行 `dm start my-first-flow.yml` 时，系统会经历以下完整管线：
-
-```mermaid
-flowchart TD
-    A["dm start my-first-flow.yml"] --> B{"运行时<br/>是否启动？"}
-    B -- 否 --> C["自动执行 dm up"]
-    B -- 是 --> D["读取 YAML 文件"]
-    C --> D
-    D --> E["inspect:<br/>检查节点是否已安装"]
-    E --> F{"所有节点<br/>已就绪？"}
-    F -- 否 --> G["❌ 报错：列出缺失节点"]
-    F -- 是 --> H["Transpile 管线"]
-    
-    H --> H1["① parse<br/>YAML → DmGraph IR"]
-    H1 --> H2["② validate_reserved<br/>保留 ID 冲突检查"]
-    H2 --> H3["③ resolve_paths<br/>node: → 绝对 path:"]
-    H3 --> H4["④ validate_port_schemas<br/>端口类型兼容校验"]
-    H4 --> H5["⑤ merge_config<br/>四层配置合并 → env:"]
-    H5 --> H6["⑥ inject_runtime_env<br/>注入运行时环境变量"]
-    H6 --> H7["⑦ emit<br/>生成标准 dora YAML"]
-    
-    H7 --> I["创建 Run 实例"]
-    I --> J["保存快照与转译结果"]
-    J --> K["调用 dora start<br/>启动数据流"]
-    K --> L["✅ 返回 Run ID"]
-```
-
-**转译器（Transpiler）** 是 `dm` 的核心组件，它将用户友好的扩展 YAML 翻译为 dora-rs 原生可执行的标准格式。其中最关键的两步是：**路径解析**（将 `node: dm-text-input` 解析为节点目录下 `.venv/bin/dm-text-input` 的绝对路径）和 **配置合并**（将 inline config、flow config、node config、schema default 四层合并后注入为环境变量）。
-
-Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-cli/src/main.rs#L353-L384), [crates/dm-core/src/dataflow/transpile/mod.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/dataflow/transpile/mod.rs#L1-L82), [crates/dm-core/src/runs/service_start.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/runs/service_start.rs#L72-L146)
-
-### 4.3 启动数据流
-
-使用 CLI 启动：
-
-```bash
-./target/release/dm start my-first-flow.yml
-```
-
-或通过 HTTP API 启动：
-
-```bash
-curl -X POST http://127.0.0.1:3210/api/dataflow/start \
-  -H 'Content-Type: application/json' \
-  -d '{"name": "my-first-flow"}'
-```
-
-启动成功后，CLI 输出类似：
+CLI 输出类似：
 
 ```
 🚀 Starting dataflow...
 ✅ Run created: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-  Dora UUID: 12345678-abcd-ef00-1234-567890abcdef
-  Dora runtime started dataflow successfully.
+  → Running in background. Stop with: dm runs stop a1b2c3d4-e5f6-7890-abcd-ef1234567890
+  → View in browser: http://127.0.0.1:3210
 ```
 
-此时访问浏览器面板，你可以看到数据流处于 **Running** 状态，`prompt` 节点渲染出一个文本输入框。输入任意文字并提交后，数据将流经 `echo` 节点回显，最终在 `display` 节点的面板区域显示出来。
+> **注意**：`dm start` 会自动检测 dora 运行时是否已启动；若未运行则自动执行 `dm up`，因此你无需手动启动运行时。
 
-Sources: [crates/dm-core/src/runs/service_start.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/runs/service_start.rs#L176-L181)
+Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L353-L384)
 
-### 4.4 管理运行中的数据流
+### `dm start` 背后发生了什么
+
+当你执行 `dm start` 时，系统会经历一条完整的处理管线。你不必记住每个步骤，但了解其存在有助于后续排查问题：
+
+```mermaid
+flowchart TD
+    A["dm start file.yml"] --> B{"dora 运行时<br/>已启动？"}
+    B -- 否 --> C["自动执行 dm up"]
+    B -- 是 --> D["读取并解析 YAML"]
+    C --> D
+    D --> E["检查引用节点是否已安装"]
+    E --> F{"节点缺失？"}
+    F -- 是 --> G["❌ 报错并列出缺失节点"]
+    F -- 否 --> H["转译管线 (Transpiler)"]
+    H --> H1["将 node: 解析为绝对路径"]
+    H1 --> H2["四层配置合并 → 环境变量注入"]
+    H2 --> H3["端口 Schema 兼容性校验"]
+    H3 --> H4["生成标准 dora-rs YAML"]
+    H4 --> I["创建 Run 实例并记录快照"]
+    I --> J["调用 dora start 启动数据流"]
+    J --> K["✅ 返回 Run ID"]
+
+    style G fill:#fef2f2,stroke:#ef4444
+    style K fill:#dcfce7,stroke:#16a34a
+```
+
+**转译器**（Transpiler）是 `dm` 的核心差异点——它将用户友好的扩展 YAML（使用 `node:` 引用节点而非硬编码路径）翻译为 dora-rs 原生可执行的标准格式，过程包括路径解析、配置合并和环境变量注入。
+
+Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L353-L384)
+
+---
+
+## 第四步：在 Web 面板中交互
+
+启动数据流后，打开 [http://127.0.0.1:3210](http://127.0.0.1:3210)，你会看到当前运行实例的页面。对于 Hello Timer demo：
+
+1. 页面上会显示运行实例的 **状态**（Running）、**Run ID** 和启动时间
+2. `display` 节点对应的区域会 **每秒刷新** 显示收到的消息
+3. 你可以实时观察数据在节点间的流转过程
+
+这就是 Dora Manager 的核心体验——**数据流不再是命令行里的黑盒**，而是可视化、可交互、可实时调试的运行时实体。
+
+---
+
+## 更多内置 Demo
+
+项目内置了多个零依赖 demo，可以直接运行体验不同的功能维度：
+
+| Demo | 命令 | 展示内容 |
+|------|------|---------|
+| **Hello Timer** | `dm start demos/demo-hello-timer.yml` | 最简计时器，验证引擎与 UI 连通 |
+| **Interactive Widgets** | `dm start demos/demo-interactive-widgets.yml` | 滑块、按钮、文本输入、开关四种交互控件 |
+| **Logic Gate** | `dm start demos/demo-logic-gate.yml` | AND 门控 + 条件流控，理解逻辑节点组合 |
+
+Sources: [demos/demo-hello-timer.yml](demos/demo-hello-timer.yml#L1-L39), [demos/demo-interactive-widgets.yml](demos/demo-interactive-widgets.yml#L1-L129), [demos/demo-logic-gate.yml](demos/demo-logic-gate.yml#L1-L120)
+
+此外，`demos/` 目录下还有一个需要额外安装节点的进阶 demo：
+
+```bash
+# 机器人目标检测（需要安装 opencv-video-capture 和 dora-yolo）
+dm node install opencv-video-capture
+dm node install dora-yolo
+dm start demos/robotics-object-detection.yml
+```
+
+这个 demo 展示了完整的「摄像头采集 → YOLOv8 推理 → 标注图像展示」流程，还包含一个实时调节检测置信度阈值的滑块控件。
+
+Sources: [demos/robotics-object-detection.yml](demos/robotics-object-detection.yml#L1-L76), [README.md](https://github.com/l1veIn/dora-manager/blob/main/README.md)
+
+---
+
+## 常用命令速查
+
+安装并启动服务后，以下是你最常使用的命令：
 
 | 操作 | CLI 命令 | HTTP API |
 |------|---------|----------|
+| 环境诊断 | `dm doctor` | `GET /api/doctor` |
+| 查看已安装 dora 版本 | `dm versions` | `GET /api/versions` |
+| 启动 dora 运行时 | `dm up` | `POST /api/up` |
+| 启动数据流 | `dm start <file.yml>` | `POST /api/dataflow/start` |
 | 查看所有运行 | `dm runs` | `GET /api/runs` |
 | 查看运行日志 | `dm runs logs <run_id>` | `GET /api/runs/{id}/logs/{node_id}` |
 | 停止运行 | `dm runs stop <run_id>` | `POST /api/runs/{id}/stop` |
 | 停止运行时 | `dm down` | `POST /api/down` |
-| 强制重启 | `dm start file.yml --force` | — |
+| 列出已安装节点 | `dm node list` | `GET /api/nodes` |
+| 安装节点 | `dm node install <node-id>` | `POST /api/nodes/install` |
 
-Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-cli/src/main.rs#L109-L137), [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-server/src/main.rs#L170-L192)
+Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L51-L152), [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L108-L192)
 
-## 配置体系速览
+HTTP API 默认监听 **3210 端口**，服务还内嵌了 Swagger UI，可通过 [http://127.0.0.1:3210/swagger-ui](http://127.0.0.1:3210/swagger-ui) 浏览完整的 API 文档并在线调试。
 
-`dm` 的所有持久化状态存放在 **DM_HOME** 目录中，默认路径为 `~/.dm`，可通过 `--home` 参数或 `DM_HOME` 环境变量覆盖。
+Sources: [crates/dm-server/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L224-L225)
+
+---
+
+## 配置与存储：DM_HOME 目录
+
+`dm` 的所有持久化状态存放在 **DM_HOME** 目录中，默认路径为 `~/.dm`，可通过 `--home` 参数或 `DM_HOME` 环境变量覆盖。了解这个目录结构有助于你在需要时手动排查问题：
 
 ```
 ~/.dm/
@@ -328,38 +275,45 @@ Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob
 │   └── 0.4.1/
 │       └── dora         # dora-rs CLI 二进制
 ├── nodes/               # 已安装的节点包
-│   └── &lt;node-id&gt;/
+│   └── <node-id>/
 │       ├── dm.json      # 节点契约文件
 │       ├── .venv/       # Python 虚拟环境（Python 节点）
-│       └── ...          # 节点源码与资源
+│       └── ...
 ├── dataflows/           # 已导入的数据流项目
-└── runs/                # 运行历史
+└── runs/                # 运行历史记录
     └── <run-id>/
         ├── run.json     # 运行实例元数据
         ├── snapshot.yml # 原始 YAML 快照
         └── transpiled.yml # 转译后的标准 YAML
 ```
 
-节点发现顺序为：`~/.dm/nodes` → 仓库内置 `nodes/` 目录 → `DM_NODE_DIRS` 环境变量指定的额外路径。`~/.dm/nodes` 中的同名节点会覆盖内置节点。
+节点发现顺序为：`~/.dm/nodes` → 仓库内置 `nodes/` 目录 → `DM_NODE_DIRS` 环境变量指定的额外路径。
 
-Sources: [crates/dm-core/src/config.rs](https://github.com/l1veIn/dora-manager/blob/master/crates/dm-core/src/config.rs#L105-L167), [nodes/README.md](https://github.com/l1veIn/dora-manager/blob/master/nodes/README.md#L1-L12)
+Sources: [crates/dm-core/src/config.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/config.rs#L135-L167)
+
+---
 
 ## 常见问题排查
 
 | 症状 | 可能原因 | 解决方案 |
 |------|---------|---------|
-| `cargo build` 报 `rust_embed` 错误 | 前端未编译 | 先执行 `cd web && npm run build` |
-| `dm start` 报 "missing nodes" | 节点未安装 | 执行 `dm node install &lt;node-id&gt;` |
-| `dm doctor` 显示 `all_ok: false` | dora 未安装 | 执行 `dm install` 或 `dm setup` |
-| 浏览器访问 3210 无响应 | dm-server 未启动 | 执行 `./target/release/dm-server` |
-| 节点启动后立即退出 | Python 虚拟环境缺失 | 执行 `dm node install &lt;node-id&gt;` 重建 `.venv` |
-| `dm up` 超时 | 端口冲突或权限问题 | 检查是否有残留 dora 进程，`pkill dora` 后重试 |
+| `cargo build` 报 `rust_embed` 错误 | 前端未编译 | 先执行 `cd web && npm install && npm run build` |
+| `dm start` 报 "missing nodes" | 节点未安装 | 执行 `dm node install <node-id>` 安装缺失节点 |
+| `dm doctor` 显示 `all_ok: false` | dora 运行时未安装 | 执行 `dm install` 或 `dm setup` |
+| 浏览器访问 3210 无响应 | dm-server 未启动 | 执行 `dm-server` 或 `./target/release/dm-server` |
+| 节点启动后立即退出 | Python 虚拟环境缺失 | 执行 `dm node install <node-id>` 重建 `.venv` |
+| `dm up` 超时 | 端口冲突或权限问题 | `pkill dora` 清除残留进程后重试 |
+| `dm-server` 命令找不到 | PATH 未配置 | 确认 `~/.local/bin` 在 PATH 中 |
+
+Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L260-L302), [simulate_clean_install.sh](https://github.com/l1veIn/dora-manager/blob/main/simulate_clean_install.sh)
+
+---
 
 ## 下一步
 
-恭喜你完成了第一个数据流的构建与运行！以下是根据你的兴趣方向推荐的进阶阅读路径：
+恭喜你完成了从安装到运行第一个数据流的完整流程！以下是根据你的兴趣方向推荐的进阶阅读路径：
 
-- 深入理解节点契约与端口系统 → [节点（Node）：dm.json 契约与可执行单元](04-node-concept)
-- 掌握 YAML 拓扑的完整语法 → [数据流（Dataflow）：YAML 拓扑与节点连接](05-dataflow-concept)
-- 了解 Run 的生命周期与状态追踪 → [运行实例（Run）：生命周期、状态与指标追踪](06-run-lifecycle)
-- 配置开发热更新环境 → [开发环境搭建与热更新工作流](03-dev-environment)
+- **深入理解节点是什么** → [节点（Node）：dm.json 契约与可执行单元](4-jie-dian-node-dm-json-qi-yue-yu-ke-zhi-xing-dan-yuan)
+- **掌握 YAML 拓扑的完整语法** → [数据流（Dataflow）：YAML 拓扑定义与节点连接](5-shu-ju-liu-dataflow-yaml-tuo-bu-ding-yi-yu-jie-dian-lian-jie)
+- **了解 Run 的生命周期追踪** → [运行实例（Run）：生命周期状态机与指标追踪](6-yun-xing-shi-li-run-sheng-ming-zhou-qi-zhuang-tai-ji-yu-zhi-biao-zhui-zong)
+- **配置开发热更新环境** → [开发环境搭建：从源码构建与热更新工作流](3-kai-fa-huan-jing-da-jian-cong-yuan-ma-gou-jian-yu-re-geng-xin-gong-zuo-liu)

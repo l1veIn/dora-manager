@@ -124,9 +124,15 @@ pub fn refresh_run_statuses(home: &Path) -> Result<Vec<RunInstance>> {
     let mut runs = repo::list_run_instances(home)?;
     let backend = runtime::default_backend();
     refresh_run_statuses_with_backend(home, &mut runs, &backend)?;
+    reconcile_stale_running_runs_if_runtime_down(home, &mut runs)?;
 
     runs.sort_by(|a, b| b.started_at.cmp(&a.started_at));
     Ok(runs)
+}
+
+pub fn reconcile_stale_running_runs(home: &Path) -> Result<usize> {
+    let mut runs = repo::list_run_instances(home)?;
+    reconcile_stale_running_runs_in_memory(home, &mut runs)
 }
 
 pub(super) fn refresh_run_statuses_with_backend<B: RuntimeBackend>(
@@ -295,4 +301,53 @@ pub fn sync_run_outputs(home: &Path, run: &mut RunInstance) -> Result<()> {
     run.log_sync.last_synced_at = Some(Utc::now().to_rfc3339());
 
     Ok(())
+}
+
+fn reconcile_stale_running_runs_if_runtime_down(
+    home: &Path,
+    runs: &mut [RunInstance],
+) -> Result<()> {
+    if !runs.iter().any(|run| run.status.is_running()) {
+        return Ok(());
+    }
+
+    match crate::dora::check_runtime_blocking(home, false) {
+        Ok((false, _)) => {
+            reconcile_stale_running_runs_in_memory(home, runs)?;
+        }
+        Ok((true, _)) | Err(_) => {}
+    }
+
+    Ok(())
+}
+
+fn reconcile_stale_running_runs_in_memory(home: &Path, runs: &mut [RunInstance]) -> Result<usize> {
+    let now = Utc::now().to_rfc3339();
+    let mut updated = 0usize;
+
+    for run in runs {
+        if !run.status.is_running() {
+            continue;
+        }
+
+        sync_run_outputs(home, run)?;
+        apply_terminal_state(
+            run,
+            TerminalStateUpdate {
+                status: RunStatus::Stopped,
+                termination_reason: Some(TerminationReason::RuntimeLost),
+                exit_code: run.exit_code.or(Some(0)),
+                failure_reason: Some("runtime_lost".to_string()),
+                failure_node: None,
+                failure_message: Some("Dora runtime no longer reports this dataflow".to_string()),
+                observed_at: Some(now.clone()),
+            },
+        );
+        run.stop_request.requested_at = None;
+        run.stop_request.last_error = None;
+        repo::save_run(home, run)?;
+        updated += 1;
+    }
+
+    Ok(updated)
 }

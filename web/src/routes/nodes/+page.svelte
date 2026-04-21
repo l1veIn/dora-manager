@@ -25,6 +25,9 @@
     let originFilter = $state<"all" | "builtin" | "git" | "local">("all");
     let currentPage = $state(1);
     const pageSize = 18;
+    const catalogStateKey = "dm:nodes:catalog-state";
+    let restoredCatalogState = $state(false);
+    let lastFilterSignature = $state("");
 
     let operations = $state<
         Record<string, "downloading" | "installing" | "uninstalling">
@@ -83,14 +86,80 @@
     }
 
     onMount(() => {
+        try {
+            const raw = localStorage.getItem(catalogStateKey);
+            if (raw) {
+                const saved = JSON.parse(raw);
+                searchQuery =
+                    typeof saved.searchQuery === "string" ? saved.searchQuery : "";
+                statusFilter =
+                    saved.statusFilter === "installed" ||
+                    saved.statusFilter === "needs_install"
+                        ? saved.statusFilter
+                        : "all";
+                originFilter =
+                    saved.originFilter === "builtin" ||
+                    saved.originFilter === "git" ||
+                    saved.originFilter === "local"
+                        ? saved.originFilter
+                        : "all";
+                currentPage =
+                    typeof saved.currentPage === "number" && saved.currentPage > 0
+                        ? Math.floor(saved.currentPage)
+                        : 1;
+            }
+        } catch (e) {
+            console.warn("Failed to restore node catalog state", e);
+        } finally {
+            restoredCatalogState = true;
+        }
         fetchInstalled();
     });
 
     $effect(() => {
-        searchQuery;
-        statusFilter;
-        originFilter;
-        currentPage = 1;
+        const signature = JSON.stringify({
+            searchQuery,
+            statusFilter,
+            originFilter,
+        });
+
+        if (!restoredCatalogState) {
+            return;
+        }
+
+        if (!lastFilterSignature) {
+            lastFilterSignature = signature;
+            return;
+        }
+
+        if (lastFilterSignature !== signature) {
+            currentPage = 1;
+            lastFilterSignature = signature;
+        }
+    });
+
+    $effect(() => {
+        pageCount;
+        if (currentPage > pageCount) {
+            currentPage = pageCount;
+        }
+    });
+
+    $effect(() => {
+        if (!restoredCatalogState) return;
+        try {
+            localStorage.setItem(
+                catalogStateKey,
+                JSON.stringify({
+                    searchQuery,
+                    statusFilter,
+                    originFilter,
+                    currentPage,
+                }),
+            );
+        } catch (e) {
+            console.warn("Failed to persist node catalog state", e);
+        }
     });
 
     let filteredInstalled = $derived(

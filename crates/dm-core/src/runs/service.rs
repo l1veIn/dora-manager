@@ -25,7 +25,8 @@ pub use self::service_query::{
     read_run_log_chunk, read_run_transpiled, read_run_view,
 };
 pub use self::service_runtime::{
-    mark_stop_requested, refresh_run_statuses, stop_run, sync_run_outputs,
+    mark_stop_requested, reconcile_stale_running_runs, refresh_run_statuses, stop_run,
+    sync_run_outputs,
 };
 pub use self::service_start::{
     start_run_from_file, start_run_from_file_with_source_and_strategy,

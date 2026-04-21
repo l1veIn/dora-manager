@@ -51,12 +51,15 @@ pub async fn status(home: &Path, verbose: bool) -> Result<StatusReport> {
     };
 
     let runs = crate::runs::refresh_run_statuses(home).unwrap_or_default();
-    let active_runs = runs
-        .iter()
-        .filter(|run| run.status.is_running())
-        .cloned()
-        .map(to_status_run_entry)
-        .collect();
+    let active_runs = if runtime_running {
+        runs.iter()
+            .filter(|run| run.status.is_running())
+            .cloned()
+            .map(to_status_run_entry)
+            .collect()
+    } else {
+        Vec::new()
+    };
     let recent_runs = runs
         .iter()
         .filter(|run| !run.status.is_running())
@@ -199,9 +202,31 @@ pub async fn down(home: &Path, verbose: bool) -> Result<RuntimeResult> {
     op.emit_start();
 
     let result = async {
+        if !is_runtime_running(home, verbose).await {
+            crate::runs::reconcile_stale_running_runs(home)?;
+            return Ok(RuntimeResult {
+                success: true,
+                message: "Dora runtime is already stopped; reconciled local run state.".to_string(),
+            });
+        }
+
         let (code, stdout, stderr) =
             dora::run_dora(home, &["destroy".to_string()], verbose).await?;
         if code != 0 {
+            if !is_runtime_running(home, verbose).await {
+                crate::runs::reconcile_stale_running_runs(home)?;
+                return Ok(RuntimeResult {
+                    success: true,
+                    message: if stderr.trim().is_empty() {
+                        "Dora runtime is already stopped; reconciled local run state.".to_string()
+                    } else {
+                        format!(
+                            "Dora runtime is already stopped; reconciled local run state. {}",
+                            stderr.trim()
+                        )
+                    },
+                });
+            }
             return Ok(RuntimeResult {
                 success: false,
                 message: stderr.trim().to_string(),
@@ -211,6 +236,7 @@ pub async fn down(home: &Path, verbose: bool) -> Result<RuntimeResult> {
         for i in 0..3 {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             if !is_runtime_running(home, verbose).await {
+                crate::runs::reconcile_stale_running_runs(home)?;
                 return Ok(RuntimeResult {
                     success: true,
                     message: stdout.trim().to_string(),
@@ -277,4 +303,112 @@ pub async fn passthrough(home: &Path, args: &[String], verbose: bool) -> Result<
     let result = dora::exec_dora(home, args, verbose).await;
     op.emit_result(&result);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config;
+    use crate::runs::{
+        create_layout, load_run, save_run, RunInstance, RunOutcome, RunStatus, TerminationReason,
+    };
+    use tempfile::TempDir;
+
+    fn setup_stale_runtime_home() -> TempDir {
+        let tmp = TempDir::new().unwrap();
+        let home = tmp.path().to_path_buf();
+        let version = "0.4.1";
+        let version_dir = config::versions_dir(&home).join(version);
+        std::fs::create_dir_all(&version_dir).unwrap();
+
+        let active_run_id = "019cc181-adad-7654-aa78-63502362337b";
+        let active_file = home.join("active_dataflow_id");
+        std::fs::write(&active_file, active_run_id).unwrap();
+
+        let bin = version_dir.join(config::dora_bin_name());
+        std::fs::write(
+            &bin,
+            format!(
+                r#"#!/bin/sh
+cmd="$1"
+case "$cmd" in
+  --version)
+    echo "dora-cli 0.4.1"
+    ;;
+  check)
+    echo "Runtime unavailable" >&2
+    exit 1
+    ;;
+  list)
+    if [ -f "{active_file}" ]; then
+      echo "UUID Name Status Nodes CPU Memory"
+      printf "%s test-flow Running 1 0.0%% 0.0\\ GB\\n" "$(cat "{active_file}")"
+    fi
+    ;;
+  destroy)
+    echo "cannot connect to coordinator" >&2
+    exit 1
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+"#,
+                active_file = active_file.display(),
+            ),
+        )
+        .unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&bin, perms).unwrap();
+        }
+
+        config::save_config(
+            &home,
+            &config::DmConfig {
+                active_version: Some(version.to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        create_layout(&home, "run-1").unwrap();
+        save_run(
+            &home,
+            &RunInstance {
+                run_id: "run-1".to_string(),
+                dora_uuid: Some(active_run_id.to_string()),
+                dataflow_name: "test-flow".to_string(),
+                dataflow_hash: "sha256:test".to_string(),
+                started_at: "2026-03-09T00:00:00Z".to_string(),
+                outcome: RunOutcome::default(),
+                ..RunInstance::default()
+            },
+        )
+        .unwrap();
+
+        tmp
+    }
+
+    #[tokio::test]
+    async fn down_reconciles_runs_when_destroy_cannot_connect() {
+        let tmp = setup_stale_runtime_home();
+        let home = tmp.path();
+
+        let result = super::down(home, false).await.unwrap();
+        assert!(result.success);
+        assert!(result.message.contains("reconciled local run state"));
+
+        let run = load_run(home, "run-1").unwrap();
+        assert_eq!(run.status, RunStatus::Stopped);
+        assert_eq!(run.termination_reason, Some(TerminationReason::RuntimeLost));
+
+        let report = super::status(home, false).await.unwrap();
+        assert!(report.active_runs.is_empty());
+        assert_eq!(report.recent_runs.len(), 1);
+        assert_eq!(report.recent_runs[0].status, "stopped");
+    }
 }

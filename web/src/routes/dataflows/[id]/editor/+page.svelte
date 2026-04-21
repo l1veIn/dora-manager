@@ -59,7 +59,10 @@
     let isSaving = $state(false);
     let isDirty = $state(false);
     let lastYaml = $state('');
-    let selectedNode = $state<DmFlowNode | null>(null);
+    let selectedNodeId = $state<string | null>(null);
+    let selectedNode = $derived(
+        selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) ?? null : null,
+    );
     let showPalette = $state(false);
     let showInspector = $state(false);
 
@@ -109,6 +112,12 @@
         edges = next.edges;
         isDirty = true;
     }
+
+    $effect(() => {
+        if (showInspector && !selectedNode) {
+            showInspector = false;
+        }
+    });
 
     // ── Auto-Layout ──
     function applyAutoLayout() {
@@ -172,7 +181,7 @@
         } else if (action === 'inspect' && contextMenu.targetId) {
             const node = nodes.find(n => n.id === contextMenu.targetId);
             if (node) {
-                selectedNode = node as DmFlowNode;
+                selectedNodeId = node.id;
                 showInspector = true;
             }
         }
@@ -219,6 +228,8 @@
             isDirty = false;
             undoStack = [];
             redoStack = [];
+            selectedNodeId = null;
+            showInspector = false;
         } catch (e: any) {
             toast.error(`Failed to load: ${e.message}`);
             goto(`/dataflows/${dataflowName}`);
@@ -257,25 +268,22 @@
             return e;
         });
 
-        if (selectedNode?.id === oldId) {
-            selectedNode = nodes.find(n => n.id === newId) as DmFlowNode;
+        if (selectedNodeId === oldId) {
+            selectedNodeId = newId;
         }
         isDirty = true;
     }
 
     function handleUpdateConfig(newConfig: any) {
-        if (!selectedNode) return;
+        if (!selectedNodeId) return;
         // deliberate: omit pushUndo() to avoid flooding history with config keystrokes/slider drags
         nodes = nodes.map(n => {
-            if (n.id === selectedNode?.id) {
+            if (n.id === selectedNodeId) {
                 return { ...n, data: { ...n.data, config: JSON.parse(JSON.stringify(newConfig)) } };
             }
             return n;
         });
-        
-        if (selectedNode) {
-            selectedNode = nodes.find(n => n.id === selectedNode?.id) as DmFlowNode;
-        }
+
         isDirty = true;
     }
 
@@ -329,8 +337,8 @@
                     (e) =>
                         !deleteIds.has(e.source) && !deleteIds.has(e.target),
                 );
-                if (selectedNode && deleteIds.has(selectedNode.id)) {
-                    selectedNode = null;
+                if (selectedNodeId && deleteIds.has(selectedNodeId)) {
+                    selectedNodeId = null;
                     showInspector = false;
                 }
                 isDirty = true;
@@ -345,12 +353,12 @@
 
     // ── Node click ──
     function onnodeclick({ node: clickedNode }: any) {
-        selectedNode = clickedNode;
+        selectedNodeId = clickedNode.id;
         showInspector = true;
     }
 
     function onpaneclick() {
-        selectedNode = null;
+        selectedNodeId = null;
         showInspector = false;
     }
 
@@ -620,7 +628,10 @@
                     dataflowName={dataflow.name}
                     onRenameNode={handleRenameNode}
                     onUpdateConfig={handleUpdateConfig}
-                    onclose={() => (showInspector = false)}
+                    onclose={() => {
+                        selectedNodeId = null;
+                        showInspector = false;
+                    }}
                 />
             {/if}
 

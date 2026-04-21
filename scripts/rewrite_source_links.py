@@ -8,7 +8,7 @@ REPO_URL = "https://github.com/l1veIn/dora-manager/blob/main"
 
 # Patterns that match source file links
 SOURCE_DIRS = r"(?:crates|nodes|web|tests|scripts|docs|\.github)"
-ROOT_FILES = r"(?:Cargo\.toml|dev\.sh|rust-toolchain\.toml|simulate_clean_install\.sh|README\.md|README_zh\.md)"
+ROOT_FILES = r"(?:Cargo\.toml|dev\.sh|rust-toolchain\.toml|simulate_clean_install\.sh|README\.md|README_zh\.md|PROJECT_CONSTITUTION\.md|CHANGELOG\.md|CLAUDE\.md|registry\.json)"
 
 # Match [text](path) where path is a source file reference
 link_re = re.compile(

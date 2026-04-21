@@ -161,6 +161,64 @@ esac
     state_file
 }
 
+fn setup_fake_dora_home_runtime_down(
+    home: &std::path::Path,
+    active_version: &str,
+) -> std::path::PathBuf {
+    let version_dir = dm_core::config::versions_dir(home).join(active_version);
+    std::fs::create_dir_all(&version_dir).unwrap();
+    let state_file = home.join("active_dataflow_id");
+
+    let bin = version_dir.join("dora");
+    std::fs::write(
+        &bin,
+        format!(
+            r#"#!/bin/sh
+cmd="$1"
+case "$cmd" in
+  --version)
+    echo "dora-cli 0.4.1"
+    ;;
+  check)
+    echo "Runtime unavailable" >&2
+    exit 1
+    ;;
+  list)
+    if [ -f "{state_file}" ]; then
+      echo "UUID Name Status Nodes CPU Memory"
+      printf "%s test-flow Running 1 0.0%% 0.0\\ GB\\n" "$(cat "{state_file}")"
+    fi
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"#,
+            state_file = state_file.display(),
+        ),
+    )
+    .unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&bin, perms).unwrap();
+    }
+
+    dm_core::config::save_config(
+        home,
+        &dm_core::config::DmConfig {
+            active_version: Some(active_version.to_string()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    state_file
+}
+
 fn setup_installed_node(home: &std::path::Path, id: &str) {
     setup_node_with_build(home, id, "python");
 }
@@ -1595,6 +1653,36 @@ async fn status_prefers_run_metadata_for_active_runs() {
     assert_eq!(json["active_runs"][0]["status"], "running");
     assert_eq!(json["active_runs"][0]["expected_nodes"], 0);
     assert_eq!(json["dora_probe"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn status_hides_active_runs_when_runtime_is_down() {
+    let (_tmp, state) = test_state();
+    let active_file = setup_fake_dora_home_runtime_down(&state.home, "0.4.1");
+    std::fs::write(&active_file, FAKE_DORA_UUID).unwrap();
+
+    dm_core::runs::create_layout(&state.home, "run-runtime-down").unwrap();
+    dm_core::runs::save_run(
+        &state.home,
+        &dm_core::runs::RunInstance {
+            run_id: "run-runtime-down".to_string(),
+            dora_uuid: Some(FAKE_DORA_UUID.to_string()),
+            dataflow_name: "demo-flow".to_string(),
+            started_at: "2026-04-01T00:00:00Z".to_string(),
+            outcome: dm_core::runs::RunOutcome::default(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let status = handlers::status(State(state)).await.into_response();
+    assert_eq!(status.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(status).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["runtime_running"], false);
+    assert!(json["active_runs"].as_array().unwrap().is_empty());
+    assert_eq!(json["recent_runs"][0]["status"], "stopped");
 }
 
 #[tokio::test]

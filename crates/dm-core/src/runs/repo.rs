@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 
 use super::model::RunInstance;
 
@@ -107,11 +107,9 @@ pub fn read_run_view(home: &Path, run_id: &str) -> Result<String> {
 pub fn resolve_run_log_path(home: &Path, run_id: &str, node_id: &str) -> Result<PathBuf> {
     let run = load_run(home, run_id)?;
     if let Some(dora_uuid) = run.dora_uuid.as_deref() {
-        return Ok(
-            run_out_dir(home, run_id)
-                .join(dora_uuid)
-                .join(format!("log_{node_id}.txt")),
-        );
+        return Ok(run_out_dir(home, run_id)
+            .join(dora_uuid)
+            .join(format!("log_{node_id}.txt")));
     }
 
     let legacy_path = run_logs_dir(home, run_id).join(format!("{node_id}.log"));
@@ -179,7 +177,10 @@ pub fn list_run_nodes(home: &Path, run_id: &str) -> Result<Vec<super::model::Run
         if !path.is_file() {
             continue;
         }
-        let filename = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+        let filename = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
         let node_id = if let Some(node_id) = filename
             .strip_prefix("log_")
             .and_then(|name| name.strip_suffix(".txt"))

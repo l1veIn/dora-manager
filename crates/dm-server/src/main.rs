@@ -258,7 +258,8 @@ async fn main() {
             let sock_home = state.home.clone();
             let sock_tx = state.messages.clone();
             tokio::spawn(async move {
-                handlers::bridge_socket::bridge_socket_loop(sock_home, sock_tx, unix_listener).await;
+                handlers::bridge_socket::bridge_socket_loop(sock_home, sock_tx, unix_listener)
+                    .await;
             });
         }
         Err(e) => eprintln!("[dm-server] warning: could not create bridge.sock: {e}"),

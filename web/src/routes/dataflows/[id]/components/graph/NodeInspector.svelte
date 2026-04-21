@@ -22,8 +22,14 @@
         onUpdateConfig?: (newConfig: any) => void;
     } = $props();
 
+    const PANEL_MARGIN = 20;
+    const MIN_PANEL_WIDTH = 360;
+    const MAX_PANEL_WIDTH = 560;
+    const MIN_PANEL_HEIGHT = 320;
+    const MAX_PANEL_HEIGHT = 760;
+
     // Bounds and dragging
-    let bounds = $state({ x: window.innerWidth - 300 - 20, y: Math.max(80, window.innerHeight / 2 - 250), w: 320, h: 500 });
+    let bounds = $state({ x: PANEL_MARGIN, y: 80, w: 420, h: 620 });
     let isDragging = $state(false);
     let dragStart = { x: 0, y: 0, bx: 0, by: 0 };
     
@@ -31,19 +37,63 @@
     let isResizing = $state(false);
     let resizeStart = { x: 0, y: 0, bw: 0, bh: 0 };
 
+    function clampBounds(next: { x: number; y: number; w: number; h: number }, viewportWidth: number, viewportHeight: number) {
+        const maxWidth = Math.max(MIN_PANEL_WIDTH, viewportWidth - PANEL_MARGIN * 2);
+        const maxHeight = Math.max(MIN_PANEL_HEIGHT, viewportHeight - PANEL_MARGIN * 2);
+        const width = Math.min(Math.max(next.w, MIN_PANEL_WIDTH), Math.min(MAX_PANEL_WIDTH, maxWidth));
+        const height = Math.min(Math.max(next.h, MIN_PANEL_HEIGHT), Math.min(MAX_PANEL_HEIGHT, maxHeight));
+        const x = Math.min(
+            Math.max(next.x, PANEL_MARGIN),
+            Math.max(PANEL_MARGIN, viewportWidth - width - PANEL_MARGIN),
+        );
+        const y = Math.min(
+            Math.max(next.y, PANEL_MARGIN),
+            Math.max(PANEL_MARGIN, viewportHeight - height - PANEL_MARGIN),
+        );
+
+        return { x, y, w: width, h: height };
+    }
+
+    function defaultBounds(viewportWidth: number, viewportHeight: number) {
+        const w = Math.min(
+            Math.max(420, Math.round(viewportWidth * 0.32)),
+            MAX_PANEL_WIDTH,
+            Math.max(MIN_PANEL_WIDTH, viewportWidth - PANEL_MARGIN * 2),
+        );
+        const h = Math.min(
+            Math.max(620, Math.round(viewportHeight * 0.72)),
+            MAX_PANEL_HEIGHT,
+            Math.max(MIN_PANEL_HEIGHT, viewportHeight - PANEL_MARGIN * 2),
+        );
+
+        return {
+            x: Math.max(PANEL_MARGIN, viewportWidth - w - PANEL_MARGIN),
+            y: Math.max(PANEL_MARGIN, Math.round((viewportHeight - h) / 2)),
+            w,
+            h,
+        };
+    }
+
     onMount(() => {
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
         const cached = localStorage.getItem('dm-inspector-bounds');
         if (cached) {
             try {
-                bounds = JSON.parse(cached);
-                // Ensure it stays on screen
-                bounds.x = Math.max(0, Math.min(bounds.x, window.innerWidth - 100));
-                bounds.y = Math.max(0, Math.min(bounds.y, window.innerHeight - 50));
-            } catch { /* ignore */ }
+                bounds = clampBounds(JSON.parse(cached), viewportWidth, viewportHeight);
+            } catch {
+                bounds = defaultBounds(viewportWidth, viewportHeight);
+            }
         } else {
-            bounds.x = window.innerWidth - bounds.w - 20;
-            bounds.y = 80;
+            bounds = defaultBounds(viewportWidth, viewportHeight);
         }
+
+        const onWindowResize = () => {
+            bounds = clampBounds(bounds, window.innerWidth, window.innerHeight);
+        };
+
+        window.addEventListener('resize', onWindowResize);
+        return () => window.removeEventListener('resize', onWindowResize);
     });
 
     function saveBounds() {
@@ -70,14 +120,25 @@
 
     function onWindowMousemove(e: MouseEvent) {
         if (isDragging) {
-            bounds.x = dragStart.bx + (e.clientX - dragStart.x);
-            bounds.y = dragStart.by + (e.clientY - dragStart.y);
-            // restrict to screen loosely
-            bounds.x = Math.max(0, Math.min(bounds.x, window.innerWidth - 100));
-            bounds.y = Math.max(0, Math.min(bounds.y, window.innerHeight - 50));
+            bounds = clampBounds(
+                {
+                    ...bounds,
+                    x: dragStart.bx + (e.clientX - dragStart.x),
+                    y: dragStart.by + (e.clientY - dragStart.y),
+                },
+                window.innerWidth,
+                window.innerHeight,
+            );
         } else if (isResizing) {
-            bounds.w = Math.max(260, resizeStart.bw + (e.clientX - resizeStart.x));
-            bounds.h = Math.max(200, resizeStart.bh + (e.clientY - resizeStart.y));
+            bounds = clampBounds(
+                {
+                    ...bounds,
+                    w: resizeStart.bw + (e.clientX - resizeStart.x),
+                    h: resizeStart.bh + (e.clientY - resizeStart.y),
+                },
+                window.innerWidth,
+                window.innerHeight,
+            );
         }
     }
 

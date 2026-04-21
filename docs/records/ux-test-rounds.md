@@ -1123,3 +1123,252 @@ Replace the experimental Python hidden bridge with a CLI-managed bridge path ins
 - Make one runtime bootstrap path reproducible without manual Dora sessions.
 - Then finish the last narrow loop:
   `web input -> __dm_bridge_input -> prompt -> echo -> display -> __dm_bridge_display -> interaction stream`.
+
+## Round 21
+
+### Goal
+
+- Dogfood the current milestone build from a real user perspective across source-checkout startup, CLI, dashboard, dataflow editing, node details, and custom-node creation.
+
+### Tester path
+
+1. Start from the repo checkout using `README.md` and `./dev.sh`.
+2. Validate the smallest useful CLI path with `dm --help`, `dm doctor`, and `dm start demos/demo-hello-timer.yml`.
+3. Walk the main web surfaces:
+   Dashboard -> Dataflows -> `demo-hello-timer` -> Graph Editor -> Nodes -> `dm-text-input` -> Runs.
+4. Try the custom-node path from `Nodes -> New Node`.
+5. Probe editor detail-panel behavior and state consistency after adding and undoing a node.
+
+### Findings
+
+- `./dev.sh` does not preflight occupied ports. With `127.0.0.1:3210` already held by another `dm-server`, the script still launched a second backend, hit a Rust panic (`Address already in use`), and then continued to print `Both servers running`. Vite also drifted from `5173` to `5174` and then `5175` depending on what was already open.
+- `README.md` still steers source-checkout users toward `http://127.0.0.1:3210`, while the real dev workflow in this environment is the drifting Vite URL. Startup guidance and runtime behavior are not aligned.
+- CLI and web disagree on the canonical demo story. `./target/debug/dm start demos/demo-hello-timer.yml` succeeded in one local path, while the tester independently reproduced a failure on `./target/release/dm start demos/demo-hello-timer.yml` with `unknown field node`. From a user perspective, the same official demo appears variably runnable depending on binary and entrypoint.
+- `/nodes/dm-text-input` reproduces the reported layout issue: the detail page gives too much priority to capability/overview content, and the `Settings` area is squeezed enough that the actual form is hard to reach or effectively invisible on a laptop-sized viewport.
+- The graph editor inspector is too narrow for configurable nodes. On `interaction-demo`, the right-side `Configuration` panel forces heavy internal scrolling and truncation. Labels, descriptions, and defaults compete for the same horizontal space.
+- The editor has a concrete state-sync bug: after adding `dogfood-scratch-node` in `/dataflows/demo-hello-timer/editor` and pressing `Undo`, the node disappeared from the canvas but the Inspector stayed open on the deleted node. The editor still showed `unsaved`, leaving a stale detail panel bound to nonexistent graph state.
+- Custom-node creation is opaque before and after the action. `Nodes -> New Node` jumps straight to `/nodes/dogfood-scratch-node?new=1` and claims scaffold creation, but the write target is not made obvious in the UI. The node was created under `~/.dm/nodes/`, not the repo `nodes/` tree, which is easy to misread during milestone testing.
+- Runtime state is not trustworthy enough yet. After cleanup, `dm down` reported it could not connect to `dora-coordinator`, while `/api/status` still reported an active run (`c14b4fb4-98f5-4623-ba71-a3599aa3377d`) with `runtime_running = false`.
+
+### Fixes shipped
+
+- No product code changes this round.
+- Added this round log so the milestone UX issues are captured in the same historical record as prior dogfooding passes.
+
+### Validation
+
+- Reproduced `./dev.sh` port-conflict startup failure in a live shell session.
+- Reproduced the node-detail layout problem on `/nodes/dm-text-input`.
+- Reproduced inspector crowding on configurable-node flows in the graph editor.
+- Reproduced stale Inspector state after `Add Node -> Undo` in `/dataflows/demo-hello-timer/editor`.
+- Verified custom-node creation lands outside the repo workspace and is therefore easy to misunderstand during UI testing.
+
+### Next focus
+
+- Fix startup truthfulness first:
+  preflight backend/frontend ports in `./dev.sh`, fail clearly on conflicts, and align source-checkout docs with the actual dev URL users should open.
+- Fix layout priority second:
+  make node detail `Settings` the primary visible region, and make the graph inspector responsive instead of a fixed `320x500` floating box.
+- Fix creation-state boundaries third:
+  show the target path before creating a custom node, and ensure `Undo`/delete always clears `selectedNode` and closes stale inspector state.
+
+## Round 22
+
+### Goal
+
+- Fix the highest-value friction from Round 21 without broadening scope:
+  source-checkout startup truthfulness, node-detail/editor layout pressure, and custom-node creation plus stale inspector state.
+
+### Tester path
+
+1. Update `./dev.sh` and the checkout docs to match real local startup behavior.
+2. Rework the node detail and graph inspector layouts for laptop-sized viewports.
+3. Make custom-node creation show its write target clearly.
+4. Make editor selection state survive `Undo`/delete correctly.
+5. Re-run shell and frontend validation checks, plus one live `./dev.sh` pass in a conflicted-port environment.
+
+### Findings
+
+- The startup path needed nuance, not a hard failure on every occupied port:
+  the right behavior is to reuse an already-running `dm-server` on `3210`, while still reporting clearly when some unrelated process owns that port.
+- The node detail page did not just need smaller capability cards; it needed a different information hierarchy so `Settings` could stay visible on desktop instead of living below a long overview block.
+- The graph editor bug was caused by inspector state being held independently from graph truth; when `Undo` removed the node, the floating panel still believed it had a valid selection.
+- Custom-node creation needed write-target visibility both before and after creation, because `~/.dm/nodes/` is easy to confuse with the repo-local `nodes/` tree during milestone testing.
+
+### Fixes shipped
+
+- Updated [dev.sh](/Users/yangchen/Desktop/dora-manager/dev.sh) to:
+  - reuse an existing `dm-server` already listening on `3210`,
+  - stop with actionable `lsof` output if a non-`dm-server` process owns `3210`,
+  - start the frontend on `5173` but report the actual Vite URL if it falls back to another port,
+  - print a final status banner that reflects the real backend/frontend state instead of always claiming success.
+- Updated [README.md](/Users/yangchen/Desktop/dora-manager/README.md) and [README_zh.md](/Users/yangchen/Desktop/dora-manager/README_zh.md) so source-checkout instructions match the real `./dev.sh` flow and explain the printed frontend URL.
+- Updated [web/src/routes/nodes/CreateNodeDialog.svelte](/Users/yangchen/Desktop/dora-manager/web/src/routes/nodes/CreateNodeDialog.svelte) so `New Node` explains that scaffolds are created under `~/.dm/nodes/<node-id>/` and includes that path in the success toast.
+- Updated [web/src/routes/nodes/[id]/+page.svelte](/Users/yangchen/Desktop/dora-manager/web/src/routes/nodes/[id]/+page.svelte) so:
+  - the created-node banner shows the real scaffold path,
+  - desktop layout uses a two-column arrangement that keeps the main tabbed workspace visible beside the capability overview,
+  - nodes with config schema open to `Settings` by default instead of burying the editable area behind the `Code` tab first.
+- Updated [web/src/routes/dataflows/[id]/components/graph/NodeInspector.svelte](/Users/yangchen/Desktop/dora-manager/web/src/routes/dataflows/[id]/components/graph/NodeInspector.svelte) so the inspector opens with viewport-clamped notebook-friendly bounds instead of a cramped fixed `320x500` default.
+- Updated [web/src/routes/dataflows/[id]/editor/+page.svelte](/Users/yangchen/Desktop/dora-manager/web/src/routes/dataflows/[id]/editor/+page.svelte) so selection is tracked by node id, stale inspector state is cleared when the selected node disappears, and manual inspector close also clears the selected node.
+
+### Validation
+
+- `bash -n dev.sh` passed.
+- `npm --prefix web run check` passed with `0 errors and 0 warnings`.
+- Live shell validation with both `3210` and `5173` already occupied confirmed:
+  - `./dev.sh` reused the existing backend on `3210`,
+  - Vite moved from `5173` to `5174`,
+  - the script reported the moved URL (`http://127.0.0.1:5174/`) instead of claiming a fixed port or panicking.
+
+### Remaining issues
+
+- Runtime truth still needs a deeper backend pass:
+  `/api/status` can still report active runs even when `runtime_running = false` and `dm down` cannot reach `dora-coordinator`.
+- The graph inspector is more readable now, but it is still a floating overlay rather than a fully docked editor sidebar. If more crowding shows up in richer flows, that should be the next UI refinement.
+- Round 21’s CLI demo inconsistency (`debug` vs `release` binary behavior on source-checkout demos) is documented but not resolved in this fix round.
+
+### Next focus
+
+- Fix backend runtime truth so `dm down`, `/api/status`, and run-detail state all agree after stop/cleanup.
+- Re-test `/nodes/dm-text-input` and `interaction-demo` visually after these layout changes to confirm the fixes on the original problem pages.
+- Then run the narrower creation-flow pass that was deferred:
+  `New Dataflow` template choice, file target clarity, and post-create state isolation.
+
+## Round 23
+
+### Goal
+
+- Close the runtime-truth gap from Round 22 so `dm down`, `dm runs`, and `/api/status` agree when Dora is already unavailable or has lost track of a run.
+
+### Tester path
+
+1. Reproduce the stale-runtime case where local run metadata still says `running` but `dora check` fails.
+2. Trace the code paths behind `dm down`, `/api/status`, and `runs::refresh_run_statuses`.
+3. Centralize stale-run reconciliation so it is shared instead of duplicated in one endpoint only.
+4. Add narrow regression tests for both core and server behavior.
+5. Re-run the real CLI against the current `~/.dm` state to confirm the fix outside the test harness.
+
+### Findings
+
+- The inconsistency had two layers:
+  `down()` only reconciled local run state on one stop path, while `refresh_run_statuses()` still preserved `running` when `dora list` failed.
+- That old `refresh_run_statuses()` behavior was correct for transient `list` failures, but wrong once `dora check` had already established that the runtime was down.
+- Because `dm runs` and `/api/status` both depend on run refresh, fixing only `/api/status` would have left the CLI showing stale `⏳` runs.
+
+### Fixes shipped
+
+- Updated [crates/dm-core/src/dora.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/dora.rs) with a blocking `dora check` helper so synchronous run-list code can verify whether the runtime is truly down.
+- Updated [crates/dm-core/src/runs/service_runtime.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/runs/service_runtime.rs) to:
+  - keep the old behavior for transient `dora list` failures inside backend-specific refresh,
+  - add a shared stale-run reconciliation path that only triggers when `dora check` explicitly reports the runtime down,
+  - persist `RuntimeLost` terminal state so later readers see the same truth.
+- Updated [crates/dm-core/src/api/runtime.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/api/runtime.rs), [crates/dm-core/src/runs/service.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/runs/service.rs), and [crates/dm-core/src/runs/mod.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/runs/mod.rs) so `down()` and run queries reuse the same reconciliation logic.
+- Added core regressions in [crates/dm-core/src/runs/service_tests.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-core/src/runs/service_tests.rs) covering both:
+  - transient `list` failure keeps `running`,
+  - `check` + `list` failure together reconcile to `stopped` with `RuntimeLost`.
+- Added a server regression in [crates/dm-server/src/tests.rs](/Users/yangchen/Desktop/dora-manager/crates/dm-server/src/tests.rs) proving `/api/status` hides stale active runs and surfaces the reconciled run under `recent_runs` when the runtime is down.
+
+### Validation
+
+- `cargo test -p dm-core refresh_run_statuses_keeps_running_state_when_runtime_list_fails --lib -- --nocapture` passed.
+- `cargo test -p dm-core refresh_run_statuses_reconciles_stale_running_state_when_runtime_check_fails --lib -- --nocapture` passed.
+- `cargo test -p dm-core down_reconciles_runs_when_destroy_cannot_connect --lib -- --nocapture` passed.
+- `cargo test -p dm-server status_hides_active_runs_when_runtime_is_down -- --nocapture` passed.
+- `cargo test -p dm-server list_runs_refreshes_stale_running_status -- --nocapture` passed.
+- `cargo build -p dm-cli` passed.
+- Live CLI re-test on the existing local `~/.dm` state confirmed:
+  - `./target/debug/dm down` now returns success with `Dora runtime is already stopped; reconciled local run state.`,
+  - `./target/debug/dm status` reports `(no active runs)` and moves the stale `demo-hello-timer` run into `Recent Finished`,
+  - `./target/debug/dm runs` no longer shows the old run as `⏳`.
+
+### Remaining issues
+
+- This round fixed truth reconciliation after the runtime is known down, but it did not address the separate official-demo incompatibility where some Dora binaries reject `node:` in older descriptor parsing paths.
+- The visual re-pass for `/nodes/dm-text-input` and `interaction-demo` after Round 22 is still pending.
+
+### Next focus
+
+- Re-run the original UI pages after the layout fixes and confirm the node-detail / inspector issues are actually resolved in-browser.
+- Then move to the next creation-flow pass:
+  `New Dataflow` template choice, target-path clarity, and post-create state isolation.
+
+## Round 24
+
+### Goal
+
+- Re-test the exact UI surfaces fixed in Round 22 and verify that the original layout/state bugs are gone in a live browser, not just in code or unit tests.
+
+### Tester path
+
+1. Start the live dev stack with `./dev.sh`.
+2. Open `/nodes/dm-text-input` and verify whether `Settings` is still squeezed out by the detail content.
+3. Open `/dataflows/interaction-demo/editor`, inspect the configurable `prompt` node, and check whether the Inspector is still too narrow.
+4. Re-run the `Add Node -> Undo` path and verify whether a deleted node can still leave behind a stale Inspector.
+
+### Findings
+
+- Round 22's targeted UI issues did not reproduce in this live pass.
+- `/nodes/dm-text-input` now presents `Settings` as a clearly visible right-hand workspace. The form fields are immediately reachable and no longer hidden below the capability content.
+- `interaction-demo`'s Inspector is materially more usable for configurable nodes. The `Configuration` tab still scrolls vertically, but the panel is no longer cramped or visually collapsed.
+- `Add Node -> Undo` no longer leaves stale selection state behind. After adding `dm-microphone` and undoing, the node disappeared and the Inspector closed with it.
+
+### Fixes shipped
+
+- No product code changes this round.
+- Added this verification round to confirm that the Round 22 layout and state fixes hold up in the live web app.
+
+### Validation
+
+- Live browser pass on `http://127.0.0.1:5173/nodes/dm-text-input` confirmed the `Settings` tab opens in a usable right column with `default_value`, `label`, `multiline`, `placeholder`, and `poll_interval` visible without the old squeeze.
+- Live browser pass on `http://127.0.0.1:5173/dataflows/interaction-demo/editor` confirmed:
+  - selecting `prompt (dm-text-input)` opens an Inspector wide enough to read the configuration form comfortably,
+  - `Configuration` content remains scrollable but not crowded,
+  - `Add Node -> dm-microphone -> Undo` removes the node and closes the Inspector instead of leaving a stale panel.
+- Independent tester-agent pass reached the same conclusion on all three target checks.
+
+### Remaining issues
+
+- No new regression was found on the two targeted UI surfaces.
+- The Inspector still relies on internal vertical scrolling for longer forms, but this now reads as normal overflow rather than a width/layout defect.
+- The next unresolved user-facing issue is no longer these two pages; the broader creation flow and template/target-path clarity remain the best next dogfooding target.
+
+### Next focus
+
+- Dogfood the `New Dataflow` flow end to end:
+  template choice, where files are created, what the first editor state looks like, and whether post-create guidance is clear.
+- After that, come back to the unresolved CLI demo compatibility issue around older Dora descriptor parsing if it is still meant to be part of the milestone story.
+
+## Round 25
+
+### Goal
+
+- Fix the two follow-up node UI issues found after the Round 24 re-pass:
+  preserve the user's Nodes catalog filter view when returning from a detail page, and rebalance the node detail layout so Capabilities stays compact while the Code/Settings workspace remains meaningfully usable.
+
+### Findings
+
+- The Nodes catalog still forgot its filter context on navigation. Returning from `/nodes/[id]` always dropped the user back into the default catalog view, which broke continuity when browsing a filtered subset.
+- The node detail page still allocated too much vertical weight to Capabilities. Even after the earlier fix, the summary block could still expand enough to make the Code/Settings area feel secondary on taller-but-not-large screens.
+
+### Fixes shipped
+
+- Updated [web/src/routes/nodes/+page.svelte](/Users/yangchen/Desktop/dora-manager/web/src/routes/nodes/+page.svelte) to persist catalog state in local storage:
+  `searchQuery`, `statusFilter`, `originFilter`, and `currentPage` are restored when the user comes back to the Nodes list.
+- Kept pagination resets only for actual filter/search changes instead of resetting on every mount.
+- Updated [web/src/routes/nodes/[id]/+page.svelte](/Users/yangchen/Desktop/dora-manager/web/src/routes/nodes/[id]/+page.svelte) so:
+  - Capabilities is rendered as a more compact, vertically stacked summary area,
+  - tags and structured bindings read as a narrow overview instead of competing with the main editor workspace,
+  - the lower Code/Settings region gets a stable working height via a fixed-height tab workspace instead of collapsing with the page content above it.
+
+### Validation
+
+- `npm --prefix web run check` passed with `0 errors and 0 warnings`.
+
+### Remaining issues
+
+- This round fixed the specific Nodes catalog memory and node-detail layout balance issues, but did not re-run the broader `New Dataflow` creation path yet.
+
+### Next focus
+
+- Dogfood the `New Dataflow` path end to end:
+  template selection, file target clarity, first editor state, and whether the user understands what was just created.

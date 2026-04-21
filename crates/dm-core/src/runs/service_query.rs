@@ -54,11 +54,7 @@ pub fn get_run(home: &Path, run_id: &str) -> Result<RunDetail> {
         let _ = repo::save_run(home, &run);
     }
     let mut nodes = repo::list_run_nodes(home, &run.run_id)?;
-    for node_id in run
-        .nodes_expected
-        .iter()
-        .chain(run.nodes_observed.iter())
-    {
+    for node_id in run.nodes_expected.iter().chain(run.nodes_observed.iter()) {
         if nodes.iter().any(|node| node.id == *node_id) {
             continue;
         }

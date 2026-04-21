@@ -205,10 +205,7 @@ nodes:
         bridge["path"].as_str().is_some(),
         "expected hidden bridge launcher path"
     );
-    assert_eq!(
-        bridge["args"].as_str(),
-        Some("bridge --run-id run-123")
-    );
+    assert_eq!(bridge["args"].as_str(), Some("bridge --run-id run-123"));
     assert_eq!(
         bridge
             .get(serde_yaml::Value::String("id".into()))
@@ -324,10 +321,7 @@ nodes:
         Some("dm_bridge_input_internal")
     );
     assert_eq!(nodes[1]["id"].as_str(), Some("__dm_bridge"));
-    assert_eq!(
-        nodes[1]["args"].as_str(),
-        Some("bridge --run-id run-123")
-    );
+    assert_eq!(nodes[1]["args"].as_str(), Some("bridge --run-id run-123"));
     assert_eq!(nodes[1]["outputs"][0].as_str(), Some("dm_bridge_to_prompt"));
 }
 

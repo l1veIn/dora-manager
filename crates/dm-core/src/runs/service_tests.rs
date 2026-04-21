@@ -8,6 +8,7 @@ mod tests {
 
     use anyhow::{anyhow, Result};
 
+    use crate::config;
     use crate::node::{node_dir, Node, NodeDisplay, NodeFiles, NodeRuntime, NodeSource};
     use crate::runs::model::{
         RunInstance, RunSource, RunStatus, StartConflictStrategy, TerminationReason,
@@ -121,6 +122,31 @@ mod tests {
         fs::write(out_dir.join(format!("log_{node_id}.txt")), content).unwrap();
     }
 
+    fn setup_fake_runtime_home(home: &Path, active_version: &str, script: &str) {
+        let version_dir = config::versions_dir(home).join(active_version);
+        fs::create_dir_all(&version_dir).unwrap();
+
+        let bin = version_dir.join(config::dora_bin_name());
+        fs::write(&bin, script).unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&bin).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&bin, perms).unwrap();
+        }
+
+        config::save_config(
+            home,
+            &config::DmConfig {
+                active_version: Some(active_version.to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+
     #[tokio::test]
     async fn start_run_fails_when_runtime_uuid_is_missing() {
         let tmp = tempfile::tempdir().unwrap();
@@ -182,6 +208,52 @@ mod tests {
         assert_eq!(persisted.status, RunStatus::Running);
         assert_eq!(persisted.termination_reason, None);
         assert_eq!(persisted.runtime_observed_at, None);
+        assert_eq!(persisted.failure_reason, None);
+    }
+
+    #[test]
+    fn refresh_run_statuses_reconciles_stale_running_state_when_runtime_check_fails() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+        write_running_run(home, "run-1", Some("uuid-1"));
+        setup_fake_runtime_home(
+            home,
+            "0.4.1",
+            r#"#!/bin/sh
+cmd="$1"
+case "$cmd" in
+  check)
+    echo "Runtime unavailable" >&2
+    exit 1
+    ;;
+  list)
+    echo "Could not connect to dora-coordinator" >&2
+    exit 1
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+"#,
+        );
+
+        let runs = service_runtime::refresh_run_statuses(home).unwrap();
+
+        assert_eq!(runs[0].status, RunStatus::Stopped);
+        assert_eq!(
+            runs[0].termination_reason,
+            Some(TerminationReason::RuntimeLost)
+        );
+        assert_eq!(runs[0].failure_reason.as_deref(), Some("runtime_lost"));
+
+        let persisted = repo::load_run(home, "run-1").unwrap();
+        assert_eq!(persisted.status, RunStatus::Stopped);
+        assert_eq!(
+            persisted.termination_reason,
+            Some(TerminationReason::RuntimeLost)
+        );
+        assert_eq!(persisted.failure_reason.as_deref(), Some("runtime_lost"));
+        assert!(persisted.runtime_observed_at.is_some());
     }
 
     #[test]

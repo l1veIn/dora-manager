@@ -19,6 +19,9 @@
 
     // Validate ID (kebab-case mostly)
     let isValidId = $derived(id.length > 0 && /^[a-z0-9-]+$/.test(id));
+    let scaffoldPath = $derived(
+        id ? `~/.dm/nodes/${id}` : "~/.dm/nodes/<node-id>",
+    );
 
     async function handleCreate() {
         if (!isValidId) {
@@ -32,7 +35,9 @@
         try {
             const createdId = id;
             await post("/nodes/create", { id, description });
-            toast.success(`Node scaffold '${createdId}' created!`);
+            toast.success(
+                `Node scaffold '${createdId}' created at ~/.dm/nodes/${createdId}`,
+            );
             open = false; // Close dialog
             // Reset form
             id = "";
@@ -55,9 +60,10 @@
                 New Python Node
             </Dialog.Title>
             <Dialog.Description>
-                Create a new local Dora node scaffold. This generates a
-                pyproject.toml, main.py template, and sets up an empty dm.json
-                for metadata tracking.
+                Create a new local Dora node scaffold under
+                <span class="font-mono">~/.dm/nodes/&lt;node-id&gt;</span>, not
+                the repo tree. This generates a pyproject.toml, main.py
+                template, and sets up an empty dm.json for metadata tracking.
             </Dialog.Description>
         </Dialog.Header>
 
@@ -76,6 +82,11 @@
                 {#if id && !isValidId}
                     <p class="text-xs text-red-500">
                         Only lowercase letters, numbers, and hyphens allowed.
+                    </p>
+                {:else}
+                    <p class="text-xs text-muted-foreground">
+                        Scaffold location:
+                        <span class="font-mono">{scaffoldPath}</span>
                     </p>
                 {/if}
             </div>
