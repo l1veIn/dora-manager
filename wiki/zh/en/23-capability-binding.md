@@ -139,18 +139,6 @@ Tags are not projected by the transpiler into bridge channels -- they are primar
 
 Sources: [inspect.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/inspect.rs#L147-L160), [dm-microphone/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-microphone/dm.json#L7-L9)
 
-## Legacy Compatibility: Normalized Migration of dm.bindings
-
-A deprecated `dm` field exists in `dm.json`, which internally carries a `bindings` array. When the Rust deserializer reads `dm.json`, the `NodeSerde` intermediate structure accepts both `dm` and `capabilities` fields, and then the `merge_legacy_dm_into_capabilities` function normalizes legacy bindings into the unified `capabilities` list:
-
-The normalization logic groups legacy bindings by `family`, and for each capability family:
-- If a `Detail` entry with the same name already exists in `capabilities`, the legacy bindings are **deduplicated and appended** to the existing binding's `bindings` list
-- If none exists, a new `NodeCapabilityDetail` entry is created
-
-Ultimately, in the `Node` structure produced by deserialization, the `dm` field is forcibly set to `None`, and all capability information is uniformly stored in `capabilities`. Node authors can use the `scripts/migrate_dm_json.py` migration script to automatically convert the legacy `dm` field to the new `capabilities` format.
-
-Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L429-L505), [migrate_dm_json.py](https://github.com/l1veIn/dora-manager/blob/main/scripts/migrate_dm_json.py#L337-L352)
-
 ## Runtime Projection: the Transpiler's Hidden Bridge Injection
 
 This is the most ingenious part of Capability Binding -- the transformation from static declarations to runtime behavior occurs in **Pass 4.5** of the transpiler pipeline.

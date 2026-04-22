@@ -52,7 +52,7 @@ Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cor
 
 ## Node Data Model: The dm.json Contract
 
-`dm.json` is the node's **single source of truth**, persisted at the root of the node directory. The `Node` struct is defined in `model.rs` and implements custom `Serialize` (direct write) and `Deserialize` (with legacy `dm` field merging) logic.
+`dm.json` is the node's **single source of truth**, persisted at the root of the node directory. The `Node` struct is defined in `model.rs` using standard `Serialize` / `Deserialize` derives.
 
 The core fields of a Node are divided into seven semantic groups:
 
@@ -62,7 +62,7 @@ The core fields of a Node are divided into seven semantic groups:
 | **Source** | `source.build`, `source.github` | Build command (e.g., `pip install -e .`) and optional GitHub URL |
 | **Runtime** | `executable`, `runtime.language`, `runtime.python` | Relative path to the installed executable and language/version markers |
 | **Contract** | `ports[]`, `config_schema`, `dynamic_ports` | Port declarations (with Schema), config schema, whether dynamic ports are allowed |
-| **Capabilities** | `capabilities[]`, `dm` (legacy) | Runtime capability declarations; legacy `dm.bindings` are automatically merged during deserialization |
+| **Capabilities** | `capabilities[]` | Runtime capability declarations (Tag or structured Detail) |
 | **Display** | `display.category`, `display.tags[]`, `maintainers[]` | Frontend category display, tag filtering, maintainer information |
 | **File Index** | `files.readme`, `files.entry`, `files.tests[]` | Relative paths to key files, used for in-browser file viewing |
 
@@ -87,9 +87,7 @@ A typical dm.json structure for an installed Python node `dm-message` is shown b
 }
 ```
 
-The **Legacy compatibility mechanism** deserves special mention: the `Deserialize` implementation of `Node` in [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L429-L464) uses custom logic. When dm.json contains the deprecated `dm` field (the old `dm.bindings` format), `merge_legacy_dm_into_capabilities` merges it into the `capabilities` array grouped by `family`, ensuring that existing node descriptor files work correctly in the new codebase without modification.
-
-Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L217-L288), [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L466-L505), [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L1-L114)
+Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L183-L288), [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L1-L114)
 
 ## Four Sources and Corresponding Operations
 

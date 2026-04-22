@@ -63,9 +63,9 @@ The `Node` struct is the Rust projection of dm.json. The table below lists all f
 | `config_schema` | `object?` | — | `null` | Configuration field definitions |
 | `dynamic_ports` | `bool` | — | `false` | Whether to accept unregistered ports declared in YAML |
 
-**Regarding the `path` field**: This is a **runtime-only field** annotated with `#[serde(skip_deserializing)]` and will not appear in the JSON file. After the system loads dm.json, this field is attached via `node.with_path(node_dir)`. Regarding the **legacy field `interaction`**: Some built-in interactive nodes include this field in their dm.json, but in the Rust model it is declared as `Option<NodeInteractionLegacy>`, which is a compatibility pass-through field. New nodes should not use it.
+**Regarding the `path` field**: This is a **runtime-only field** annotated with `#[serde(skip_deserializing)]` and will not appear in the JSON file. After the system loads dm.json, this field is attached via `node.with_path(node_dir)`.
 
-Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L222-L300), [model.rs (legacy)](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L148-L154)
+Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L183-L247)
 
 ## source — Build Source
 
@@ -215,12 +215,6 @@ Fields for each binding object:
 | `media` | `string[]` | Media type labels (e.g. `["widgets"]`, `["text", "json"]`, `["pulse"]`) |
 | `lifecycle` | `string[]` | Lifecycle constraints (e.g. `["run_scoped", "stop_aware"]`) |
 | `description` | `string?` | Human-readable description of the binding's purpose |
-
-### Auto-Merge of Legacy `dm` Field
-
-Older versions of dm.json used the `dm.bindings` array to declare capability bindings. The Rust deserializer automatically calls `merge_legacy_dm_into_capabilities` during loading, grouping `dm.bindings` by `family` and merging them into the `capabilities` array. After merging, the `dm` field is set to `None` and will no longer appear in the serialized output. This means **new nodes should directly use the structured form of `capabilities`** without setting the `dm` field.
-
-Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L71-L146), [model.rs (merge)](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L466-L505)
 
 ## runtime — Runtime Information
 

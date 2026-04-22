@@ -72,7 +72,6 @@ fn test_node_struct() {
         maintainers: Vec::new(),
         license: None,
         display: NodeDisplay::default(),
-        dm: None,
         capabilities: Vec::new(),
         runtime: NodeRuntime::default(),
         ports: Vec::new(),
@@ -80,7 +79,6 @@ fn test_node_struct() {
         examples: Vec::new(),
         config_schema: None,
         dynamic_ports: false,
-        interaction: None,
         path: std::path::PathBuf::from("/test/path"),
     };
 
@@ -267,7 +265,6 @@ async fn test_install_node_errors_for_unsupported_build() {
         maintainers: Vec::new(),
         license: None,
         display: NodeDisplay::default(),
-        dm: None,
         capabilities: Vec::new(),
         runtime: NodeRuntime::default(),
         ports: Vec::new(),
@@ -275,7 +272,6 @@ async fn test_install_node_errors_for_unsupported_build() {
         examples: Vec::new(),
         config_schema: None,
         dynamic_ports: false,
-        interaction: None,
         path: Default::default(),
     };
     std::fs::write(

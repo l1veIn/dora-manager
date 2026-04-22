@@ -54,7 +54,6 @@ Sources: [init.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-co
 | `maintainers` | `array` | — | `[]` | 维护者列表 |
 | `license` | `string?` | — | `null` | SPDX 许可证标识符 |
 | `display` | `object` | — | `{}` | 展示元数据（分类、标签、头像） |
-| `dm` | `object?` | — | `null` | **已废弃**。遗留的 capability binding 声明，反序列化时自动合并到 `capabilities` |
 | `capabilities` | `array` | — | `[]` | 运行时能力声明（支持字符串标签或结构化对象） |
 | `runtime` | `object` | — | `{}` | 运行时语言与平台信息 |
 | `ports` | `array` | — | `[]` | 端口声明列表 |
@@ -63,9 +62,9 @@ Sources: [init.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-co
 | `config_schema` | `object?` | — | `null` | 配置字段定义 |
 | `dynamic_ports` | `bool` | — | `false` | 是否接受 YAML 中声明的未注册端口 |
 
-**关于 `path` 字段**：这是一个**仅运行时字段**，由 `#[serde(skip_deserializing)]` 标注，不会出现在 JSON 文件中。系统加载 dm.json 后通过 `node.with_path(node_dir)` 附加此字段。关于**遗留字段 `interaction`**：部分内置交互节点在 dm.json 中包含此字段，但 Rust 模型中它被声明为 `Option<NodeInteractionLegacy>`，属于兼容透传字段，新节点不应使用。
+**关于 `path` 字段**：这是一个**仅运行时字段**，由 `#[serde(skip_deserializing)]` 标注，不会出现在 JSON 文件中。系统加载 dm.json 后通过 `node.with_path(node_dir)` 附加此字段。
 
-Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L222-L300), [model.rs (legacy)](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L148-L154)
+Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L183-L247)
 
 ## source — 构建来源
 
@@ -215,12 +214,6 @@ flowchart TD
 | `media` | `string[]` | 媒体类型标签（如 `["widgets"]`、`["text", "json"]`、`["pulse"]`） |
 | `lifecycle` | `string[]` | 生命周期约束（如 `["run_scoped", "stop_aware"]`） |
 | `description` | `string?` | 绑定用途的人类可读描述 |
-
-### 遗留 `dm` 字段的自动合并
-
-旧版 dm.json 使用 `dm.bindings` 数组声明能力绑定。Rust 反序列化器在加载时会自动调用 `merge_legacy_dm_into_capabilities`，将 `dm.bindings` 按 `family` 分组合并到 `capabilities` 数组中。合并后 `dm` 字段被置为 `None`，序列化输出中不再包含此字段。这意味着**新节点应直接使用 `capabilities` 的结构化形态**，无需设置 `dm` 字段。
-
-Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L71-L146), [model.rs (merge)](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L466-L505)
 
 ## runtime — 运行时信息
 

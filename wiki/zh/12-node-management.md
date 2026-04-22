@@ -52,7 +52,7 @@ Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cor
 
 ## Node 数据模型：dm.json 契约
 
-`dm.json` 是节点的**唯一真相源**（single source of truth），持久化于节点目录根下。`Node` 结构体在 `model.rs` 中定义，实现了自定义的 `Serialize`（直写）和 `Deserialize`（带 legacy `dm` 字段合并）逻辑。
+`dm.json` 是节点的**唯一真相源**（single source of truth），持久化于节点目录根下。`Node` 结构体在 `model.rs` 中定义，使用标准的 `Serialize` / `Deserialize` 派生。
 
 Node 的核心字段分为七个语义组：
 
@@ -62,7 +62,7 @@ Node 的核心字段分为七个语义组：
 | **来源** | `source.build`, `source.github` | 构建命令（如 `pip install -e .`）与可选 GitHub 地址 |
 | **运行时** | `executable`, `runtime.language`, `runtime.python` | 安装后的可执行文件相对路径与语言/版本标记 |
 | **契约** | `ports[]`, `config_schema`, `dynamic_ports` | 端口声明（含 Schema）、配置 schema、是否允许动态端口 |
-| **能力** | `capabilities[]`, `dm`（legacy） | 运行时能力声明，反序列化时自动合并 legacy `dm.bindings` |
+| **能力** | `capabilities[]` | 运行时能力声明（Tag 或结构化 Detail） |
 | **展示** | `display.category`, `display.tags[]`, `maintainers[]` | 前端分类展示、标签筛选、维护者信息 |
 | **文件索引** | `files.readme`, `files.entry`, `files.tests[]` | 关键文件相对路径，用于浏览器内文件查看 |
 
@@ -87,9 +87,7 @@ Node 的核心字段分为七个语义组：
 }
 ```
 
-**Legacy 兼容机制**值得特别说明：`Node` 的 `Deserialize` 实现在 [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L429-L464) 中使用了自定义逻辑。当 dm.json 包含已弃用的 `dm` 字段（旧版 `dm.bindings` 格式），`merge_legacy_dm_into_capabilities` 会按 `family` 分组将其合并到 `capabilities` 数组中，确保已有节点描述文件在新版代码中无需修改即可正常工作。
-
-Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L217-L288), [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L466-L505), [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L1-L114)
+Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L183-L288), [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L1-L114)
 
 ## 四种来源与对应操作
 

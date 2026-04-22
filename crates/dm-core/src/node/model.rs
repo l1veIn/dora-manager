@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 /// Source information for a node (build command + optional github URL).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,32 +39,6 @@ pub struct NodeDisplay {
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub avatar: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct NodeDm {
-    #[serde(default = "default_dm_version")]
-    pub version: String,
-    #[serde(default)]
-    pub bindings: Vec<NodeDmBinding>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct NodeDmBinding {
-    #[serde(default)]
-    pub family: String,
-    #[serde(default)]
-    pub role: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub port: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub channel: Option<String>,
-    #[serde(default)]
-    pub media: Vec<String>,
-    #[serde(default)]
-    pub lifecycle: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,14 +118,6 @@ impl PartialEq<NodeCapability> for &str {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct NodeInteractionLegacy {
-    #[serde(default)]
-    pub emit: Vec<String>,
-    #[serde(default)]
-    pub on: bool,
-}
-
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NodePortDirection {
@@ -219,7 +184,7 @@ pub struct NodeExample {
 /// This is the single source of truth for node metadata:
 /// - Serialized to/from `dm.json` on disk
 /// - Returned as JSON from the HTTP API
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
     /// Unique node identifier (e.g., "dora-keyboard")
     pub id: String,
@@ -250,10 +215,6 @@ pub struct Node {
     /// Presentation metadata for list/detail pages.
     #[serde(default)]
     pub display: NodeDisplay,
-    /// Deprecated compatibility field for legacy `dm.bindings` payloads.
-    /// Reads are normalized into `capabilities`; writes omit this field.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dm: Option<NodeDm>,
     /// Declared runtime capabilities. Simple coarse tags like `media` remain
     /// strings; richer capability families can carry structured bindings.
     #[serde(default)]
@@ -278,25 +239,10 @@ pub struct Node {
     /// for ports not found in `ports`.
     #[serde(default)]
     pub dynamic_ports: bool,
-    /// Legacy interaction metadata. Prefer `dm`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub interaction: Option<NodeInteractionLegacy>,
     /// Runtime-computed absolute path to the node directory.
     /// Not stored in dm.json — populated when loading from disk.
     #[serde(skip_deserializing, default)]
     pub path: PathBuf,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-fn default_readme_path() -> String {
-    "README.md".to_string()
-}
-
-fn default_dm_version() -> String {
-    "v0".to_string()
 }
 
 impl Node {
@@ -323,7 +269,6 @@ impl Node {
             maintainers: Vec::new(),
             license: None,
             display: NodeDisplay::default(),
-            dm: None,
             capabilities: Vec::new(),
             runtime: NodeRuntime::default(),
             ports: Vec::new(),
@@ -331,7 +276,6 @@ impl Node {
             examples: Vec::new(),
             config_schema: None,
             dynamic_ports: false,
-            interaction: None,
             path,
         }
     }
@@ -351,155 +295,12 @@ impl Node {
             .flatten()
             .collect()
     }
-
-    pub fn dm_capability_view(&self) -> Option<NodeDm> {
-        let bindings = self
-            .capabilities
-            .iter()
-            .filter_map(|capability| match capability {
-                NodeCapability::Tag(_) => None,
-                NodeCapability::Detail(detail) => Some(detail.bindings.iter().cloned().map(
-                    move |binding| NodeDmBinding {
-                        family: detail.name.clone(),
-                        role: binding.role,
-                        port: binding.port,
-                        channel: binding.channel,
-                        media: binding.media,
-                        lifecycle: binding.lifecycle,
-                        description: binding.description,
-                    },
-                )),
-            })
-            .flatten()
-            .collect::<Vec<_>>();
-
-        if bindings.is_empty() {
-            None
-        } else {
-            Some(NodeDm {
-                version: default_dm_version(),
-                bindings,
-            })
-        }
-    }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct NodeSerde {
-    pub id: String,
-    #[serde(default)]
-    pub name: String,
-    pub version: String,
-    pub installed_at: String,
-    pub source: NodeSource,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub executable: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub repository: Option<NodeRepository>,
-    #[serde(default)]
-    pub maintainers: Vec<NodeMaintainer>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub license: Option<String>,
-    #[serde(default)]
-    pub display: NodeDisplay,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dm: Option<NodeDm>,
-    #[serde(default)]
-    pub capabilities: Vec<NodeCapability>,
-    #[serde(default)]
-    pub runtime: NodeRuntime,
-    #[serde(default)]
-    pub ports: Vec<NodePort>,
-    #[serde(default)]
-    pub files: NodeFiles,
-    #[serde(default)]
-    pub examples: Vec<NodeExample>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config_schema: Option<serde_json::Value>,
-    #[serde(default)]
-    pub dynamic_ports: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub interaction: Option<NodeInteractionLegacy>,
-    #[serde(skip_deserializing, default)]
-    pub path: PathBuf,
+fn default_true() -> bool {
+    true
 }
 
-impl<'de> Deserialize<'de> for Node {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let raw = NodeSerde::deserialize(deserializer)?;
-        let mut capabilities = raw.capabilities;
-        if let Some(dm) = raw.dm {
-            merge_legacy_dm_into_capabilities(&mut capabilities, dm);
-        }
-
-        Ok(Self {
-            id: raw.id,
-            name: raw.name,
-            version: raw.version,
-            installed_at: raw.installed_at,
-            source: raw.source,
-            description: raw.description,
-            executable: raw.executable,
-            repository: raw.repository,
-            maintainers: raw.maintainers,
-            license: raw.license,
-            display: raw.display,
-            dm: None,
-            capabilities,
-            runtime: raw.runtime,
-            ports: raw.ports,
-            files: raw.files,
-            examples: raw.examples,
-            config_schema: raw.config_schema,
-            dynamic_ports: raw.dynamic_ports,
-            interaction: raw.interaction,
-            path: raw.path,
-        })
-    }
-}
-
-fn merge_legacy_dm_into_capabilities(capabilities: &mut Vec<NodeCapability>, dm: NodeDm) {
-    let mut legacy_by_family = BTreeMap::<String, Vec<NodeCapabilityBinding>>::new();
-    for binding in dm.bindings {
-        legacy_by_family
-            .entry(binding.family)
-            .or_default()
-            .push(NodeCapabilityBinding {
-                role: binding.role,
-                port: binding.port,
-                channel: binding.channel,
-                media: binding.media,
-                lifecycle: binding.lifecycle,
-                description: binding.description,
-            });
-    }
-
-    for (family, bindings) in legacy_by_family {
-        let mut merged = false;
-        for capability in capabilities.iter_mut() {
-            if let NodeCapability::Detail(detail) = capability {
-                if detail.name == family {
-                    for binding in &bindings {
-                        if !detail.bindings.contains(binding) {
-                            detail.bindings.push(binding.clone());
-                        }
-                    }
-                    merged = true;
-                    break;
-                }
-            }
-        }
-
-        if !merged {
-            capabilities.push(NodeCapability::Detail(NodeCapabilityDetail {
-                name: family,
-                bindings,
-            }));
-        }
-    }
+fn default_readme_path() -> String {
+    "README.md".to_string()
 }
