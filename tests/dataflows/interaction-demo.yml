@@ -8,17 +8,17 @@ nodes:
       placeholder: "Type something..."
       multiline: true
 
-  - id: echo
-    node: dora-echo
+  - id: reserve
+    node: dm-text-reserve
     inputs:
-      value: prompt/value
+      text: prompt/value
     outputs:
-      - value
+      - text
 
-  - id: display
-    node: dm-display
+  - id: message
+    node: dm-message
     inputs:
-      data: echo/value
+      message: reserve/text
     config:
-      label: "Echo Output"
+      label: "Reserved Output"
       render: text

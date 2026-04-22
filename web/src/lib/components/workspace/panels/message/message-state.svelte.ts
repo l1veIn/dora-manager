@@ -1,12 +1,14 @@
 import { get } from "$lib/api";
 
 export type MessageFilterState = {
-    nodes: string[];
+    sources?: string[];
+    nodes?: string[];
     tags: string[];
 };
 
 export type SnapshotFilterState = {
-    nodes: string[];
+    sources?: string[];
+    nodes?: string[];
     tags: string[];
 };
 
@@ -15,6 +17,16 @@ export function summarizeSelection(values: string[], allLabel: string) {
     if (values.length === 1) return values[0];
     if (values.length === 2) return values.join(", ");
     return `${values.length} selected`;
+}
+
+function selectedSources(filters: { sources?: string[]; nodes?: string[] }) {
+    if (Array.isArray(filters.sources) && filters.sources.length > 0) {
+        return filters.sources;
+    }
+    if (Array.isArray(filters.nodes) && filters.nodes.length > 0) {
+        return filters.nodes;
+    }
+    return ["*"];
 }
 
 export function createMessageHistoryState(runId: () => string, filters: () => MessageFilterState) {
@@ -32,8 +44,9 @@ export function createMessageHistoryState(runId: () => string, filters: () => Me
             url.searchParams.set(key, String(value));
         }
         const currentFilters = filters();
-        if (!currentFilters.nodes.includes("*")) {
-            url.searchParams.set("from", currentFilters.nodes.join(","));
+        const sources = selectedSources(currentFilters);
+        if (!sources.includes("*")) {
+            url.searchParams.set("from", sources.join(","));
         }
         if (!currentFilters.tags.includes("*")) {
             url.searchParams.set("tag", currentFilters.tags.join(","));
@@ -126,9 +139,9 @@ export function createSnapshotViewState(
         snapshots()
             .filter((snapshot: any) => {
                 const currentFilters = filters();
+                const sources = selectedSources(currentFilters);
                 const matchesNode =
-                    currentFilters.nodes.includes("*") ||
-                    currentFilters.nodes.includes(snapshot.node_id);
+                    sources.includes("*") || sources.includes(snapshot.node_id);
                 const matchesTag =
                     currentFilters.tags.includes("*") ||
                     currentFilters.tags.includes(snapshot.tag);

@@ -2,8 +2,16 @@
     import { onMount } from "svelte";
     import { getText } from "$lib/api";
     import { Button } from "$lib/components/ui/button/index.js";
+    import { mode } from "mode-watcher";
     import { createManagedTerminal, type ManagedTerminal } from "$lib/terminal/xterm";
-    import { RefreshCw, Download, Dot } from "lucide-svelte";
+    import {
+        resolveTerminalTheme,
+        TERMINAL_THEME_FIELDS,
+        TERMINAL_THEME_PRESET_META,
+        type TerminalThemeOverrides,
+        type TerminalThemePresetId,
+    } from "$lib/terminal/themes";
+    import { RefreshCw, Download, Dot, Palette, RotateCcw } from "lucide-svelte";
     import "@xterm/xterm/css/xterm.css";
 
     let {
@@ -11,13 +19,21 @@
         nodeId = "",
         isRunActive = false,
         nodes = [],
+        themePreset = "auto",
+        themeOverrides = {},
         onNodeChange,
+        onThemePresetChange,
+        onThemeOverridesChange,
     } = $props<{
         runId: string;
         nodeId: string;
         isRunActive: boolean;
         nodes?: any[];
+        themePreset?: TerminalThemePresetId;
+        themeOverrides?: TerminalThemeOverrides;
         onNodeChange?: (id: string) => void;
+        onThemePresetChange?: (preset: TerminalThemePresetId) => void;
+        onThemeOverridesChange?: (overrides: TerminalThemeOverrides) => void;
         onClose?: () => void;
     }>();
 
@@ -27,8 +43,34 @@
     let resizeObserver = $state<ResizeObserver | null>(null);
     let loading = $state(false);
     let streamState = $state<"idle" | "connecting" | "live" | "closed" | "error">("idle");
+    let themeEditorOpen = $state(false);
     let activeViewKey = $state("");
     let viewKey = $derived(runId && nodeId ? `${runId}:${nodeId}:${isRunActive ? "live" : "done"}` : "");
+    let resolvedTheme = $derived(
+        resolveTerminalTheme(
+            themePreset,
+            mode.current === "dark" ? "dark" : "light",
+            themeOverrides,
+        ),
+    );
+    let terminalSurfaceStyle = $derived(
+        `background:${resolvedTheme.background};color:${resolvedTheme.foreground};`,
+    );
+
+    function setThemePreset(nextPreset: TerminalThemePresetId) {
+        onThemePresetChange?.(nextPreset);
+    }
+
+    function setThemeOverride(key: keyof TerminalThemeOverrides, value: string) {
+        onThemeOverridesChange?.({
+            ...themeOverrides,
+            [key]: value,
+        });
+    }
+
+    function clearThemeOverrides() {
+        onThemeOverridesChange?.({});
+    }
 
     function closeStream() {
         if (stream) {
@@ -172,7 +214,7 @@
 
     onMount(() => {
         if (terminalContainer) {
-            terminal = createManagedTerminal(terminalContainer);
+            terminal = createManagedTerminal(terminalContainer, resolvedTheme);
             resizeObserver = new ResizeObserver(() => terminal?.fit());
             resizeObserver.observe(terminalContainer);
         }
@@ -190,6 +232,12 @@
         const key = viewKey;
         if (!terminal || key === activeViewKey) return;
         void loadView(key);
+    });
+
+    $effect(() => {
+        if (!terminal) return;
+        terminal.setTheme(resolvedTheme);
+        terminal.fit();
     });
 </script>
 
@@ -219,6 +267,15 @@
 
         <div class="flex items-center gap-1.5 text-muted-foreground">
             <Button
+                variant={themeEditorOpen ? "secondary" : "ghost"}
+                size="icon"
+                class="h-7 w-7 rounded hover:bg-muted hover:text-foreground"
+                onclick={() => (themeEditorOpen = !themeEditorOpen)}
+                title="Terminal theme"
+            >
+                <Palette class="size-3.5" />
+            </Button>
+            <Button
                 variant="ghost"
                 size="icon"
                 class="h-7 w-7 rounded hover:bg-muted hover:text-foreground"
@@ -241,15 +298,73 @@
         </div>
     </div>
 
-    <div class="flex-1 min-h-0 relative bg-[#0b1020]">
+    {#if themeEditorOpen}
+        <div class="border-b bg-muted/20 px-4 py-3">
+            <div class="flex flex-wrap items-center gap-2">
+                {#each TERMINAL_THEME_PRESET_META as preset (preset.id)}
+                    <button
+                        type="button"
+                        class={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                            themePreset === preset.id
+                                ? "border-primary/40 bg-primary/10 text-foreground"
+                                : "border-border/70 bg-background/60 text-muted-foreground hover:bg-muted"
+                        }`}
+                        onclick={() => setThemePreset(preset.id)}
+                        title={preset.description}
+                    >
+                        {preset.label}
+                    </button>
+                {/each}
+
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 px-2 text-xs"
+                    onclick={clearThemeOverrides}
+                    disabled={Object.keys(themeOverrides).length === 0}
+                    title="Clear custom color overrides"
+                >
+                    <RotateCcw class="mr-1 size-3.5" />
+                    Reset
+                </Button>
+            </div>
+
+            <div class="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+                {#each TERMINAL_THEME_FIELDS as field (field.key)}
+                    <label class="flex items-center gap-2 rounded-lg border border-border/60 bg-background/80 px-2.5 py-2">
+                        <input
+                            type="color"
+                            class="h-8 w-8 rounded border-0 bg-transparent p-0"
+                            value={resolvedTheme[field.key]}
+                            oninput={(event) => setThemeOverride(field.key, event.currentTarget.value)}
+                        />
+                        <span class="min-w-0">
+                            <span class="block text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                                {field.label}
+                            </span>
+                            <span class="block font-mono text-xs text-foreground">
+                                {resolvedTheme[field.key]}
+                            </span>
+                        </span>
+                    </label>
+                {/each}
+            </div>
+        </div>
+    {/if}
+
+    <div class="flex-1 min-h-0 relative" style={terminalSurfaceStyle}>
         {#if !nodeId}
-            <div class="absolute inset-0 flex flex-col gap-3 items-center justify-center text-slate-400 text-sm font-mono">
+            <div class="absolute inset-0 flex flex-col gap-3 items-center justify-center text-sm font-mono opacity-70">
                 <div>> Select a node from the top left dropdown to view logs</div>
             </div>
         {/if}
 
         <div class:hidden={!nodeId} class="absolute inset-0 overflow-hidden p-2">
-            <div bind:this={terminalContainer} class="h-full w-full rounded-md border border-slate-800 bg-[#0b1020]"></div>
+            <div
+                bind:this={terminalContainer}
+                class="h-full w-full rounded-md border border-border/70"
+                style={terminalSurfaceStyle}
+            ></div>
         </div>
     </div>
 </div>

@@ -1,0 +1,9 @@
+[project]
+name = "dm-text-reserve"
+version = "0.1.0"
+description = "Reverse text for DM interaction demos"
+requires-python = ">=3.10"
+dependencies = ["dora-rs == 0.4.1", "pyarrow"]
+
+[project.scripts]
+dm-text-reserve = "dm_text_reserve.main:main"

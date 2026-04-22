@@ -1,11 +1,13 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import type { TerminalThemeSpec } from "./themes";
 
 export type ManagedTerminal = {
     term: Terminal;
     fit: () => void;
     write: (text: string) => void;
     resetWithText: (text: string) => void;
+    setTheme: (theme: TerminalThemeSpec) => void;
     dispose: () => void;
 };
 
@@ -13,7 +15,10 @@ function normalizeTerminalText(text: string): string {
     return text.replace(/\r?\n/g, "\r\n");
 }
 
-export function createManagedTerminal(container: HTMLElement): ManagedTerminal {
+export function createManagedTerminal(
+    container: HTMLElement,
+    theme: TerminalThemeSpec,
+): ManagedTerminal {
     const term = new Terminal({
         convertEol: true,
         disableStdin: true,
@@ -21,12 +26,7 @@ export function createManagedTerminal(container: HTMLElement): ManagedTerminal {
         fontSize: 12,
         lineHeight: 1.35,
         scrollback: 5000,
-        theme: {
-            background: "#0b1020",
-            foreground: "#d7def7",
-            cursor: "#8fb3ff",
-            selectionBackground: "#253156",
-        },
+        theme,
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
@@ -44,6 +44,9 @@ export function createManagedTerminal(container: HTMLElement): ManagedTerminal {
             term.reset();
             if (!text) return;
             term.write(normalizeTerminalText(text));
+        },
+        setTheme: (nextTheme: TerminalThemeSpec) => {
+            term.options.theme = nextTheme;
         },
         dispose: () => term.dispose(),
     };

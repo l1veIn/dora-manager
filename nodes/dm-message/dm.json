@@ -1,0 +1,90 @@
+{
+  "id": "dm-message",
+  "name": "dm-message",
+  "version": "0.1.0",
+  "installed_at": "1776842130",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "A sink-style interaction node that turns incoming content into a human-visible DM run message.",
+  "executable": ".venv/bin/dm-message",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Interaction",
+    "tags": [
+      "builtin",
+      "interaction",
+      "message",
+      "sink"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    {
+      "name": "display",
+      "bindings": [
+        {
+          "role": "source",
+          "port": "message",
+          "channel": "message",
+          "media": [
+            "text",
+            "json",
+            "markdown",
+            "image",
+            "audio",
+            "video"
+          ],
+          "lifecycle": [],
+          "description": "Emits a human-visible message into the DM interaction plane, auto-detecting inline content versus artifact files."
+        }
+      ]
+    }
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "message",
+      "name": "message",
+      "direction": "input",
+      "description": "Message content or a file path to display to the user.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_message/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {
+    "label": {
+      "default": "",
+      "description": "Optional message label shown in the UI.",
+      "env": "LABEL"
+    },
+    "render": {
+      "default": "auto",
+      "description": "Render mode: auto, text, image, audio, video, json, markdown.",
+      "env": "RENDER"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

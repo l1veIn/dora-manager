@@ -1,3 +1,8 @@
+import type {
+    TerminalThemeOverrides,
+    TerminalThemePresetId,
+} from "$lib/terminal/themes";
+
 // Helper to generate a unique ID
 export function generateId(): string {
     return Math.random().toString(36).substring(2, 9);
@@ -37,6 +42,8 @@ export type TerminalPanelConfig = {
     nodeId?: string;
     nodes?: string[];
     tags?: string[];
+    themePreset?: TerminalThemePresetId;
+    themeOverrides?: TerminalThemeOverrides;
 };
 
 export type PanelConfig = {

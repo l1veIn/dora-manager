@@ -6,6 +6,8 @@
     import MessageVideo from "./media/MessageVideo.svelte";
     import MessageAudio from "./media/MessageAudio.svelte";
     import MessageJson from "./media/MessageJson.svelte";
+    import UserInputMessageItem from "./UserInputMessageItem.svelte";
+    import WidgetRegistrationItem from "./WidgetRegistrationItem.svelte";
 
     let { runId, entry } = $props<{ runId: string, entry: any }>();
 
@@ -18,13 +20,17 @@
     const label = $derived(payload.label ?? entry.from);
     const kind = $derived(payload.kind ?? (file ? "file" : "inline"));
     const render = $derived(entry.tag ?? "text");
+    const isUserInputMessage = $derived(entry.from === "web" && render === "input");
+    const isWidgetRegistration = $derived(render === "widgets");
     const isKnownRender = $derived(
         render === "text" ||
             render === "image" ||
             render === "video" ||
             render === "audio" ||
             render === "json" ||
-            render === "markdown",
+            render === "markdown" ||
+            render === "input" ||
+            render === "widgets",
     );
 
     $effect(() => {
@@ -59,6 +65,11 @@
     }
 </script>
 
+{#if isUserInputMessage}
+    <UserInputMessageItem {entry} />
+{:else if isWidgetRegistration}
+    <WidgetRegistrationItem {entry} />
+{:else}
 <div class="flex flex-col w-full group">
     <div class="flex items-center gap-1.5 px-2 mb-1">
         <span class="text-[10px] font-mono font-medium tracking-tight text-primary/70">{entry.from}</span>
@@ -122,3 +133,4 @@
         {/if}
     </div>
 </div>
+{/if}

@@ -69,7 +69,11 @@ export const panelRegistry: Record<PanelKind, PanelDefinition> = {
         dotClass: "bg-zinc-800 dark:bg-zinc-200",
         sourceMode: "external",
         supportedTags: [],
-        defaultConfig: { nodeId: undefined },
+        defaultConfig: {
+            nodeId: undefined,
+            themePreset: "auto",
+            themeOverrides: {},
+        },
         component: TerminalPanel,
     },
 };

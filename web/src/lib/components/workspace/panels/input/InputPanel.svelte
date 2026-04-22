@@ -37,7 +37,7 @@
     let selectedNodes = $derived(Array.isArray(item.config.nodes) ? item.config.nodes : ["*"]);
     let selectedTags = $derived(Array.isArray(item.config.tags) ? item.config.tags : ["widgets"]);
     let gridCols = $derived(typeof item.config.gridCols === "number" ? item.config.gridCols : 2);
-    let availableNodes = $derived(
+    let availableSources = $derived(
         context.snapshots
             .filter((snapshot: any) => snapshot.tag === "widgets")
             .map((snapshot: any) => snapshot.node_id)
@@ -138,27 +138,27 @@
     }
 </script>
 
-<div class="h-full w-full overflow-y-auto p-4 space-y-4 bg-muted/10">
-    <div class="flex items-center justify-between gap-3">
+<div class="flex h-full w-full flex-col overflow-hidden bg-background">
+    <div class="px-3 h-8 border-b bg-muted/20 flex items-center justify-between shrink-0">
         <div class="flex-1"></div>
         <div class="flex items-center gap-1.5">
             <DropdownMenu.Root>
                 <DropdownMenu.Trigger>
                     {#snippet child({ props })}
                         <Button {...props} variant="ghost" size="sm" class="h-7 w-auto max-w-[156px] justify-between gap-2 rounded-full border-0 bg-muted/20 px-2.5 text-[11px] font-mono text-foreground/90 shadow-none hover:bg-muted/35">
-                            <span class="min-w-0 truncate">{summarizeSelection(selectedNodes, "All Nodes")}</span>
+                            <span class="min-w-0 truncate">{summarizeSelection(selectedNodes, "All Sources")}</span>
                             <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
                         </Button>
                     {/snippet}
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Content align="end" class="w-56">
-                    <DropdownMenu.Label>Filter Nodes</DropdownMenu.Label>
+                    <DropdownMenu.Label>Filter Sources</DropdownMenu.Label>
                     <DropdownMenu.Separator />
                     <DropdownMenu.CheckboxItem checked={selectedNodes.includes("*")} onclick={(event) => handleMenuSelect(event, setAllNodes)}>
-                        All Nodes
+                        All Sources
                     </DropdownMenu.CheckboxItem>
                     <DropdownMenu.Separator />
-                    {#each availableNodes as nodeId}
+                    {#each availableSources as nodeId}
                         <DropdownMenu.CheckboxItem checked={!selectedNodes.includes("*") && selectedNodes.includes(nodeId)} onclick={(event) => handleMenuSelect(event, () => toggleNode(nodeId))}>
                             {nodeId}
                         </DropdownMenu.CheckboxItem>
@@ -195,54 +195,56 @@
         </div>
     </div>
 
-    {#if widgetSnapshots.length === 0}
-        <div class="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed bg-background/60 text-sm text-muted-foreground">
-            No input controls available.
-        </div>
-    {/if}
-
-    <div class={`grid gap-3 ${gridClass}`}>
-        {#each widgetSnapshots as binding}
-            <div class="rounded-lg border bg-background/95 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-                <div class="px-3 pt-2.5 pb-1.5">
-                    <div class="truncate font-medium text-[13px] leading-5">{binding.payload?.label || binding.node_id}</div>
-                    <div class="truncate text-[10px] text-muted-foreground/80 font-mono leading-4">{binding.node_id}</div>
-                </div>
-                <div class="px-3 pb-3 space-y-2.5">
-                    {#each widgetEntries(binding) as [outputId, widget]}
-                        <div class="space-y-1">
-                            {#if shouldShowWidgetLabel(binding)}
-                                <div class="text-[9px] font-medium text-muted-foreground/75 uppercase tracking-[0.18em]">
-                                    {widget.label ?? outputId}
-                                </div>
-                            {/if}
-                            {#if widget.type === "textarea"}
-                                <ControlTextarea {outputId} xw={widget} label={widget.label ?? outputId} value={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
-                            {:else if widget.type === "input"}
-                                <ControlInput {outputId} xw={widget} label={widget.label ?? outputId} value={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
-                            {:else if widget.type === "button"}
-                                <ControlButton {outputId} xw={widget} label={widget.label ?? outputId} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onSend={(v) => handleEmit(binding.node_id, outputId, v)} />
-                            {:else if widget.type === "select"}
-                                <ControlSelect {outputId} options={widget.options ?? []} value={draftValues[widgetKey(binding.node_id, outputId)]} defaultValue={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} onValueChange={(v) => handleEmit(binding.node_id, outputId, v)} />
-                            {:else if widget.type === "slider"}
-                                <ControlSlider {outputId} xw={widget} value={draftValues[widgetKey(binding.node_id, outputId)]} defaultValue={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} onValueChange={(v) => handleEmit(binding.node_id, outputId, v)} />
-                            {:else if widget.type === "switch"}
-                                <ControlSwitch {outputId} xw={widget} value={draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget)} disabled={!context.isRunActive} onValueChange={(v) => handleEmit(binding.node_id, outputId, v)} />
-                            {:else if widget.type === "radio"}
-                                <ControlRadio {outputId} options={widget.options ?? []} label={widget.label ?? outputId} value={draftValues[widgetKey(binding.node_id, outputId)]} defaultValue={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
-                            {:else if widget.type === "checkbox"}
-                                <ControlCheckbox {outputId} options={widget.options ?? []} label={widget.label ?? outputId} value={draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
-                            {:else if widget.type === "path" || widget.type === "file_picker" || widget.type === "directory"}
-                                <ControlPath {outputId} xw={widget} mode={widget.type === "directory" ? "directory" : "file"} value={draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
-                            {:else if widget.type === "file"}
-                                <input type="file" disabled={!context.isRunActive} class="text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 disabled:cursor-not-allowed" onchange={(e) => emitFile(binding.node_id, outputId, (e.currentTarget as HTMLInputElement).files)} />
-                            {:else}
-                                <div class="rounded-md border border-dashed p-3 text-sm text-muted-foreground bg-muted/50">Unsupported widget type: {widget.type ?? "unknown"}</div>
-                            {/if}
-                        </div>
-                    {/each}
-                </div>
+    <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/10">
+        {#if widgetSnapshots.length === 0}
+            <div class="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed bg-background/60 text-sm text-muted-foreground">
+                No input controls available.
             </div>
-        {/each}
+        {/if}
+
+        <div class={`grid gap-3 ${gridClass}`}>
+            {#each widgetSnapshots as binding}
+                <div class="rounded-lg border bg-background/95 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                    <div class="px-3 pt-2.5 pb-1.5">
+                        <div class="truncate font-medium text-[13px] leading-5">{binding.payload?.label || binding.node_id}</div>
+                        <div class="truncate text-[10px] text-muted-foreground/80 font-mono leading-4">{binding.node_id}</div>
+                    </div>
+                    <div class="px-3 pb-3 space-y-2.5">
+                        {#each widgetEntries(binding) as [outputId, widget]}
+                            <div class="space-y-1">
+                                {#if shouldShowWidgetLabel(binding)}
+                                    <div class="text-[9px] font-medium text-muted-foreground/75 uppercase tracking-[0.18em]">
+                                        {widget.label ?? outputId}
+                                    </div>
+                                {/if}
+                                {#if widget.type === "textarea"}
+                                    <ControlTextarea {outputId} xw={widget} label={widget.label ?? outputId} value={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
+                                {:else if widget.type === "input"}
+                                    <ControlInput {outputId} xw={widget} label={widget.label ?? outputId} value={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
+                                {:else if widget.type === "button"}
+                                    <ControlButton {outputId} xw={widget} label={widget.label ?? outputId} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onSend={(v) => handleEmit(binding.node_id, outputId, v)} />
+                                {:else if widget.type === "select"}
+                                    <ControlSelect {outputId} options={widget.options ?? []} value={draftValues[widgetKey(binding.node_id, outputId)]} defaultValue={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} onValueChange={(v) => handleEmit(binding.node_id, outputId, v)} />
+                                {:else if widget.type === "slider"}
+                                    <ControlSlider {outputId} xw={widget} value={draftValues[widgetKey(binding.node_id, outputId)]} defaultValue={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} onValueChange={(v) => handleEmit(binding.node_id, outputId, v)} />
+                                {:else if widget.type === "switch"}
+                                    <ControlSwitch {outputId} xw={widget} value={draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget)} disabled={!context.isRunActive} onValueChange={(v) => handleEmit(binding.node_id, outputId, v)} />
+                                {:else if widget.type === "radio"}
+                                    <ControlRadio {outputId} options={widget.options ?? []} label={widget.label ?? outputId} value={draftValues[widgetKey(binding.node_id, outputId)]} defaultValue={initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
+                                {:else if widget.type === "checkbox"}
+                                    <ControlCheckbox {outputId} options={widget.options ?? []} label={widget.label ?? outputId} value={draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
+                                {:else if widget.type === "path" || widget.type === "file_picker" || widget.type === "directory"}
+                                    <ControlPath {outputId} xw={widget} mode={widget.type === "directory" ? "directory" : "file"} value={draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget)} disabled={!context.isRunActive} sending={sendingId === widgetKey(binding.node_id, outputId)} onValueChange={(v) => draftValues[widgetKey(binding.node_id, outputId)] = v} onSend={() => handleEmit(binding.node_id, outputId, draftValues[widgetKey(binding.node_id, outputId)] ?? initialValue(binding, outputId, widget))} />
+                                {:else if widget.type === "file"}
+                                    <input type="file" disabled={!context.isRunActive} class="text-sm cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 disabled:cursor-not-allowed" onchange={(e) => emitFile(binding.node_id, outputId, (e.currentTarget as HTMLInputElement).files)} />
+                                {:else}
+                                    <div class="rounded-md border border-dashed p-3 text-sm text-muted-foreground bg-muted/50">Unsupported widget type: {widget.type ?? "unknown"}</div>
+                                {/if}
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/each}
+        </div>
     </div>
 </div>

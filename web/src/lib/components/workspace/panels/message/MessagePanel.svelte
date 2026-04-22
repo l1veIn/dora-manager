@@ -17,8 +17,13 @@
 
     function ensureConfig() {
         if (!item.config) item.config = {};
-        if (!Array.isArray(item.config.nodes) || item.config.nodes.length === 0) {
-            item.config.nodes = ["*"];
+        if (
+            !Array.isArray(item.config.sources) ||
+            item.config.sources.length === 0
+        ) {
+            item.config.sources = Array.isArray(item.config.nodes)
+                ? item.config.nodes
+                : ["*"];
         }
         if (!Array.isArray(item.config.tags) || item.config.tags.length === 0) {
             item.config.tags = ["*"];
@@ -32,7 +37,7 @@
     let lastInitialLoadToken = $state<number | null>(null);
     let lastProcessedRefreshToken = $state<number | null>(null);
 
-    let availableNodes = $derived(
+    let availableSources = $derived(
         context.snapshots
             .map((snapshot: any) => snapshot.node_id)
             .filter((value: string, index: number, items: string[]) => value && items.indexOf(value) === index),
@@ -41,11 +46,11 @@
         [...DEFAULT_TAGS, ...context.snapshots.map((snapshot: any) => snapshot.tag)]
             .filter((value: string, index: number, items: string[]) => value && items.indexOf(value) === index),
     );
-    let selectedNodes = $derived(Array.isArray(item.config.nodes) ? item.config.nodes : ["*"]);
+    let selectedSources = $derived(Array.isArray(item.config.sources) ? item.config.sources : ["*"]);
     let selectedTags = $derived(Array.isArray(item.config.tags) ? item.config.tags : ["*"]);
     const history = createMessageHistoryState(
         () => context.runId,
-        () => ({ nodes: selectedNodes, tags: selectedTags }),
+        () => ({ sources: selectedSources, tags: selectedTags }),
     );
 
     function applyFilters() {
@@ -55,9 +60,9 @@
         history.loadInitial(() => scrollToBottom(true));
     }
 
-    function setAllNodes() {
+    function setAllSources() {
         ensureConfig();
-        item.config.nodes = ["*"];
+        item.config.sources = ["*"];
         applyFilters();
     }
 
@@ -67,11 +72,11 @@
         applyFilters();
     }
 
-    function toggleNode(value: string) {
+    function toggleSource(value: string) {
         ensureConfig();
-        const current = selectedNodes.includes("*") ? [] : [...selectedNodes];
+        const current = selectedSources.includes("*") ? [] : [...selectedSources];
         const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
-        item.config.nodes = next.length > 0 ? next : ["*"];
+        item.config.sources = next.length > 0 ? next : ["*"];
         applyFilters();
     }
 
@@ -138,21 +143,21 @@
                 <DropdownMenu.Trigger>
                     {#snippet child({ props })}
                         <Button {...props} variant="ghost" size="sm" class="h-7 w-auto max-w-[148px] justify-between gap-2 rounded-full border-0 bg-muted/20 px-2.5 text-[11px] font-mono text-foreground/90 shadow-none hover:bg-muted/35">
-                            <span class="min-w-0 truncate">{summarizeSelection(selectedNodes, "All Nodes")}</span>
+                            <span class="min-w-0 truncate">{summarizeSelection(selectedSources, "All Sources")}</span>
                             <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
                         </Button>
                     {/snippet}
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Content align="end" class="w-56">
-                    <DropdownMenu.Label>Filter Nodes</DropdownMenu.Label>
+                    <DropdownMenu.Label>Filter Sources</DropdownMenu.Label>
                     <DropdownMenu.Separator />
-                    <DropdownMenu.CheckboxItem checked={selectedNodes.includes("*")} onclick={(event) => handleMenuSelect(event, setAllNodes)}>
-                        All Nodes
+                    <DropdownMenu.CheckboxItem checked={selectedSources.includes("*")} onclick={(event) => handleMenuSelect(event, setAllSources)}>
+                        All Sources
                     </DropdownMenu.CheckboxItem>
                     <DropdownMenu.Separator />
-                    {#each availableNodes as nodeId}
-                        <DropdownMenu.CheckboxItem checked={!selectedNodes.includes("*") && selectedNodes.includes(nodeId)} onclick={(event) => handleMenuSelect(event, () => toggleNode(nodeId))}>
-                            {nodeId}
+                    {#each availableSources as sourceId}
+                        <DropdownMenu.CheckboxItem checked={!selectedSources.includes("*") && selectedSources.includes(sourceId)} onclick={(event) => handleMenuSelect(event, () => toggleSource(sourceId))}>
+                            {sourceId}
                         </DropdownMenu.CheckboxItem>
                     {/each}
                 </DropdownMenu.Content>

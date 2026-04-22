@@ -1,0 +1,70 @@
+{
+  "id": "dm-text-reserve",
+  "name": "dm-text-reserve",
+  "version": "0.1.0",
+  "installed_at": "1776842120",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "A tiny demo transform node that reverses incoming text.",
+  "executable": ".venv/bin/dm-text-reserve",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Utility",
+    "tags": [
+      "builtin",
+      "utility",
+      "text",
+      "demo"
+    ]
+  },
+  "capabilities": [],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [
+    {
+      "id": "text",
+      "name": "text",
+      "direction": "input",
+      "description": "Incoming text payload.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    },
+    {
+      "id": "text",
+      "name": "text",
+      "direction": "output",
+      "description": "Reversed text payload.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_text_reserve/main.py",
+    "tests": [],
+    "examples": []
+  },
+  "examples": [],
+  "config_schema": {},
+  "dynamic_ports": false,
+  "path": ""
+}
