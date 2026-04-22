@@ -102,10 +102,9 @@ Sources: [dm-text-input/dm.json](https://github.com/l1veIn/dora-manager/blob/mai
 
 ### display 族
 
-`display` 族声明节点通过 DM 平面暴露人类可见的输出内容。每个 `dm-message` 节点包含两个绑定：
+`display` 族声明节点作为 **sink 终点**参与 DM 交互平面的消息展示。dm-message 节点是一个典型的 sink 风格交互节点——它作为数据流的终点，将接收到的内容转化为人类可见的 DM run 消息。每个 `dm-message` 节点包含一个绑定：
 
-1. **`channel = "inline"`**：轻量级内联内容，通过 `data` 输入端口传入，支持 `text`、`json`、`markdown` 等格式。
-2. **`channel = "artifact"`**：文件/产物型输出，通过 `path` 输入端口传入文件路径，支持 `image`、`audio`、`video`、`text`、`json`、`markdown` 等格式。
+- **`channel = "message"`**：统一消息通道，通过 `message` 输入端口传入内容，自动检测内联文本与文件路径，支持 `text`、`json`、`markdown`、`image`、`audio`、`video` 等多种媒体类型。
 
 ```json
 {
@@ -113,19 +112,17 @@ Sources: [dm-text-input/dm.json](https://github.com/l1veIn/dora-manager/blob/mai
   "bindings": [
     {
       "role": "source",
-      "port": "data",
-      "channel": "inline",
-      "media": ["text", "json", "markdown"]
-    },
-    {
-      "role": "source",
-      "port": "path",
-      "channel": "artifact",
-      "media": ["image", "audio", "video", "text", "json", "markdown"]
+      "port": "message",
+      "channel": "message",
+      "media": ["text", "json", "markdown", "image", "audio", "video"],
+      "lifecycle": [],
+      "description": "Emits a human-visible message into the DM interaction plane, auto-detecting inline content versus artifact files."
     }
   ]
 }
 ```
+
+与 `widget_input` 的双向交互不同，`display` 族是**单向的 sink 模式**——数据只从 dora 数据平面流入 DM 交互平面，没有从浏览器回传到节点的路径。这使得 dm-message 天然适合用作数据流的可观测终点。
 
 Sources: [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L25-L59), [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/dm-capability-binding-v0.md#L96-L111)
 

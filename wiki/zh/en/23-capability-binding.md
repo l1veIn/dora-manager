@@ -102,10 +102,9 @@ Sources: [dm-text-input/dm.json](https://github.com/l1veIn/dora-manager/blob/mai
 
 ### display Family
 
-The `display` family declares that a node exposes human-visible output content through the DM plane. Each `dm-message` node contains two bindings:
+The `display` family declares that a node participates in the DM interaction plane as a **sink endpoint** for message display. The dm-message node is a typical sink-style interaction node — it acts as the dataflow's terminal point, turning incoming content into human-visible DM run messages. Each `dm-message` node contains a single binding:
 
-1. **`channel = "inline"`**: Lightweight inline content, passed in through the `data` input port, supporting formats such as `text`, `json`, `markdown`.
-2. **`channel = "artifact"`**: File/artifact-type output, receiving a file path through the `path` input port, supporting formats such as `image`, `audio`, `video`, `text`, `json`, `markdown`.
+- **`channel = "message"`**: A unified message channel, receiving content through the `message` input port, auto-detecting inline text versus artifact file paths, supporting media types such as `text`, `json`, `markdown`, `image`, `audio`, `video`.
 
 ```json
 {
@@ -113,19 +112,17 @@ The `display` family declares that a node exposes human-visible output content t
   "bindings": [
     {
       "role": "source",
-      "port": "data",
-      "channel": "inline",
-      "media": ["text", "json", "markdown"]
-    },
-    {
-      "role": "source",
-      "port": "path",
-      "channel": "artifact",
-      "media": ["image", "audio", "video", "text", "json", "markdown"]
+      "port": "message",
+      "channel": "message",
+      "media": ["text", "json", "markdown", "image", "audio", "video"],
+      "lifecycle": [],
+      "description": "Emits a human-visible message into the DM interaction plane, auto-detecting inline content versus artifact files."
     }
   ]
 }
 ```
+
+Unlike the bidirectional interaction of `widget_input`, the `display` family is a **unidirectional sink pattern** — data only flows from the dora data plane into the DM interaction plane, with no path for data to flow back from the browser to the node. This makes dm-message naturally suited as an observability endpoint for dataflows.
 
 Sources: [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L25-L59), [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/dm-capability-binding-v0.md#L96-L111)
 
