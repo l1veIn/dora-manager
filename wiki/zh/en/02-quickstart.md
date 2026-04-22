@@ -143,14 +143,14 @@ This dataflow is Dora Manager's simplest out-of-the-box example — it uses only
 ```mermaid
 flowchart LR
     T["dora/timer<br/><small>every 1000ms</small>"] -->|"tick"| E["echo<br/><small>dora-echo</small>"]
-    E -->|"value"| D["display<br/><small>dm-display</small>"]
+    E -->|"value"| D["display<br/><small>dm-message</small>"]
 
     style T fill:#f3f4f6,stroke:#6b7280
     style E fill:#fef3c7,stroke:#d97706
     style D fill:#dcfce7,stroke:#16a34a
 ```
 
-**What happened?** The Timer virtual node sends a heartbeat event every second → the `dora-echo` node receives and forwards it unchanged → the `dm-display` node pushes text to the Web UI's panel area. If you open the corresponding run instance page in the browser, the right panel will refresh with a new message every second.
+**What happened?** The Timer virtual node sends a heartbeat event every second → the `dora-echo` node receives and forwards it unchanged → the `dm-message` node pushes text to the Web UI's panel area. If you open the corresponding run instance page in the browser, the right panel will refresh with a new message every second.
 
 Sources: [demos/demo-hello-timer.yml](demos/demo-hello-timer.yml#L1-L39)
 

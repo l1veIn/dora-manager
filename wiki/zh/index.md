@@ -38,7 +38,7 @@ Dora Manager（简称 `dm`）是一个基于 Rust 构建的 **数据流编排与
 - [国际化与 UI](21-i18n-and-ui.md) — i18n 与 UI 组件库
 
 ### 交互系统与 Bridge 机制
-- [交互系统架构](22-interaction-system.md) — dm-input / dm-display / Bridge 节点注入原理
+- [交互系统架构](22-interaction-system.md) — dm-input / dm-message / Bridge 节点注入原理
 - [Capability Binding](23-capability-binding.md) — 节点能力声明与运行时角色绑定
 - [媒体流架构](24-media-streaming.md) — MJPEG 采集、MediaMTX 集成与 WebRTC/HLS 分发
 

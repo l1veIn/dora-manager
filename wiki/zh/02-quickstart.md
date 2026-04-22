@@ -143,14 +143,14 @@ dm start demos/demo-hello-timer.yml
 ```mermaid
 flowchart LR
     T["dora/timer<br/><small>每 1000ms</small>"] -->|"tick"| E["echo<br/><small>dora-echo</small>"]
-    E -->|"value"| D["display<br/><small>dm-display</small>"]
+    E -->|"value"| D["display<br/><small>dm-message</small>"]
 
     style T fill:#f3f4f6,stroke:#6b7280
     style E fill:#fef3c7,stroke:#d97706
     style D fill:#dcfce7,stroke:#16a34a
 ```
 
-**发生了什么？** Timer 虚拟节点每秒发送一个心跳事件 → `dora-echo` 节点接收并原样转发 → `dm-display` 节点将文本推送到 Web UI 的面板区域。如果你在浏览器中打开对应运行实例的页面，右侧面板将每秒刷新一条消息。
+**发生了什么？** Timer 虚拟节点每秒发送一个心跳事件 → `dora-echo` 节点接收并原样转发 → `dm-message` 节点将文本推送到 Web UI 的面板区域。如果你在浏览器中打开对应运行实例的页面，右侧面板将每秒刷新一条消息。
 
 Sources: [demos/demo-hello-timer.yml](demos/demo-hello-timer.yml#L1-L39)
 

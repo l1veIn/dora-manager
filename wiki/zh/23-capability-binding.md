@@ -102,7 +102,7 @@ Sources: [dm-text-input/dm.json](https://github.com/l1veIn/dora-manager/blob/mai
 
 ### display 族
 
-`display` 族声明节点通过 DM 平面暴露人类可见的输出内容。每个 `dm-display` 节点包含两个绑定：
+`display` 族声明节点通过 DM 平面暴露人类可见的输出内容。每个 `dm-message` 节点包含两个绑定：
 
 1. **`channel = "inline"`**：轻量级内联内容，通过 `data` 输入端口传入，支持 `text`、`json`、`markdown` 等格式。
 2. **`channel = "artifact"`**：文件/产物型输出，通过 `path` 输入端口传入文件路径，支持 `image`、`audio`、`video`、`text`、`json`、`markdown` 等格式。
@@ -127,7 +127,7 @@ Sources: [dm-text-input/dm.json](https://github.com/l1veIn/dora-manager/blob/mai
 }
 ```
 
-Sources: [dm-display/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-display/dm.json#L25-L59), [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/dm-capability-binding-v0.md#L96-L111)
+Sources: [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L25-L59), [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/dm-capability-binding-v0.md#L96-L111)
 
 ### Tag 类型能力
 
@@ -196,7 +196,7 @@ Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cor
 flowchart LR
     subgraph "用户可见的 YAML 拓扑"
         S["dm-slider<br/>(widget_input)"]
-        D["dm-display<br/>(display)"]
+        D["dm-message<br/>(display)"]
     end
 
     subgraph "转译器注入的隐式层"
@@ -233,7 +233,7 @@ Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 
 ## 端到端示例：demo-interactive-widgets 的 Binding 降维
 
-以 `demos/demo-interactive-widgets.yml` 为例，该数据流包含四个 `widget_input` 节点（`dm-slider`、`dm-button`、`dm-text-input`、`dm-input-switch`）和四个 `display` 节点（`dm-display`）。转译过程中：
+以 `demos/demo-interactive-widgets.yml` 为例，该数据流包含四个 `widget_input` 节点（`dm-slider`、`dm-button`、`dm-text-input`、`dm-input-switch`）和四个 `display` 节点（`dm-message`）。转译过程中：
 
 1. **Pass 2** 解析所有节点的 `dm.json`，确认可执行路径
 2. **Pass 3** 合并每个节点的 config（如 `label: "Temperature (°C)"`）到环境变量
@@ -256,7 +256,7 @@ Sources: [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/bl
 
 ## 延伸阅读
 
-- [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li)——理解交互节点的具体实现细节与 HTTP/WebSocket 通信模式
+- [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)——理解交互节点的具体实现细节与 HTTP/WebSocket 通信模式
 - [数据流转译器（Transpiler）：多 Pass 管线与四层配置合并](11-shu-ju-liu-zhuan-yi-qi-transpiler-duo-pass-guan-xian-yu-si-ceng-pei-zhi-he-bing)——capability binding 在整体转译管线中的完整上下文
 - [响应式控件（Widgets）：控件注册表、动态渲染与 WebSocket 参数注入](20-xiang-ying-shi-kong-jian-widgets-kong-jian-zhu-ce-biao-dong-tai-xuan-ran-yu-websocket-can-shu-zhu-ru)——前端如何消费 bridge 注册的控件定义
 - [自定义节点开发指南：dm.json 完整字段参考](9-zi-ding-yi-jie-dian-kai-fa-zhi-nan-dm-json-wan-zheng-zi-duan-can-kao)——`capabilities` 字段在完整 `dm.json` 中的位置与写法

@@ -10,7 +10,7 @@ Sources: [types.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib
 graph LR
     subgraph "Dora 数据流层"
         WN[Widget Nodes<br/>dm-button / dm-slider / dm-text-input]
-        DN[Display Nodes<br/>dm-display]
+        DN[Display Nodes<br/>dm-message]
     end
 
     subgraph "Bridge 进程 (dm-cli)"
@@ -432,4 +432,4 @@ Sources: [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src
 
 ---
 
-**下一步阅读**：理解了控件系统后，可以继续探索 [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li) 以深入 Bridge 的双向通信机制，或查看 [运行工作台：网格布局、面板系统与实时日志查看](19-yun-xing-gong-zuo-tai-wang-ge-bu-ju-mian-ban-xi-tong-yu-shi-shi-ri-zhi-cha-kan) 了解面板系统的整体布局设计。
+**下一步阅读**：理解了控件系统后，可以继续探索 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) 以深入 Bridge 的双向通信机制，或查看 [运行工作台：网格布局、面板系统与实时日志查看](19-yun-xing-gong-zuo-tai-wang-ge-bu-ju-mian-ban-xi-tong-yu-shi-shi-ri-zhi-cha-kan) 了解面板系统的整体布局设计。

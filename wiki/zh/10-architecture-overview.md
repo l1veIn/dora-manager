@@ -182,7 +182,7 @@ Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob
 
 dm-cli 中有一个特殊的 `bridge` 命令（隐藏，不暴露给用户）。Bridge 进程作为 dora 数据流中的一个节点运行，负责在 dora 事件系统和 dm-server 之间搭建 IPC 桥梁。它通过 Unix Socket（`~/.dm/bridge.sock`）与 dm-server 保持长连接，实现双向消息转发：
 
-- **上行方向**：将 dora 节点的输出事件（如 `dm-display` 的文本消息、`dm-mjpeg` 的流元数据）转发给 dm-server
+- **上行方向**：将 dora 节点的输出事件（如 `dm-message` 的文本消息、`dm-mjpeg` 的流元数据）转发给 dm-server
 - **下行方向**：将来自 Web 前端的用户输入（如按钮点击、滑块变化）注入回 dora 数据流
 
 这使得 dm-cli 不仅是用户直接交互的终端工具，还在运行实例生命周期中扮演关键的**通信中介**角色。

@@ -43,7 +43,7 @@ graph TD
         SLIDER[dm-slider]
         TEXTIN[dm-text-input]
         SWITCH[dm-input-switch]
-        DISPLAY[dm-display]
+        DISPLAY[dm-message]
     end
 
     subgraph 存储
@@ -101,7 +101,7 @@ Sources: [README.md](https://github.com/l1veIn/dora-manager/blob/main/nodes/READ
 | 交互组件 | `dm-slider` | Python | 数值滑块控件 | `widget_input` |
 | 交互组件 | `dm-text-input` | Python | 文本输入控件 | `widget_input` |
 | 交互组件 | `dm-input-switch` | Python | 布尔开关控件 | `widget_input` |
-| 交互组件 | `dm-display` | Python | 内容展示（文本/图像/音频等） | `display` |
+| 交互组件 | `dm-message` | Python | 内容展示（文本/图像/音频等） | `display` |
 | 存储 | `dm-save` | Python | 二进制文件持久化 | `configurable` |
 | 存储 | `dm-log` | Python | 追加式日志序列化 | `configurable` |
 | 存储 | `dm-recorder` | Python | 音频 WAV 录制 | `media` |
@@ -346,7 +346,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-che
 
 交互节点是 Dora Manager 的"双向桥梁"——它们让 Web UI 成为数据流的一等参与者。这些节点在 `dm.json` 的 `capabilities` 中声明了 `widget_input` 或 `display` 能力，标记它们参与交互系统。
 
-> 关于交互系统的完整架构，参见 [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li)。
+> 关于交互系统的完整架构，参见 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)。
 
 ### dm-button：按钮控件
 
@@ -374,7 +374,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-tex
 
 Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-input-switch/dm.json#L1-L104)
 
-### dm-display：内容展示
+### dm-message：内容展示
 
 纯输入节点。它接收两种数据并通过 WebSocket 推送到 dm-server，在 Web UI 的运行工作台中展示：
 
@@ -383,7 +383,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-inp
 
 `render` 配置支持 `auto`/`text`/`image`/`audio`/`video`/`json`/`markdown` 七种模式。`auto` 模式下根据输入端口和内容类型自动选择。该节点声明了 `display` capability，通过 `bindings` 数组精确描述了 `data` 端口支持 `text/json/markdown` 媒体类型，`path` 端口支持 `image/audio/video/text/json/markdown` 媒体类型。
 
-Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-display/dm.json#L1-L114)
+Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L1-L114)
 
 ## 存储节点
 
@@ -391,7 +391,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-dis
 
 ### dm-save：文件持久化
 
-**dm-save** 将二进制载荷写入磁盘，输出写入文件的绝对路径。它是"帧 → 文件 → 展示"模式的关键中间节点，通常与 `dm-display` 组合使用。
+**dm-save** 将二进制载荷写入磁盘，输出写入文件的绝对路径。它是"帧 → 文件 → 展示"模式的关键中间节点，通常与 `dm-message` 组合使用。
 
 配置亮点：
 - **命名模板**：`{timestamp}_{seq}` 支持时间戳和序列号变量
@@ -418,7 +418,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-log
 
 ### dm-recorder：音频 WAV 录制
 
-**dm-recorder** 将 Float32 PCM 音频块聚合为完整的 WAV 文件。输出路径可用于 `dm-display` 的 `path` 端口进行音频回放。支持 `sample_rate`（默认 16000）和 `channels`（默认 1）配置。
+**dm-recorder** 将 Float32 PCM 音频块聚合为完整的 WAV 文件。输出路径可用于 `dm-message` 的 `path` 端口进行音频回放。支持 `sample_rate`（默认 16000）和 `channels`（默认 1）配置。
 
 | 端口 | 方向 | 类型 | 说明 |
 |------|------|------|------|
@@ -492,7 +492,7 @@ nodes:
       data: detector/annotated_image
 
   - id: detection-view
-    node: dm-display
+    node: dm-message
     inputs:
       path: save-result/path
     config:
@@ -529,7 +529,7 @@ flowchart LR
     WHISPER --text--> QWEN[dora-qwen]
     QWEN --text--> TTS[dora-kokoro-tts]
     TTS --audio--> REC[dm-recorder]
-    REC --path--> DSP[dm-display]
+    REC --path--> DSP[dm-message]
     WHISPER --text--> LOG1[dm-log]
     QWEN --text--> LOG2[dm-log]
 ```
@@ -544,7 +544,7 @@ Sources: [qwen-dev.yml](https://github.com/l1veIn/dora-manager/blob/main/tests/d
 
 **就绪信号模式**：`dm-check-*` 节点输出统一的 `{ok, details}` 对，通过 `dm-and` 聚合后控制 `dm-gate`，确保下游管线只在依赖就绪时才启动。
 
-**存储家族模式**：`dm-save`/`dm-log`/`dm-recorder` 共享"写入文件 → 输出路径 → dm-display 展示"的链路，`DM_RUN_OUT_DIR` 环境变量统一管理输出目录。
+**存储家族模式**：`dm-save`/`dm-log`/`dm-recorder` 共享"写入文件 → 输出路径 → dm-message 展示"的链路，`DM_RUN_OUT_DIR` 环境变量统一管理输出目录。
 
 **交互控件模式**：`dm-button`/`dm-slider`/`dm-text-input`/`dm-input-switch` 都是纯输出节点，通过 `widget_input` capability 声明控件类型，由 Web UI 运行时自动渲染对应的 Widget。
 
@@ -555,6 +555,6 @@ Sources: [dm.json 示例](https://github.com/l1veIn/dora-manager/blob/main/nodes
 ## 延伸阅读
 
 - [Port Schema 与端口类型校验](8-port-schema-yu-duan-kou-lei-xing-xiao-yan) — 理解端口类型系统的设计原理与 Arrow 类型声明方式
-- [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li) — 交互节点的运行时通信架构与 WebSocket 消息流
+- [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) — 交互节点的运行时通信架构与 WebSocket 消息流
 - [自定义节点开发指南：dm.json 完整字段参考](9-zi-ding-yi-jie-dian-kai-fa-zhi-nan-dm-json-wan-zheng-zi-duan-can-kao) — 如何开发并注册自己的节点
 - [测试策略：单元测试、数据流集成测试与系统测试 CheckList](26-ce-shi-ce-lue-dan-yuan-ce-shi-shu-ju-liu-ji-cheng-ce-shi-yu-xi-tong-ce-shi-checklist) — 内置测试节点的使用场景

@@ -66,14 +66,14 @@ Node 的核心字段分为七个语义组：
 | **展示** | `display.category`, `display.tags[]`, `maintainers[]` | 前端分类展示、标签筛选、维护者信息 |
 | **文件索引** | `files.readme`, `files.entry`, `files.tests[]` | 关键文件相对路径，用于浏览器内文件查看 |
 
-一个已安装的 Python 节点 `dm-display` 的 dm.json 典型结构如下——注意 `executable` 指向节点私有的 `.venv` 入口，`capabilities` 中既有简单标签（`"configurable"`），也有携带结构化绑定信息的详情对象：
+一个已安装的 Python 节点 `dm-message` 的 dm.json 典型结构如下——注意 `executable` 指向节点私有的 `.venv` 入口，`capabilities` 中既有简单标签（`"configurable"`），也有携带结构化绑定信息的详情对象：
 
 ```json
 {
-  "id": "dm-display",
+  "id": "dm-message",
   "version": "0.1.0",
   "source": { "build": "pip install -e ." },
-  "executable": ".venv/bin/dm-display",
+  "executable": ".venv/bin/dm-message",
   "runtime": { "language": "python", "python": ">=3.10" },
   "capabilities": [
     "configurable",
@@ -89,7 +89,7 @@ Node 的核心字段分为七个语义组：
 
 **Legacy 兼容机制**值得特别说明：`Node` 的 `Deserialize` 实现在 [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L429-L464) 中使用了自定义逻辑。当 dm.json 包含已弃用的 `dm` 字段（旧版 `dm.bindings` 格式），`merge_legacy_dm_into_capabilities` 会按 `family` 分组将其合并到 `capabilities` 数组中，确保已有节点描述文件在新版代码中无需修改即可正常工作。
 
-Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L217-L288), [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L466-L505), [dm-display/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-display/dm.json#L1-L114)
+Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L217-L288), [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L466-L505), [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json#L1-L114)
 
 ## 四种来源与对应操作
 

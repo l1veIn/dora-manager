@@ -105,10 +105,10 @@ nodes:
     outputs:
       - value
 
-  - id: display
-    node: dm-display
+  - id: message
+    node: dm-message
     inputs:
-      data: echo/value
+      message: echo/value
     config:
       label: "Timer Tick"
       render: text
@@ -170,7 +170,7 @@ Dora Manager's architectural decisions follow a clear set of design principles. 
 |-------------|---------------|----------|
 | **Compute** | Data transformation, no side effects beyond Arrow output | `dora-qwen`, `dora-yolo` |
 | **Storage** | Data persistence (serialization + file writing) | `dm-log`, `dm-save` |
-| **Interaction** | Human-machine interface bridging | `dm-display`, `dm-slider`, `dm-button` |
+| **Interaction** | Human-machine interface bridging | `dm-message`, `dm-slider`, `dm-button` |
 | **Source** | Data generation / event emission | `dora/timer`, `dm-screen-capture` |
 
 **Core Engine Node-Agnosticism**: `dm-core` contains no knowledge of specific nodes — no hardcoded node IDs, no node-specialized enum variants, no node-specific metadata storage. If a node requires framework-level special support, that support belongs in the application layer (`dm-server` / `dm-cli`), not the core layer. This ensures the core engine's stability and predictability.

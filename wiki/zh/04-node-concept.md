@@ -263,7 +263,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-mjp
 | `configurable` | 节点接受配置参数（拥有 `config_schema`） |
 | `media` | 节点处理媒体数据（音视频流） |
 
-结构化能力（如 `widget_input`、`display`）用于声明节点与交互系统的绑定关系。转译器会识别这些能力，并在数据流中自动注入一个隐藏的 **Bridge 节点**，将 Web 前端的控件事件路由到节点的输入端口。这部分机制的详细说明请参阅 [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li)。
+结构化能力（如 `widget_input`、`display`）用于声明节点与交互系统的绑定关系。转译器会识别这些能力，并在数据流中自动注入一个隐藏的 **Bridge 节点**，将 Web 前端的控件事件路由到节点的输入端口。这部分机制的详细说明请参阅 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)。
 
 Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L71-L116), [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-button/dm.json#L25-L57)
 
@@ -375,10 +375,10 @@ nodes:
     outputs:
       - value
 
-  - id: display
-    node: dm-display
+  - id: message
+    node: dm-message
     inputs:
-      data: echo/value
+      message: echo/value
 ```
 
 转译后，`node: dm-text-input` 被替换为 `path: /absolute/path/to/.venv/bin/dm-text-input`，同时所有 `config` 项被转换为 `env:` 环境变量。这个转译过程的详细说明请参阅 [数据流转译器（Transpiler）：多 Pass 管线与四层配置合并](11-shu-ju-liu-zhuan-yi-qi-transpiler-duo-pass-guan-xian-yu-si-ceng-pei-zhi-he-bing)。
@@ -392,7 +392,7 @@ Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 | 类别 | 示例节点 | 功能概述 |
 |---|---|---|
 | **Logic** | `dm-and`, `dm-gate` | 布尔逻辑运算与条件门控 |
-| **Interaction** | `dm-button`, `dm-slider`, `dm-text-input`, `dm-display`, `dm-input-switch` | UI 交互控件：按钮、滑块、文本输入、显示面板、开关 |
+| **Interaction** | `dm-button`, `dm-slider`, `dm-text-input`, `dm-message`, `dm-input-switch` | UI 交互控件：按钮、滑块、文本输入、显示面板、开关 |
 | **Media** | `dm-mjpeg`, `dm-screen-capture` | 视频流预览、屏幕采集 |
 | **Flow Control** | `dm-queue` | FIFO 缓冲与流量控制 |
 | **AI 推理** | `dora-qwen`, `dora-distil-whisper`, `dora-kokoro-tts`, `dora-vad` | LLM、语音识别、TTS、语音活动检测 |

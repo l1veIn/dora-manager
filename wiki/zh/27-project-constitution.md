@@ -10,7 +10,7 @@ Sources: [PROJECT_CONSTITUTION.md](https://github.com/l1veIn/dora-manager/blob/m
 
 | 可复用层 | 含义 | 现有节点示例 |
 |---------|------|-------------|
-| **显示层** | 图像渲染、视频播放、日志展示 | `dm-display`、`opencv-plot` |
+| **显示层** | 图像渲染、视频播放、日志展示 | `dm-message`、`opencv-plot` |
 | **配置层** | 参数表单、环境变量管理 | `dm.json` → `config_schema` |
 | **交互层** | 用户输入控件、面板通信 | `dm-button`、`dm-slider`、`dm-text-input` |
 | **输出层** | 文件保存、数据录制 | `dm-save`、`dm-recorder` |
@@ -183,7 +183,7 @@ Sources: [PROJECT_CONSTITUTION.md](https://github.com/l1veIn/dora-manager/blob/m
 |------|------|------|---------|
 | **Compute** | 数据变换 | 除 Arrow 输出外无副作用 | `dora-qwen`、`dora-distil-whisper`、`dora-yolo` |
 | **Storage** | 数据持久化 | 写文件系统但不渲染 | `dm-save`（未来） |
-| **Interaction** | 人机交互界面 | 桥接人类与数据流（显示 + 控制） | `dm-display`、`dm-button`、`dm-slider` |
+| **Interaction** | 人机交互界面 | 桥接人类与数据流（显示 + 控制） | `dm-message`、`dm-button`、`dm-slider` |
 | **Source** | 数据生成/事件发射 | 产出数据但不消费节点输出 | `dm-timer`、`opencv-video-capture` |
 
 ### 显示与持久化的正交性
@@ -330,6 +330,6 @@ Sources: [steering-cycles.md](https://github.com/l1veIn/dora-manager/blob/main/d
 ## 延伸阅读
 
 - [整体分层架构：dm-core / dm-cli / dm-server 职责划分](10-zheng-ti-fen-ceng-jia-gou-dm-core-dm-cli-dm-server-zhi-ze-hua-fen) — 理解宪法原则 7.7（核心层节点无关）如何在代码分层中落地
-- [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li) — 理解架构原则中"交互节点平台无关"的实际实现
+- [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) — 理解架构原则中"交互节点平台无关"的实际实现
 - [测试策略：单元测试、数据流集成测试与系统测试 CheckList](26-ce-shi-ce-lue-dan-yuan-ce-shi-shu-ju-liu-ji-cheng-ce-shi-yu-xi-tong-ce-shi-checklist) — 理解如何验证"运行时真相"原则在测试层面的保障
 - [前后端联编与发布：rust-embed 静态嵌入与 CI/CD 流水线](25-qian-hou-duan-lian-bian-yu-fa-bu-rust-embed-jing-tai-qian-ru-yu-ci-cd-liu-shui-xian) — 理解 CI 流水线如何强制执行"真相优于打磨"的原则

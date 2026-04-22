@@ -406,9 +406,9 @@ Sources: [error.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-c
 | dm-and | `details` | output | `utf8` | JSON 评估详情 |
 | dm-gate | `enabled` | input | `bool` | 布尔使能信号 |
 | dm-gate | `value` | input/output | `null` | 透传值 |
-| dm-display | `path`, `data` | input | `utf8` | 路径 / 轻量显示内容 |
+| dm-message | `path`, `data` | input | `utf8` | 路径 / 轻量显示内容 |
 
-Sources: [dm-microphone dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-microphone/dm.json#L34-L75), [dm-screen-capture dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-screen-capture/dm.json#L33-L77), [dm-and dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-and/dm.json), [dm-gate dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-gate/dm.json), [dm-display dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-display/dm.json), [dm-mjpeg dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-mjpeg/dm.json)
+Sources: [dm-microphone dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-microphone/dm.json#L34-L75), [dm-screen-capture dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-screen-capture/dm.json#L33-L77), [dm-and dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-and/dm.json), [dm-gate dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-gate/dm.json), [dm-message dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-message/dm.json), [dm-mjpeg dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-mjpeg/dm.json)
 
 ### $ref 引用（外部文件）
 

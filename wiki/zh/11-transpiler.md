@@ -274,7 +274,7 @@ Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 flowchart LR
     subgraph "数据流中的 Managed 节点"
         S["dm-slider<br/>(widget_input)"]
-        D["dm-display<br/>(display)"]
+        D["dm-message<br/>(display)"]
     end
 
     subgraph "Pass 4.5 注入的隐藏拓扑"
@@ -383,7 +383,7 @@ Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-c
 
 1. **节点契约** → [节点（Node）：dm.json 契约与可执行单元](4-jie-dian-node-dm-json-qi-yue-yu-ke-zhi-xing-dan-yuan)：理解 `dm.json` 的 `executable`、`config_schema`、`ports`、`capabilities` 字段如何被转译器消费
 2. **数据流格式** → [数据流（Dataflow）：YAML 拓扑定义与节点连接](5-shu-ju-liu-dataflow-yaml-tuo-bu-ding-yi-yu-jie-dian-lian-jie)：理解 DM YAML 的 `node:` / `config:` / `inputs:` 语法
-3. **交互系统** → [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li)：深入理解 Pass 4.5 注入的 Bridge 节点如何驱动 UI 控件和面板
+3. **交互系统** → [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)：深入理解 Pass 4.5 注入的 Bridge 节点如何驱动 UI 控件和面板
 4. **端口类型系统** → [Port Schema 与端口类型校验](8-port-schema-yu-duan-kou-lei-xing-xiao-yan)：理解 Pass 2.5 使用的 Arrow 类型兼容性校验
 5. **运行时调用** → [运行时服务：启动编排、状态刷新与 CPU/内存指标采集](13-yun-xing-shi-fu-wu-qi-dong-bian-pai-zhuang-tai-shua-xin-yu-cpu-nei-cun-zhi-biao-cai-ji)：理解转译结果如何被 `service_start` 消费
 6. **配置体系** → [配置体系：DM_HOME 目录结构与 config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml)：理解 `DM_HOME` 目录结构与节点路径解析

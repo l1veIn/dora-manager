@@ -348,6 +348,6 @@ Sources: [registry.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/
 - 数据流 YAML 拓扑的编辑与可视化参见 [可视化图编辑器：SvelteFlow 画布、右键菜单与 YAML 双向同步](18-ke-shi-hua-tu-bian-ji-qi-svelteflow-hua-bu-you-jian-cai-dan-yu-yaml-shuang-xiang-tong-bu)
 - Input 面板中控件的完整类型定义与渲染机制参见 [响应式控件（Widgets）：控件注册表、动态渲染与 WebSocket 参数注入](20-xiang-ying-shi-kong-jian-widgets-kong-jian-zhu-ce-biao-dong-tai-xuan-ran-yu-websocket-can-shu-zhu-ru)
 - 后端消息 API、WebSocket 端点与 SSE 日志流的实现细节参见 [HTTP API 全览：REST 路由、WebSocket 实时通道与 Swagger 文档](15-http-api-quan-lan-rest-lu-you-websocket-shi-shi-tong-dao-yu-swagger-wen-dang)
-- dm-input / dm-display 交互节点如何产生和消费面板数据参见 [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li)
+- dm-input / dm-message 交互节点如何产生和消费面板数据参见 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)
 - Run 的生命周期与状态模型基础参见 [运行实例（Run）：生命周期状态机与指标追踪](06-yun-xing-shi-li-run-sheng-ming-zhou-qi-zhuang-tai-ji-yu-zhi-biao-zhui-zong)
 - 前端项目的路由设计与 API 通信层参见 [SvelteKit 项目结构：路由设计、API 通信层与状态管理](17-sveltekit-xiang-mu-jie-gou-lu-you-she-ji-api-tong-xin-ceng-yu-zhuang-tai-guan-li)

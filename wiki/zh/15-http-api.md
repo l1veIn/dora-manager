@@ -337,4 +337,4 @@ dm-server 的 API 设计体现了以下架构决策：
 
 ---
 
-**下一步阅读**：了解服务端如何管理持久化配置，参阅 [配置体系：DM_HOME 目录结构与 config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml)；了解前端如何消费这些 API 构建 UI，参阅 [SvelteKit 项目结构：路由设计、API 通信层与状态管理](17-sveltekit-xiang-mu-jie-gou-lu-you-she-ji-api-tong-xin-ceng-yu-zhuang-tai-guan-li)；了解交互消息在 Bridge 节点中的完整流转，参阅 [交互系统架构：dm-input / dm-display / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-display-bridge-jie-dian-zhu-ru-yuan-li)。
+**下一步阅读**：了解服务端如何管理持久化配置，参阅 [配置体系：DM_HOME 目录结构与 config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml)；了解前端如何消费这些 API 构建 UI，参阅 [SvelteKit 项目结构：路由设计、API 通信层与状态管理](17-sveltekit-xiang-mu-jie-gou-lu-you-she-ji-api-tong-xin-ceng-yu-zhuang-tai-guan-li)；了解交互消息在 Bridge 节点中的完整流转，参阅 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)。

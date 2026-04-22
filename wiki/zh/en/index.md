@@ -38,7 +38,7 @@ Dora Manager (abbreviated as `dm`) is a **dataflow orchestration and management 
 - [i18n and UI](21-i18n-and-ui.md) — Internationalization and UI component library
 
 ### Interaction & Bridge
-- [Interaction System](22-interaction-system.md) — dm-input / dm-display / Bridge node injection
+- [Interaction System](22-interaction-system.md) — dm-input / dm-message / Bridge node injection
 - [Capability Binding](23-capability-binding.md) — Node capability declaration and runtime role binding
 - [Media Streaming](24-media-streaming.md) — MJPEG capture, MediaMTX integration, and WebRTC/HLS distribution
 

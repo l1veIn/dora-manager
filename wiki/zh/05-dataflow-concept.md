@@ -6,12 +6,12 @@ Sources: [demo-hello-timer.yml](demos/demo-hello-timer.yml#L1-L39), [model.rs](h
 
 数据流本质上是一张 **有向无环图（DAG）**，以 YAML 格式声明。每个数据流文件描述了哪些节点参与计算、节点之间如何通过端口连接、以及每个节点运行时需要的配置参数。当数据流启动后（即创建一个"运行实例"），数据会沿着声明的连接边从上游节点流向下游节点，驱动整个管线运转。
 
-下面的 Mermaid 图展示了一个最小数据流的拓扑结构——`demo-hello-timer.yml` 中两个节点的连接关系。`dora-echo` 从内置定时器接收心跳信号，再将数据转发给 `dm-display` 在 Web UI 中展示：
+下面的 Mermaid 图展示了一个最小数据流的拓扑结构——`demo-hello-timer.yml` 中两个节点的连接关系。`dora-echo` 从内置定时器接收心跳信号，再将数据转发给 `dm-message` 在 Web UI 中展示：
 
 ```mermaid
 graph LR
     T["dora/timer<br/><small>内置定时器</small>"] -->|"value"| A["echo<br/><small>dora-echo</small>"]
-    A -->|"value"| B["display<br/><small>dm-display</small>"]
+    A -->|"value"| B["display<br/><small>dm-message</small>"]
 ```
 
 Sources: [demo-hello-timer.yml](demos/demo-hello-timer.yml#L22-L39)
@@ -61,7 +61,7 @@ Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 
 数据流中的节点分为两种类型，这是理解 YAML 拓扑的关键区分。
 
-**托管节点（Managed Node）** 使用 `node:` 字段声明。这类节点在 `~/.dm/nodes/<node_id>/` 中拥有完整的 `dm.json` 元数据文件，Dora Manager 负责它们的安装、路径解析、配置合并和端口校验。绝大多数内置节点和社区节点都属于托管节点。转译器会将 `node: dm-display` 自动解析为对应可执行文件的绝对路径，并将 `config` 中的参数合并为环境变量注入。
+**托管节点（Managed Node）** 使用 `node:` 字段声明。这类节点在 `~/.dm/nodes/<node_id>/` 中拥有完整的 `dm.json` 元数据文件，Dora Manager 负责它们的安装、路径解析、配置合并和端口校验。绝大多数内置节点和社区节点都属于托管节点。转译器会将 `node: dm-message` 自动解析为对应可执行文件的绝对路径，并将 `config` 中的参数合并为环境变量注入。
 
 **外部节点（External Node）** 使用 `path:` 字段声明。这类节点直接指向一个可执行文件的绝对路径，不经过 Dora Manager 的管理流程——没有配置合并、没有端口校验，原样传递给 dora-rs 运行时。适合集成第三方独立程序或临时调试使用。
 
@@ -97,10 +97,10 @@ inputs:
   outputs:
     - value
 
-- id: display
-  node: dm-display
+- id: message
+  node: dm-message
   inputs:
-    data: echo/value                  # ← 连接到 echo 节点的 value 输出端口
+    message: echo/value                  # ← 连接到 echo 节点的 value 输出端口
 ```
 
 这条连接意味着：`echo` 节点的 `value` 输出端口上产生的每一条消息，都会被自动路由到 `display` 节点的 `data` 输入端口。
@@ -167,8 +167,8 @@ Sources: [demo-hello-timer.yml](demos/demo-hello-timer.yml#L22-L29), [passes.rs]
 `config` 字段是一种声明式配置方式，你只需在 YAML 中填写 `dm.json` 的 `config_schema` 所定义的字段名和值。转译器会自动完成优先级合并——**内联 config > 节点级配置文件（config.json）> schema 默认值**——然后将合并结果转换为环境变量注入给节点进程。以下示例中，`label` 和 `render` 两个 config 字段会被转译器查找对应的 `env` 映射名并写入环境变量：
 
 ```yaml
-- id: display
-  node: dm-display
+- id: message
+  node: dm-message
   config:
     label: "Echo Output"    # config_schema 中定义了 label 字段
     render: text            # config_schema 中定义了 render 字段
@@ -240,7 +240,7 @@ Sources: [inspect.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm
 
 ## 从 YAML 到运行时：转译管线概览
 
-YAML 文件中写的 `node: dm-display` 不能直接被 dora-rs 运行时消费——运行时需要的是 `path: /absolute/path/to/binary`。这个从"DM 风格 YAML"到"标准 dora-rs YAML"的转换过程称为**转译（Transpile）**，由一条多 Pass 管线完成。管线定义在 `transpile::transpile_graph_for_run` 中：
+YAML 文件中写的 `node: dm-message` 不能直接被 dora-rs 运行时消费——运行时需要的是 `path: /absolute/path/to/binary`。这个从"DM 风格 YAML"到"标准 dora-rs YAML"的转换过程称为**转译（Transpile）**，由一条多 Pass 管线完成。管线定义在 `transpile::transpile_graph_for_run` 中：
 
 ```mermaid
 flowchart LR
@@ -285,10 +285,10 @@ nodes:
     outputs:
       - value
 
-  - id: display
-    node: dm-display
+  - id: message
+    node: dm-message
     inputs:
-      data: echo/value
+      message: echo/value
     config:
       label: "Timer Tick"
       render: text
@@ -328,7 +328,7 @@ Sources: [system-test-stream.yml](https://github.com/l1veIn/dora-manager/blob/ma
 
 ### 交互控件：输入与展示的闭环
 
-`demo-interactive-widgets.yml` 展示了四种交互控件（滑块、按钮、文本输入、开关）如何通过数据流形成"输入 → 转发 → 展示"的完整闭环。每种控件作为独立节点运行，输出经 `dora-echo` 转发后由 `dm-display` 回显：
+`demo-interactive-widgets.yml` 展示了四种交互控件（滑块、按钮、文本输入、开关）如何通过数据流形成"输入 → 转发 → 展示"的完整闭环。每种控件作为独立节点运行，输出经 `dora-echo` 转发后由 `dm-message` 回显：
 
 ```mermaid
 graph LR
@@ -360,7 +360,7 @@ flowchart LR
     SL["threshold<br/><small>dm-slider</small>"] -->|"value"| Y["detector<br/><small>dora-yolo</small>"]
     C -->|"image"| Y
     Y -->|"annotated_image"| S["save-result<br/><small>dm-save</small>"]
-    S -->|"path"| D["detection-view<br/><small>dm-display</small>"]
+    S -->|"path"| D["detection-view<br/><small>dm-message</small>"]
 ```
 
 这个案例展示了**多源输入汇聚**——`detector` 节点同时从 `webcam` 接收图像数据和从 `threshold` 接收置信度阈值，两个输入端口独立更新，节点在收到任一输入时即可触发处理。
