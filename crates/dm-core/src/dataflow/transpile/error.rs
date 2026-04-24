@@ -28,6 +28,8 @@ pub enum DiagnosticKind {
         input_port: String,
         reason: String,
     },
+    /// Hidden bridge injection needs the `dm` CLI runtime but no installed CLI was found.
+    BridgeCliUnavailable,
 }
 
 impl fmt::Display for TranspileDiagnostic {
@@ -50,6 +52,9 @@ impl fmt::Display for TranspileDiagnostic {
                     "incompatible connection {} → {}: {}",
                     output_port, input_port, reason
                 )
+            }
+            DiagnosticKind::BridgeCliUnavailable => {
+                "interaction bridge requires the dm CLI binary, but it was not found in PATH or next to the current executable; install dm or set DM_CLI_BIN".to_string()
             }
         };
         write!(

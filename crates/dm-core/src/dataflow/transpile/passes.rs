@@ -2,7 +2,7 @@ use crate::node::{self, Node};
 
 use super::bridge::{
     bridge_specs_json, build_bridge_node_spec, ensure_input_mapping, ensure_output_port,
-    DM_BRIDGE_INPUT_ENV_KEY, DM_BRIDGE_OUTPUT_ENV_KEY, DM_CAPABILITIES_ENV_KEY, DM_CLI_BIN_ENV_KEY,
+    DM_BRIDGE_INPUT_ENV_KEY, DM_BRIDGE_OUTPUT_ENV_KEY, DM_CAPABILITIES_ENV_KEY,
     HIDDEN_DM_BRIDGE_YAML_ID, NODE_DM_BRIDGE_INPUT_PORT, NODE_DM_BRIDGE_OUTPUT_PORT,
 };
 use super::context::TranspileContext;
@@ -456,7 +456,7 @@ pub(crate) fn inject_runtime_env(ctx: &TranspileContext, graph: &mut DmGraph) {
 pub(crate) fn inject_dm_bridge(
     ctx: &TranspileContext,
     graph: &mut DmGraph,
-    _diags: &mut Vec<TranspileDiagnostic>,
+    diags: &mut Vec<TranspileDiagnostic>,
 ) {
     if graph.nodes.iter().any(|node| match node {
         DmNode::Managed(managed) => managed.yaml_id == HIDDEN_DM_BRIDGE_YAML_ID,
@@ -516,7 +516,20 @@ pub(crate) fn inject_dm_bridge(
         return;
     }
 
-    let bridge_path = Some(resolve_dm_cli_exe().display().to_string());
+    let bridge_exe = crate::util::resolve_dm_cli_exe();
+    if bridge_exe == std::path::PathBuf::from("dm")
+        && std::env::var(crate::util::DM_CLI_BIN_ENV_KEY)
+            .ok()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+    {
+        diags.push(TranspileDiagnostic {
+            yaml_id: HIDDEN_DM_BRIDGE_YAML_ID.to_string(),
+            node_id: "dm".to_string(),
+            kind: DiagnosticKind::BridgeCliUnavailable,
+        });
+    }
+    let bridge_path = Some(bridge_exe.display().to_string());
     let run_out_dir = crate::runs::run_out_dir(ctx.home, ctx.run_id)
         .display()
         .to_string();
@@ -567,28 +580,6 @@ pub(crate) fn inject_dm_bridge(
         merged_env: env,
         extra_fields: bridge_extra,
     }));
-}
-
-fn resolve_dm_cli_exe() -> std::path::PathBuf {
-    if let Ok(override_path) = std::env::var(DM_CLI_BIN_ENV_KEY) {
-        let trimmed = override_path.trim();
-        if !trimmed.is_empty() {
-            return std::path::PathBuf::from(trimmed);
-        }
-    }
-
-    std::env::current_exe()
-        .ok()
-        .and_then(|exe| {
-            let dir = exe.parent()?;
-            let dm_path = dir.join("dm");
-            if dm_path.exists() {
-                Some(dm_path)
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| std::path::PathBuf::from("dm"))
 }
 
 // ---------------------------------------------------------------------------

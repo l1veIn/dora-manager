@@ -4,7 +4,7 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 use axum::routing::{get, post};
 use axum::Router;
@@ -79,6 +79,7 @@ struct ApiDoc;
 #[tokio::main]
 async fn main() {
     let home = dm_core::config::resolve_home(None).expect("Failed to resolve dm home");
+    configure_dm_cli_bridge_entrypoint();
 
     let events = EventStore::open(&home).expect("Failed to open event store");
     let config = dm_core::config::load_config(&home).expect("Failed to load dm config");
@@ -266,4 +267,34 @@ async fn main() {
     }
 
     axum::serve(listener, app).await.expect("Server error");
+}
+
+fn configure_dm_cli_bridge_entrypoint() {
+    if let Ok(existing) = env::var(dm_core::util::DM_CLI_BIN_ENV_KEY) {
+        if !existing.trim().is_empty() {
+            eprintln!(
+                "[dm-server] using {}={} for bridge nodes",
+                dm_core::util::DM_CLI_BIN_ENV_KEY,
+                existing.trim()
+            );
+            return;
+        }
+    }
+
+    match dm_core::util::resolve_dm_cli_exe_from_path_or_sibling() {
+        Some(path) => {
+            env::set_var(dm_core::util::DM_CLI_BIN_ENV_KEY, &path);
+            eprintln!(
+                "[dm-server] using {}={} for bridge nodes",
+                dm_core::util::DM_CLI_BIN_ENV_KEY,
+                path.display()
+            );
+        }
+        None => {
+            eprintln!(
+                "[dm-server] warning: dm CLI binary was not found in PATH or next to dm-server; dataflows with interaction bridge capabilities may fail to start. Install dm or set {}=/absolute/path/to/dm.",
+                dm_core::util::DM_CLI_BIN_ENV_KEY
+            );
+        }
+    }
 }

@@ -39,6 +39,50 @@ fn check_command_not_found() {
 }
 
 #[test]
+fn resolve_dm_cli_exe_prefers_env_override() {
+    let _guard = env_lock();
+    let original = std::env::var_os(util::DM_CLI_BIN_ENV_KEY);
+    std::env::set_var(util::DM_CLI_BIN_ENV_KEY, "/tmp/custom-dm");
+
+    assert_eq!(
+        util::resolve_dm_cli_exe(),
+        std::path::PathBuf::from("/tmp/custom-dm")
+    );
+
+    if let Some(value) = original {
+        std::env::set_var(util::DM_CLI_BIN_ENV_KEY, value);
+    } else {
+        std::env::remove_var(util::DM_CLI_BIN_ENV_KEY);
+    }
+}
+
+#[test]
+#[cfg(not(target_os = "windows"))]
+fn resolve_dm_cli_exe_uses_path_before_fallback() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let _guard = env_lock();
+    let original_dm_cli_bin = std::env::var_os(util::DM_CLI_BIN_ENV_KEY);
+    std::env::remove_var(util::DM_CLI_BIN_ENV_KEY);
+
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dm = tmp.path().join("dm");
+    std::fs::write(&dm, "#!/bin/sh\nexit 0\n").unwrap();
+    let mut perms = std::fs::metadata(&dm).unwrap().permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&dm, perms).unwrap();
+    let _path_guard = crate::test_support::set_path(tmp.path().as_os_str());
+
+    assert_eq!(util::resolve_dm_cli_exe(), dm);
+
+    if let Some(value) = original_dm_cli_bin {
+        std::env::set_var(util::DM_CLI_BIN_ENV_KEY, value);
+    } else {
+        std::env::remove_var(util::DM_CLI_BIN_ENV_KEY);
+    }
+}
+
+#[test]
 fn is_valid_dora_binary_nonexistent() {
     let path = std::path::PathBuf::from("/tmp/nonexistent-dora-binary-xyz");
     assert!(!util::is_valid_dora_binary(&path));

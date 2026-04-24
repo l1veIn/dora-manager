@@ -11,7 +11,6 @@ pub(crate) const HIDDEN_DM_BRIDGE_YAML_ID: &str = "__dm_bridge";
 pub(crate) const DM_BRIDGE_INPUT_ENV_KEY: &str = "DM_BRIDGE_INPUT_PORT";
 pub(crate) const DM_BRIDGE_OUTPUT_ENV_KEY: &str = "DM_BRIDGE_OUTPUT_PORT";
 pub(crate) const DM_CAPABILITIES_ENV_KEY: &str = "DM_CAPABILITIES_JSON";
-pub(crate) const DM_CLI_BIN_ENV_KEY: &str = "DM_CLI_BIN";
 pub(crate) const NODE_DM_BRIDGE_INPUT_PORT: &str = "dm_bridge_input_internal";
 pub(crate) const NODE_DM_BRIDGE_OUTPUT_PORT: &str = "dm_bridge_output_internal";
 
