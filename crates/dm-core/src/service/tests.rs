@@ -45,6 +45,7 @@ fn list_services_includes_builtins() {
     let dir = tempdir().unwrap();
     let services = list_services(dir.path()).unwrap();
 
+    assert!(services.iter().any(|service| service.id == "add"));
     assert!(services.iter().any(|service| service.id == "message"));
     assert!(services.iter().any(|service| service.id == "registry"));
 }
@@ -57,6 +58,48 @@ fn get_builtin_service() {
     assert_eq!(service.id, "message");
     assert_eq!(service.scope, ServiceScope::Run);
     assert!(service.methods.iter().any(|method| method.name == "send"));
+}
+
+#[test]
+fn invoke_builtin_add_service() {
+    let _guard = env_lock();
+    let dir = tempdir().unwrap();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let result = rt
+        .block_on(invoke_service(
+            dir.path(),
+            "add",
+            ServiceInvocation {
+                method: "add".to_string(),
+                input: serde_json::json!({"x": 2, "y": 3}),
+                context: None,
+            },
+        ))
+        .unwrap();
+
+    assert_eq!(result.service_id, "add");
+    assert_eq!(result.method, "add");
+    assert_eq!(result.output["result"], 5);
+}
+
+#[test]
+fn invoke_rejects_unknown_method() {
+    let dir = tempdir().unwrap();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let err = rt
+        .block_on(invoke_service(
+            dir.path(),
+            "add",
+            ServiceInvocation {
+                method: "missing".to_string(),
+                input: serde_json::json!({}),
+                context: None,
+            },
+        ))
+        .unwrap_err()
+        .to_string();
+
+    assert!(err.contains("does not declare method"));
 }
 
 #[test]

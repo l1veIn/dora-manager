@@ -70,6 +70,38 @@ pub async fn install_service(
 }
 
 #[derive(Deserialize, ToSchema)]
+pub struct InvokeServiceRequest {
+    pub method: String,
+    #[serde(default)]
+    pub input: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<serde_json::Value>,
+}
+
+/// POST /api/services/:id/invoke
+#[utoipa::path(post, path = "/api/services/{id}/invoke", params(("id" = String, Path, description = "Service ID")), request_body = InvokeServiceRequest, responses((status = 200, description = "Service invocation result")))]
+pub async fn invoke_service(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<InvokeServiceRequest>,
+) -> impl IntoResponse {
+    match dm_core::service::invoke_service(
+        &state.home,
+        &id,
+        dm_core::service::ServiceInvocation {
+            method: req.method,
+            input: req.input,
+            context: req.context,
+        },
+    )
+    .await
+    {
+        Ok(result) => Json(result).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+#[derive(Deserialize, ToSchema)]
 pub struct ImportServiceRequest {
     /// Local path or git URL
     pub source: String,

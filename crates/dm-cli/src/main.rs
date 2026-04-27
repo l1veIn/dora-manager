@@ -184,6 +184,16 @@ enum ServiceCommands {
         /// Service id
         id: String,
     },
+    /// Invoke one service method with a JSON input object
+    Invoke {
+        /// Service id
+        id: String,
+        /// Method name
+        method: String,
+        /// JSON input object
+        #[arg(default_value = "{}")]
+        json: String,
+    },
     /// Import service(s) from local directories or git URLs
     Import {
         /// Local path(s) or git URL(s)
@@ -318,6 +328,9 @@ async fn main() -> Result<()> {
             ServiceCommands::Install { ids } => cmd::service::install(&home, ids).await?,
             ServiceCommands::List => cmd::service::list(&home)?,
             ServiceCommands::Describe { id } => cmd::service::describe(&home, &id)?,
+            ServiceCommands::Invoke { id, method, json } => {
+                cmd::service::invoke(&home, &id, &method, &json).await?
+            }
             ServiceCommands::Import { sources } => cmd::service::import(&home, sources).await?,
             ServiceCommands::Uninstall { ids } => cmd::service::uninstall(&home, ids)?,
             ServiceCommands::Readme { id } => cmd::service::readme(&home, &id)?,

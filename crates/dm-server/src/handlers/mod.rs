@@ -38,8 +38,9 @@ pub use runs::{
 pub use runtime::{down, install, uninstall, up, use_version};
 pub use services::{
     create_service, get_service_config, get_service_file_content, get_service_files,
-    import_service, install_service, list_services, open_service, save_service_config,
-    serve_service_artifact_file, service_readme, service_status, uninstall_service,
+    import_service, install_service, invoke_service, list_services, open_service,
+    save_service_config, serve_service_artifact_file, service_readme, service_status,
+    uninstall_service,
 };
 pub use system::{
     doctor, get_config, install_media, media_status, status, update_config, versions,

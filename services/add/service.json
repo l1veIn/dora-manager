@@ -1,0 +1,40 @@
+{
+  "id": "add",
+  "name": "Add",
+  "version": "0.1.0",
+  "description": "Minimal arithmetic service used to verify service invocation end to end.",
+  "display": {
+    "category": "example",
+    "tags": ["builtin", "example", "math"]
+  },
+  "scope": "global",
+  "runtime": {
+    "kind": "command",
+    "exec": "python3 service.py"
+  },
+  "files": {
+    "readme": "README.md",
+    "entry": "service.py"
+  },
+  "methods": [
+    {
+      "name": "add",
+      "description": "Add two numbers.",
+      "input_schema": {
+        "type": "object",
+        "required": ["x", "y"],
+        "properties": {
+          "x": {"type": "number"},
+          "y": {"type": "number"}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": {"type": "number"}
+        }
+      }
+    }
+  ]
+}

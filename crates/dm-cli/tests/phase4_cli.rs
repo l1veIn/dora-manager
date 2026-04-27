@@ -138,6 +138,26 @@ fn service_describe_shows_methods() {
 }
 
 #[test]
+fn service_invoke_add_returns_result() {
+    let home = tempdir().unwrap();
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "invoke",
+            "add",
+            "add",
+            r#"{"x":2,"y":8}"#,
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(r#""service_id": "add""#))
+        .stdout(predicate::str::contains(r#""result": 10"#));
+}
+
+#[test]
 fn service_describe_missing_service_shows_error() {
     let home = tempdir().unwrap();
 

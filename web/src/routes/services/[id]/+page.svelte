@@ -35,6 +35,7 @@
     import DOMPurify from "dompurify";
 
     import CodeTab from "./components/CodeTab.svelte";
+    import InvokeTab from "./components/InvokeTab.svelte";
     import SettingsTab from "./components/SettingsTab.svelte";
 
     // Build the highlight component logic here to avoid huge dependencies if possible
@@ -58,6 +59,12 @@
     let formData = $state<Record<string, any>>({});
     let loadingConfig = $state(false);
     let savingConfig = $state(false);
+
+    // Invocation state
+    let selectedMethod = $state("");
+    let inputJson = $state("{}");
+    let outputJson = $state("");
+    let invoking = $state(false);
 
     // Actions state
     let operation = $state<string | null>(null);
@@ -214,7 +221,52 @@
 
     let serviceMethods = $derived(Array.isArray(service?.methods) ? service.methods : []);
     let hasMethodsOverview = $derived(serviceMethods.length > 0);
-    let activeTab = $state<"code" | "config">("code");
+    let activeTab = $state<"code" | "invoke" | "config">("code");
+
+    $effect(() => {
+        if (!selectedMethod && serviceMethods.length > 0) {
+            selectedMethod = serviceMethods[0].name;
+            inputJson = JSON.stringify(defaultInputForMethod(serviceMethods[0]), null, 2);
+        }
+    });
+
+    function defaultInputForMethod(method: any) {
+        const properties = method?.input_schema?.properties;
+        if (!properties || typeof properties !== "object") {
+            return {};
+        }
+
+        return Object.fromEntries(
+            Object.entries(properties).map(([key, schema]: [string, any]) => {
+                if (schema?.default !== undefined) return [key, schema.default];
+                if (schema?.type === "number" || schema?.type === "integer") return [key, 1];
+                if (schema?.type === "boolean") return [key, false];
+                if (schema?.type === "array") return [key, []];
+                if (schema?.type === "object") return [key, {}];
+                return [key, ""];
+            }),
+        );
+    }
+
+    async function invokeSelectedMethod() {
+        if (!selectedMethod) return;
+
+        invoking = true;
+        try {
+            const input = JSON.parse(inputJson || "{}");
+            const result = await post(`/services/${serviceId}/invoke`, {
+                method: selectedMethod,
+                input,
+            });
+            outputJson = JSON.stringify(result, null, 2);
+            toast.success(`${serviceId}.${selectedMethod} completed`);
+        } catch (e: any) {
+            outputJson = e?.message || String(e);
+            toast.error(`Failed to invoke service: ${e?.message || e}`);
+        } finally {
+            invoking = false;
+        }
+    }
 </script>
 
 <div
@@ -468,6 +520,10 @@
                         <Terminal class="size-4" />
                         Code
                     </Tabs.Trigger>
+                    <Tabs.Trigger value="invoke" class="gap-2">
+                        <Play class="size-4" />
+                        Invoke
+                    </Tabs.Trigger>
                     <Tabs.Trigger value="config" class="gap-2">
                         <Settings class="size-4" />
                         Settings
@@ -487,6 +543,20 @@
                         {loadingFileContent}
                         onSelectFile={handleFileSelect}
                         parsedMarkdown={parseMarkdown}
+                    />
+                </Tabs.Content>
+
+                <Tabs.Content
+                    value="invoke"
+                    class="flex-1 flex flex-col min-h-0 overflow-hidden"
+                >
+                    <InvokeTab
+                        methods={serviceMethods}
+                        bind:selectedMethod
+                        bind:inputJson
+                        {outputJson}
+                        {invoking}
+                        onInvoke={invokeSelectedMethod}
                     />
                 </Tabs.Content>
 

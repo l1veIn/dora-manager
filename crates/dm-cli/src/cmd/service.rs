@@ -156,6 +156,25 @@ pub fn describe(home: &Path, id: &str) -> Result<()> {
     Ok(())
 }
 
+pub async fn invoke(home: &Path, id: &str, method: &str, raw_json: &str) -> Result<()> {
+    let input = serde_json::from_str::<serde_json::Value>(raw_json)
+        .with_context(|| "Invocation input must be valid JSON")?;
+    let result = dm_core::service::invoke_service(
+        home,
+        id,
+        dm_core::service::ServiceInvocation {
+            method: method.to_string(),
+            input,
+            context: None,
+        },
+    )
+    .await
+    .with_context(|| format!("Failed to invoke service '{}.{}'", id, method))?;
+
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    Ok(())
+}
+
 pub async fn import(home: &Path, sources: Vec<String>) -> Result<()> {
     let total = sources.len();
     let mut ok = 0u32;

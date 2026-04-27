@@ -61,6 +61,8 @@ a daemon, or imported from another tool ecosystem.
 - Describe a service, its methods, and its input/output schemas.
 - Invoke a service from CLI with JSON input.
 - Invoke a service from Web.
+- Verify the first loop with a minimal `add(x, y)` command service before
+  expanding into run-scoped services or SDK calls.
 - Invoke a service from Node code through a small SDK.
 - Support global calls that do not require a run.
 - Support run-scoped calls that receive `run_id` context.

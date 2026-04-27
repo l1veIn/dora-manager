@@ -1108,6 +1108,55 @@ async fn service_status_returns_entry_and_404_for_missing_service() {
 }
 
 #[tokio::test]
+async fn invoke_service_runs_builtin_add_service() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::invoke_service(
+        State(state),
+        Path("add".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "method": "add",
+                "input": {"x": 4, "y": 5}
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["service_id"], "add");
+    assert_eq!(json["method"], "add");
+    assert_eq!(json["output"]["result"], 9);
+}
+
+#[tokio::test]
+async fn invoke_service_returns_bad_request_for_unknown_method() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::invoke_service(
+        State(state),
+        Path("add".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "method": "missing",
+                "input": {}
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    assert!(body.contains("does not declare method"));
+}
+
+#[tokio::test]
 async fn create_service_returns_success_and_duplicate_returns_bad_request() {
     let (_tmp, state) = test_state();
 

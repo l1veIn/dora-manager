@@ -5,6 +5,7 @@
 
 mod import;
 mod install;
+mod invoke;
 mod local;
 mod model;
 mod paths;
@@ -14,6 +15,7 @@ mod tests;
 
 pub use import::{import_git, import_local};
 pub use install::install_service;
+pub use invoke::{invoke_service, ServiceInvocation, ServiceInvocationResult};
 pub use local::{
     create_service, get_service, get_service_config, get_service_readme, git_like_file_tree,
     list_services, read_service_file, read_service_file_bytes, save_service_config, service_status,
