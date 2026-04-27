@@ -241,7 +241,6 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         maintainers: Vec::new(),
         license: None,
         display: dm_core::node::NodeDisplay::default(),
-        dm: None,
         capabilities: Vec::new(),
         runtime: dm_core::node::NodeRuntime::default(),
         ports: Vec::new(),
@@ -249,7 +248,6 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         files: dm_core::node::NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
-        interaction: None,
         path: Default::default(),
     };
     std::fs::write(
@@ -1071,6 +1069,278 @@ async fn node_file_handlers_map_traversal_and_missing_paths() {
     .await
     .into_response();
     assert_eq!(missing_resp.status(), axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn list_services_returns_builtin_entries() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::list_services(State(state)).await.into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(resp).await;
+    let services: Vec<serde_json::Value> = serde_json::from_str(&body).unwrap();
+    assert!(services
+        .iter()
+        .any(|service| service["id"] == "message" && service["builtin"] == true));
+    assert!(services
+        .iter()
+        .any(|service| service["id"] == "registry" && service["builtin"] == true));
+}
+
+#[tokio::test]
+async fn service_status_returns_entry_and_404_for_missing_service() {
+    let (_tmp, state) = test_state();
+
+    let ok_resp = handlers::service_status(State(state.clone()), Path("message".to_string()))
+        .await
+        .into_response();
+    assert_eq!(ok_resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(ok_resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["id"], "message");
+    assert_eq!(json["scope"], "run");
+
+    let missing_resp = handlers::service_status(State(state), Path("missing-service".to_string()))
+        .await
+        .into_response();
+    assert_eq!(missing_resp.status(), axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn create_service_returns_success_and_duplicate_returns_bad_request() {
+    let (_tmp, state) = test_state();
+
+    let create_resp = handlers::create_service(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "new-service",
+                "description": "test service"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(create_resp.status(), axum::http::StatusCode::OK);
+
+    let duplicate_resp = handlers::create_service(
+        State(state),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "new-service",
+                "description": "test service"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(duplicate_resp.status(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn service_config_handlers_roundtrip() {
+    let (_tmp, state) = test_state();
+    let home = state.home.clone();
+    dm_core::service::create_service(&home, "cfg-service", "configurable").unwrap();
+
+    let save_resp = handlers::save_service_config(
+        State(state.clone()),
+        Path("cfg-service".to_string()),
+        Json(serde_json::json!({ "threshold": 0.9 })),
+    )
+    .await
+    .into_response();
+    assert_eq!(save_resp.status(), axum::http::StatusCode::OK);
+
+    let get_resp = handlers::get_service_config(State(state), Path("cfg-service".to_string()))
+        .await
+        .into_response();
+    assert_eq!(get_resp.status(), axum::http::StatusCode::OK);
+
+    let body = body_text(get_resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["threshold"], 0.9);
+}
+
+#[tokio::test]
+async fn save_builtin_service_config_returns_bad_request() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::save_service_config(
+        State(state),
+        Path("message".to_string()),
+        Json(serde_json::json!({ "threshold": 0.5 })),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn install_service_returns_bad_request_for_missing_and_builtin_services() {
+    let (_tmp, state) = test_state();
+
+    let missing_resp = handlers::install_service(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "missing-service"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(missing_resp.status(), axum::http::StatusCode::BAD_REQUEST);
+
+    let builtin_resp = handlers::install_service(
+        State(state),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "message"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+    assert_eq!(builtin_resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(builtin_resp).await;
+    assert!(body.contains("does not need installation"));
+}
+
+#[tokio::test]
+async fn import_service_imports_local_directory_with_manifest_id() {
+    let (_tmp, state) = test_state();
+    let source_dir = state.home.join("imports/custom-service");
+    std::fs::create_dir_all(&source_dir).unwrap();
+    std::fs::write(
+        source_dir.join("service.json"),
+        r#"{
+          "id": "manifest-service",
+          "name": "Manifest Service",
+          "version": "0.1.0",
+          "description": "Imported service",
+          "scope": "global",
+          "runtime": {"kind": "command", "exec": "python service.py"},
+          "files": {"readme": "README.md"},
+          "methods": [{"name": "echo"}]
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(source_dir.join("README.md"), "# Manifest Service\n").unwrap();
+    std::fs::write(source_dir.join("service.py"), "print('ok')\n").unwrap();
+
+    let resp = handlers::import_service(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "source": "imports/custom-service"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["id"], "manifest-service");
+    assert!(dm_core::service::service_dir(&state.home, "manifest-service").exists());
+}
+
+#[tokio::test]
+async fn service_readme_returns_local_content_and_fallback_message() {
+    let (_tmp, state) = test_state();
+    dm_core::service::create_service(&state.home, "docs-service", "Readable").unwrap();
+
+    let ok_resp = handlers::service_readme(State(state.clone()), Path("docs-service".to_string()))
+        .await
+        .into_response();
+    assert_eq!(ok_resp.status(), axum::http::StatusCode::OK);
+    let ok_body = body_text(ok_resp).await;
+    assert!(ok_body.contains("# docs-service"));
+
+    let missing_resp = handlers::service_readme(State(state), Path("missing-service".to_string()))
+        .await
+        .into_response();
+    assert_eq!(missing_resp.status(), axum::http::StatusCode::OK);
+    let missing_body = body_text(missing_resp).await;
+    assert!(missing_body.contains("No README found locally"));
+}
+
+#[tokio::test]
+async fn service_file_handlers_return_tree_content_and_status_codes() {
+    let (_tmp, state) = test_state();
+    dm_core::service::create_service(&state.home, "file-service", "Files").unwrap();
+    let service_dir = dm_core::service::service_dir(&state.home, "file-service");
+    std::fs::create_dir_all(service_dir.join("nested")).unwrap();
+    std::fs::write(
+        service_dir.join("nested/config.yaml"),
+        "name: file-service\n",
+    )
+    .unwrap();
+
+    let files_resp =
+        handlers::get_service_files(State(state.clone()), Path("file-service".to_string()))
+            .await
+            .into_response();
+    assert_eq!(files_resp.status(), axum::http::StatusCode::OK);
+    let files_body = body_text(files_resp).await;
+    let files: Vec<String> = serde_json::from_str(&files_body).unwrap();
+    assert!(files.iter().any(|path| path == "README.md"));
+    assert!(files.iter().any(|path| path == "nested/config.yaml"));
+
+    let content_resp = handlers::get_service_file_content(
+        State(state.clone()),
+        Path(("file-service".to_string(), "nested/config.yaml".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(content_resp.status(), axum::http::StatusCode::OK);
+    let content_body = body_text(content_resp).await;
+    assert_eq!(content_body, "name: file-service\n");
+
+    let bad_resp = handlers::get_service_file_content(
+        State(state.clone()),
+        Path(("file-service".to_string(), "../secret.txt".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(bad_resp.status(), axum::http::StatusCode::BAD_REQUEST);
+
+    let missing_resp = handlers::get_service_file_content(
+        State(state),
+        Path(("missing-service".to_string(), "README.md".to_string())),
+    )
+    .await
+    .into_response();
+    assert_eq!(missing_resp.status(), axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn uninstall_service_returns_success_for_existing_service() {
+    let (_tmp, state) = test_state();
+    dm_core::service::create_service(&state.home, "demo-service", "Demo").unwrap();
+
+    let resp = handlers::uninstall_service(
+        State(state.clone()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "id": "demo-service"
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    assert!(!dm_core::service::service_dir(&state.home, "demo-service").exists());
 }
 
 #[tokio::test]

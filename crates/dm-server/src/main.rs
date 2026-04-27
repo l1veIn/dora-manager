@@ -48,6 +48,16 @@ struct WebAssets;
         handlers::nodes::open_node,
         handlers::nodes::get_node_config,
         handlers::nodes::save_node_config,
+        // Services
+        handlers::services::list_services,
+        handlers::services::service_status,
+        handlers::services::install_service,
+        handlers::services::import_service,
+        handlers::services::uninstall_service,
+        handlers::services::create_service,
+        handlers::services::open_service,
+        handlers::services::get_service_config,
+        handlers::services::save_service_config,
         // Dataflows
         handlers::dataflow::list_dataflows,
         handlers::dataflow::get_dataflow,
@@ -129,6 +139,32 @@ async fn main() {
         .route("/api/nodes/{id}/config", get(handlers::get_node_config))
         .route("/api/nodes/{id}/config", post(handlers::save_node_config))
         .route("/api/nodes/uninstall", post(handlers::uninstall_node))
+        // ─── Service Management ───
+        .route("/api/services", get(handlers::list_services))
+        .route("/api/services/install", post(handlers::install_service))
+        .route("/api/services/create", post(handlers::create_service))
+        .route("/api/services/import", post(handlers::import_service))
+        .route("/api/services/{id}", get(handlers::service_status))
+        .route("/api/services/{id}/open", post(handlers::open_service))
+        .route("/api/services/{id}/readme", get(handlers::service_readme))
+        .route("/api/services/{id}/files", get(handlers::get_service_files))
+        .route(
+            "/api/services/{id}/files/{*path}",
+            get(handlers::get_service_file_content),
+        )
+        .route(
+            "/api/services/{id}/artifacts/{*path}",
+            get(handlers::serve_service_artifact_file),
+        )
+        .route(
+            "/api/services/{id}/config",
+            get(handlers::get_service_config),
+        )
+        .route(
+            "/api/services/{id}/config",
+            post(handlers::save_service_config),
+        )
+        .route("/api/services/uninstall", post(handlers::uninstall_service))
         // ─── Dataflow Management ───
         .route("/api/dataflows", get(handlers::list_dataflows))
         .route("/api/dataflows/import", post(handlers::import_dataflows))

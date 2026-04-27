@@ -107,6 +107,242 @@ fn node_list_includes_builtin_nodes() {
 }
 
 #[test]
+fn service_list_includes_builtin_services() {
+    let home = tempdir().unwrap();
+
+    dm_cmd()
+        .args(["--home", home.path().to_str().unwrap(), "service", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Message"))
+        .stdout(predicate::str::contains("registry"));
+}
+
+#[test]
+fn service_describe_shows_methods() {
+    let home = tempdir().unwrap();
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "describe",
+            "message",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Message"))
+        .stdout(predicate::str::contains("send"))
+        .stdout(predicate::str::contains("snapshots"));
+}
+
+#[test]
+fn service_describe_missing_service_shows_error() {
+    let home = tempdir().unwrap();
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "describe",
+            "missing-service",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "Service 'missing-service' was not found",
+        ));
+}
+
+#[test]
+fn service_import_readme_files_and_uninstall_work() {
+    let home = tempdir().unwrap();
+    let source = tempdir().unwrap();
+    std::fs::write(
+        source.path().join("service.json"),
+        r#"{
+          "id": "sample",
+          "name": "Sample Service",
+          "version": "0.1.0",
+          "description": "Sample service",
+          "scope": "global",
+          "runtime": {"kind": "command", "exec": "python service.py"},
+          "files": {"readme": "README.md"},
+          "methods": [{"name": "echo"}]
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(source.path().join("README.md"), "# Sample Service\n").unwrap();
+    std::fs::write(source.path().join("service.py"), "print('ok')\n").unwrap();
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "import",
+            source.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Imported service"));
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "readme",
+            "sample",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Sample Service"));
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "files",
+            "sample",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("service.py"));
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "file",
+            "sample",
+            "service.py",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("print"));
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "uninstall",
+            "sample",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("removed"));
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn service_create_config_and_install_work() {
+    let home = tempdir().unwrap();
+    let bin = tempdir().unwrap();
+    let uv = bin.path().join("uv");
+    std::fs::write(
+        &uv,
+        r#"#!/bin/sh
+case "$1" in
+  --version)
+    echo "uv 0.0.0"
+    exit 0
+    ;;
+  venv)
+    mkdir -p "$2/bin"
+    touch "$2/bin/python"
+    exit 0
+    ;;
+  pip)
+    exit 0
+    ;;
+esac
+exit 1
+"#,
+    )
+    .unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&uv).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&uv, perms).unwrap();
+    }
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "create",
+            "cli-sample",
+            "--description",
+            "CLI sample service",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created service cli-sample"));
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "set-config",
+            "cli-sample",
+            r#"{"token":"abc"}"#,
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Config saved"));
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "config",
+            "cli-sample",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(r#""token": "abc""#));
+
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    dm_cmd()
+        .env(
+            "PATH",
+            format!("{}:{}", bin.path().display(), original_path),
+        )
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "install",
+            "cli-sample",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Installed service cli-sample"))
+        .stdout(predicate::str::contains(".venv/bin/cli-sample"));
+
+    let manifest = std::fs::read_to_string(
+        home.path()
+            .join("services")
+            .join("cli-sample")
+            .join("service.json"),
+    )
+    .unwrap();
+    assert!(manifest.contains(r#""exec": ".venv/bin/cli-sample""#));
+    assert!(manifest.contains(r#""installed_at": ""#));
+    assert!(!manifest.contains(r#""installed_at": """#));
+}
+
+#[test]
 fn node_uninstall_missing_node_shows_friendly_error() {
     let home = tempdir().unwrap();
 

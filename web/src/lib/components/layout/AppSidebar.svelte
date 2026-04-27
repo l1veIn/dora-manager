@@ -3,6 +3,7 @@
     import {
         LayoutDashboard,
         PackageSearch,
+        Wrench,
         Waypoints,
         History,
         ActivitySquare,
@@ -14,6 +15,7 @@
     const navItems = [
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Nodes", url: "/nodes", icon: PackageSearch },
+        { title: "Services", url: "/services", icon: Wrench },
         { title: "Dataflows", url: "/dataflows", icon: Waypoints },
         { title: "Runs", url: "/runs", icon: History },
         { title: "Events", url: "/events", icon: ActivitySquare },

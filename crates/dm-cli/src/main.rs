@@ -79,6 +79,12 @@ enum Commands {
         command: DataflowCommands,
     },
 
+    /// Discover and inspect dm services
+    Service {
+        #[command(subcommand)]
+        command: ServiceCommands,
+    },
+
     /// Start a dataflow on the running dora runtime
     Start {
         /// Path to dataflow YAML file
@@ -152,6 +158,72 @@ enum DataflowCommands {
         /// Local path(s) or GitHub URL(s)
         #[arg(required = true)]
         sources: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ServiceCommands {
+    /// Create a new local service scaffold
+    Create {
+        /// Service id
+        id: String,
+        /// Short description
+        #[arg(long, default_value = "")]
+        description: String,
+    },
+    /// Install service runtime dependencies
+    Install {
+        /// Service id(s)
+        #[arg(required = true)]
+        ids: Vec<String>,
+    },
+    /// List available services
+    List,
+    /// Describe one service
+    Describe {
+        /// Service id
+        id: String,
+    },
+    /// Import service(s) from local directories or git URLs
+    Import {
+        /// Local path(s) or git URL(s)
+        #[arg(required = true)]
+        sources: Vec<String>,
+    },
+    /// Uninstall service(s)
+    Uninstall {
+        /// Service id(s)
+        #[arg(required = true)]
+        ids: Vec<String>,
+    },
+    /// Print a service README
+    Readme {
+        /// Service id
+        id: String,
+    },
+    /// List files in a service workspace
+    Files {
+        /// Service id
+        id: String,
+    },
+    /// Read one file from a service workspace
+    File {
+        /// Service id
+        id: String,
+        /// Relative file path
+        path: String,
+    },
+    /// Read a service config
+    Config {
+        /// Service id
+        id: String,
+    },
+    /// Save a service config JSON object
+    SetConfig {
+        /// Service id
+        id: String,
+        /// JSON object
+        json: String,
     },
 }
 
@@ -237,6 +309,22 @@ async fn main() -> Result<()> {
 
         Commands::Dataflow { command } => match command {
             DataflowCommands::Import { sources } => cmd::dataflow::import(&home, sources).await?,
+        },
+
+        Commands::Service { command } => match command {
+            ServiceCommands::Create { id, description } => {
+                cmd::service::create(&home, &id, &description)?
+            }
+            ServiceCommands::Install { ids } => cmd::service::install(&home, ids).await?,
+            ServiceCommands::List => cmd::service::list(&home)?,
+            ServiceCommands::Describe { id } => cmd::service::describe(&home, &id)?,
+            ServiceCommands::Import { sources } => cmd::service::import(&home, sources).await?,
+            ServiceCommands::Uninstall { ids } => cmd::service::uninstall(&home, ids)?,
+            ServiceCommands::Readme { id } => cmd::service::readme(&home, &id)?,
+            ServiceCommands::Files { id } => cmd::service::files(&home, &id)?,
+            ServiceCommands::File { id, path } => cmd::service::file(&home, &id, &path)?,
+            ServiceCommands::Config { id } => cmd::service::config(&home, &id)?,
+            ServiceCommands::SetConfig { id, json } => cmd::service::set_config(&home, &id, &json)?,
         },
 
         Commands::Start { file, force } => cmd_start(&home, cli.verbose, &file, force).await?,

@@ -1,0 +1,77 @@
+{
+  "id": "message",
+  "name": "Message",
+  "version": "0.1.0",
+  "description": "Run-scoped message history and latest snapshots.",
+  "display": {
+    "category": "platform",
+    "tags": ["messages", "run", "interaction"]
+  },
+  "scope": "run",
+  "runtime": {
+    "kind": "builtin"
+  },
+  "files": {
+    "readme": "README.md"
+  },
+  "methods": [
+    {
+      "name": "send",
+      "description": "Append a message to a run-scoped message store.",
+      "input_schema": {
+        "type": "object",
+        "required": ["from", "tag", "payload"],
+        "properties": {
+          "from": {"type": "string"},
+          "tag": {"type": "string"},
+          "payload": {"type": "object"},
+          "timestamp": {"type": "integer"}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["seq"],
+        "properties": {
+          "seq": {"type": "integer"}
+        }
+      }
+    },
+    {
+      "name": "list",
+      "description": "List messages in a run-scoped message store.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "after_seq": {"type": "integer"},
+          "before_seq": {"type": "integer"},
+          "from": {"type": "array", "items": {"type": "string"}},
+          "tag": {"type": "array", "items": {"type": "string"}},
+          "limit": {"type": "integer"},
+          "desc": {"type": "boolean"}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["messages", "next_seq"],
+        "properties": {
+          "messages": {"type": "array"},
+          "next_seq": {"type": "integer"}
+        }
+      }
+    },
+    {
+      "name": "snapshots",
+      "description": "Return latest message snapshots for a run.",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["snapshots"],
+        "properties": {
+          "snapshots": {"type": "array"}
+        }
+      }
+    }
+  ]
+}

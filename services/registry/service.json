@@ -1,0 +1,51 @@
+{
+  "id": "registry",
+  "name": "Service Registry",
+  "version": "0.1.0",
+  "description": "Lists and describes dm services.",
+  "display": {
+    "category": "platform",
+    "tags": ["registry", "discovery"]
+  },
+  "scope": "global",
+  "runtime": {
+    "kind": "builtin"
+  },
+  "files": {
+    "readme": "README.md"
+  },
+  "methods": [
+    {
+      "name": "list",
+      "description": "List available services.",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["services"],
+        "properties": {
+          "services": {"type": "array"}
+        }
+      }
+    },
+    {
+      "name": "describe",
+      "description": "Describe one service by id.",
+      "input_schema": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {"type": "string"}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["service"],
+        "properties": {
+          "service": {"type": "object"}
+        }
+      }
+    }
+  ]
+}

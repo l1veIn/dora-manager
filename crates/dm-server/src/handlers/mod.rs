@@ -6,6 +6,7 @@ pub(crate) mod nodes;
 pub(crate) mod run_ws;
 pub(crate) mod runs;
 pub(crate) mod runtime;
+pub(crate) mod services;
 pub(crate) mod system;
 pub(crate) mod web;
 
@@ -35,6 +36,11 @@ pub use runs::{
     tail_run_logs,
 };
 pub use runtime::{down, install, uninstall, up, use_version};
+pub use services::{
+    create_service, get_service_config, get_service_file_content, get_service_files,
+    import_service, install_service, list_services, open_service, save_service_config,
+    serve_service_artifact_file, service_readme, service_status, uninstall_service,
+};
 pub use system::{
     doctor, get_config, install_media, media_status, status, update_config, versions,
 };

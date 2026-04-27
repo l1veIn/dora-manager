@@ -7,6 +7,7 @@ pub mod events;
 pub mod install;
 pub mod node;
 pub mod runs;
+pub mod service;
 pub mod types;
 pub mod util;
 
