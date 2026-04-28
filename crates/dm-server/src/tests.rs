@@ -1189,6 +1189,89 @@ async fn invoke_service_returns_structured_error_for_invalid_input() {
 }
 
 #[tokio::test]
+async fn invoke_message_service_send_and_list_use_run_context() {
+    let (_tmp, state) = test_state();
+    setup_run(&state.home, "run-service-message");
+
+    let send_resp = handlers::invoke_service(
+        State(state.clone()),
+        Path("message".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "method": "send",
+                "context": {"run_id": "run-service-message"},
+                "input": {
+                    "from": "web",
+                    "tag": "text",
+                    "payload": {"content": "hello service"}
+                }
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(send_resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(send_resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["service_id"], "message");
+    assert_eq!(json["method"], "send");
+    assert_eq!(json["output"]["seq"], 1);
+
+    let list_resp = handlers::invoke_service(
+        State(state),
+        Path("message".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "method": "list",
+                "context": {"run_id": "run-service-message"},
+                "input": {"tag": ["text"]}
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(list_resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(list_resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["service_id"], "message");
+    assert_eq!(json["method"], "list");
+    assert_eq!(
+        json["output"]["messages"][0]["payload"]["content"],
+        "hello service"
+    );
+    assert_eq!(json["output"]["next_seq"], 1);
+}
+
+#[tokio::test]
+async fn invoke_message_service_requires_run_context() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::invoke_service(
+        State(state),
+        Path("message".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "method": "list",
+                "input": {}
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["code"], "context_required");
+    assert!(json["error"].as_str().unwrap().contains("context.run_id"));
+}
+
+#[tokio::test]
 async fn create_service_returns_success_and_duplicate_returns_bad_request() {
     let (_tmp, state) = test_state();
 

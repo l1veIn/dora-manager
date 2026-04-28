@@ -63,6 +63,7 @@
     // Invocation state
     let selectedMethod = $state("");
     let inputJson = $state("{}");
+    let contextJson = $state("{}");
     let outputJson = $state("");
     let invoking = $state(false);
     let inputMethod = $state("");
@@ -263,9 +264,11 @@
         invoking = true;
         try {
             const input = JSON.parse(inputJson || "{}");
+            const context = JSON.parse(contextJson || "{}");
             const result = await post(`/services/${serviceId}/invoke`, {
                 method: selectedMethod,
                 input,
+                context,
             });
             outputJson = JSON.stringify(result, null, 2);
             toast.success(`${serviceId}.${selectedMethod} completed`);
@@ -569,6 +572,7 @@
                         methods={serviceMethods}
                         bind:selectedMethod
                         bind:inputJson
+                        bind:contextJson
                         {outputJson}
                         {invoking}
                         onInvoke={invokeSelectedMethod}

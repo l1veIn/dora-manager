@@ -383,7 +383,10 @@ fn split_csv(value: Option<String>) -> Option<Vec<String>> {
         .filter(|items: &Vec<String>| !items.is_empty())
 }
 
-fn normalize_payload(tag: &str, payload: serde_json::Value) -> anyhow::Result<serde_json::Value> {
+pub(crate) fn normalize_payload(
+    tag: &str,
+    payload: serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
     if tag == "input" {
         return Ok(payload);
     }

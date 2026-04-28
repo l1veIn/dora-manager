@@ -2,6 +2,7 @@
 
 > Status: wishlist and direction-setting note  
 > Depends on: [service-design-philosophy.md](../service-design-philosophy.md)
+> See also: [dm-service-mental-model.md](dm-service-mental-model.md)
 
 ## Purpose
 
@@ -102,6 +103,10 @@ a daemon, or imported from another tool ecosystem.
 - `registry.list`
 
 These are candidates, not a promise that all of them belong in v0.
+
+The current implementation has started this migration with server-backed
+`message.send`, `message.list`, and `message.snapshots` invocation through
+`POST /api/services/message/invoke`.
 
 ### Node-Side Expectations
 

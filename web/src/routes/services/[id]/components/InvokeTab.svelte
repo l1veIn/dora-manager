@@ -8,6 +8,7 @@
         methods = [],
         selectedMethod = $bindable(""),
         inputJson = $bindable("{}"),
+        contextJson = $bindable("{}"),
         outputJson = "",
         invoking = false,
         onInvoke = () => {},
@@ -15,6 +16,7 @@
         methods: any[];
         selectedMethod: string;
         inputJson: string;
+        contextJson: string;
         outputJson?: string;
         invoking?: boolean;
         onInvoke?: () => void;
@@ -47,11 +49,28 @@
                 Invoke
             </Button>
         </div>
-        <Textarea
-            bind:value={inputJson}
-            class="min-h-0 flex-1 resize-none rounded-none border-0 font-mono text-xs focus-visible:ring-0"
-            spellcheck={false}
-        />
+        <div class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_8rem]">
+            <div class="flex min-h-0 flex-col border-b">
+                <div class="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+                    Input
+                </div>
+                <Textarea
+                    bind:value={inputJson}
+                    class="min-h-0 flex-1 resize-none rounded-none border-0 font-mono text-xs focus-visible:ring-0"
+                    spellcheck={false}
+                />
+            </div>
+            <div class="flex min-h-0 flex-col">
+                <div class="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+                    Context
+                </div>
+                <Textarea
+                    bind:value={contextJson}
+                    class="min-h-0 flex-1 resize-none rounded-none border-0 font-mono text-xs focus-visible:ring-0"
+                    spellcheck={false}
+                />
+            </div>
+        </div>
     </div>
 
     <div class="flex min-h-0 flex-col rounded-md border bg-card">
