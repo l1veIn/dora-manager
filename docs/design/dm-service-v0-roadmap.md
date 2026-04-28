@@ -106,7 +106,9 @@ These are candidates, not a promise that all of them belong in v0.
 
 The current implementation has started this migration with server-backed
 `message.send`, `message.list`, and `message.snapshots` invocation through
-`POST /api/services/message/invoke`.
+`POST /api/services/message/invoke`. Run-scoped callers can also use
+`POST /api/runs/{run_id}/services/message/invoke` and let dm-server inject
+`context.run_id`.
 
 ### Node-Side Expectations
 

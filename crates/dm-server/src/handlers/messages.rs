@@ -8,7 +8,9 @@ use serde::Deserialize;
 use crate::handlers::err;
 use crate::services;
 use crate::services::media::{MediaBackendStatus, MediaStatus};
-use crate::services::message::{MessageFilter, MessageService, StreamDescriptor, StreamViewer};
+use crate::services::message::{
+    normalize_payload, MessageFilter, MessageService, StreamDescriptor, StreamViewer,
+};
 use crate::state::{AppState, MessageNotification};
 
 use utoipa::ToSchema;
@@ -381,71 +383,6 @@ fn split_csv(value: Option<String>) -> Option<Vec<String>> {
                 .collect()
         })
         .filter(|items: &Vec<String>| !items.is_empty())
-}
-
-pub(crate) fn normalize_payload(
-    tag: &str,
-    payload: serde_json::Value,
-) -> anyhow::Result<serde_json::Value> {
-    if tag == "input" {
-        return Ok(payload);
-    }
-
-    if tag == "stream" {
-        return normalize_stream_payload(payload);
-    }
-
-    if let Some(file) = payload.get("file").and_then(serde_json::Value::as_str) {
-        let mut object = payload
-            .as_object()
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("Payload must be an object"))?;
-        object.insert(
-            "file".to_string(),
-            serde_json::Value::String(services::normalize_relative_path(file)?),
-        );
-        return Ok(serde_json::Value::Object(object));
-    }
-
-    Ok(payload)
-}
-
-fn normalize_stream_payload(payload: serde_json::Value) -> anyhow::Result<serde_json::Value> {
-    let mut object = payload
-        .as_object()
-        .cloned()
-        .ok_or_else(|| anyhow::anyhow!("Stream payload must be an object"))?;
-
-    let path = object
-        .get("path")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'path'"))?
-        .to_string();
-    let stream_id = object
-        .get("stream_id")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'stream_id'"))?
-        .to_string();
-    let kind = object
-        .get("kind")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'kind'"))?
-        .to_string();
-
-    object.insert(
-        "path".to_string(),
-        serde_json::Value::String(services::normalize_relative_path(&path)?),
-    );
-    object.insert(
-        "stream_id".to_string(),
-        serde_json::Value::String(stream_id),
-    );
-    object.insert("kind".to_string(), serde_json::Value::String(kind));
-    if !object.contains_key("live") {
-        object.insert("live".to_string(), serde_json::Value::Bool(true));
-    }
-
-    Ok(serde_json::Value::Object(object))
 }
 
 fn stream_descriptor_from_snapshot(

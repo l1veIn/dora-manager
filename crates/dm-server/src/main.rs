@@ -53,6 +53,7 @@ struct WebAssets;
         handlers::services::service_status,
         handlers::services::install_service,
         handlers::services::invoke_service,
+        handlers::services::invoke_run_service,
         handlers::services::import_service,
         handlers::services::uninstall_service,
         handlers::services::create_service,
@@ -146,6 +147,10 @@ async fn main() {
         .route("/api/services/create", post(handlers::create_service))
         .route("/api/services/import", post(handlers::import_service))
         .route("/api/services/{id}/invoke", post(handlers::invoke_service))
+        .route(
+            "/api/runs/{run_id}/services/{id}/invoke",
+            post(handlers::invoke_run_service),
+        )
         .route("/api/services/{id}", get(handlers::service_status))
         .route("/api/services/{id}/open", post(handlers::open_service))
         .route("/api/services/{id}/readme", get(handlers::service_readme))

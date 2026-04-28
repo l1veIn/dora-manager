@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
 
-use super::{collect_rows, ensure_run_exists, now_ts, parse_json_sql};
+use super::{collect_rows, ensure_run_exists, normalize_relative_path, now_ts, parse_json_sql};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Message {
@@ -357,4 +357,63 @@ impl Default for Message {
             timestamp: now_ts(),
         }
     }
+}
+
+pub fn normalize_payload(tag: &str, payload: Value) -> Result<Value> {
+    if tag == "input" {
+        return Ok(payload);
+    }
+
+    if tag == "stream" {
+        return normalize_stream_payload(payload);
+    }
+
+    if let Some(file) = payload.get("file").and_then(Value::as_str) {
+        let mut object = payload
+            .as_object()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Payload must be an object"))?;
+        object.insert(
+            "file".to_string(),
+            Value::String(normalize_relative_path(file)?),
+        );
+        return Ok(Value::Object(object));
+    }
+
+    Ok(payload)
+}
+
+fn normalize_stream_payload(payload: Value) -> Result<Value> {
+    let mut object = payload
+        .as_object()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("Stream payload must be an object"))?;
+
+    let path = object
+        .get("path")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'path'"))?
+        .to_string();
+    let stream_id = object
+        .get("stream_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'stream_id'"))?
+        .to_string();
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Stream payload requires 'kind'"))?
+        .to_string();
+
+    object.insert(
+        "path".to_string(),
+        Value::String(normalize_relative_path(&path)?),
+    );
+    object.insert("stream_id".to_string(), Value::String(stream_id));
+    object.insert("kind".to_string(), Value::String(kind));
+    if !object.contains_key("live") {
+        object.insert("live".to_string(), Value::Bool(true));
+    }
+
+    Ok(Value::Object(object))
 }

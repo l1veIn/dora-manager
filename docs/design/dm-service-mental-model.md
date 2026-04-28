@@ -83,6 +83,16 @@ Server built-in services receive the same logical request, but execute inside
 dm-server. Run-scoped built-ins use `context.run_id` as the first stable context
 field.
 
+dm-server also exposes a run-scoped invocation shortcut:
+
+```text
+POST /api/runs/{run_id}/services/{service_id}/invoke
+```
+
+This route injects `context.run_id` before dispatching the service call. It is
+the preferred shape for future node SDK calls and run-detail Web surfaces,
+because callers already know the run from the URL or runtime environment.
+
 ## Boundary With Node
 
 Use Node when the capability is a long-running part of a dataflow, consumes or
@@ -97,4 +107,3 @@ The practical rule is:
 ```text
 Node is for streaming computation. Service is for structured calls.
 ```
-

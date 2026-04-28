@@ -1,15 +1,14 @@
 use axum::extract::{Path, State};
 use axum::http::header::{self, HeaderValue};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
 use crate::handlers::err;
-use crate::services::message::{MessageFilter, MessageService};
+use crate::services::invocation::invoke_server_service;
 use crate::state::AppState;
-use crate::MessageNotification;
 
 use utoipa::ToSchema;
 
@@ -98,16 +97,9 @@ pub async fn invoke_service(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(req): Json<InvokeServiceRequest>,
-) -> impl IntoResponse {
-    if id == "message" {
-        return match invoke_message_service(&state, req) {
-            Ok(result) => Json(result).into_response(),
-            Err(error) => service_invocation_error_response(error).into_response(),
-        };
-    }
-
-    match dm_core::service::invoke_service(
-        &state.home,
+) -> Response {
+    invoke_service_request(
+        &state,
         &id,
         dm_core::service::ServiceInvocation {
             method: req.method,
@@ -116,171 +108,50 @@ pub async fn invoke_service(
         },
     )
     .await
-    {
+}
+
+/// POST /api/runs/:run_id/services/:id/invoke
+#[utoipa::path(post, path = "/api/runs/{run_id}/services/{id}/invoke", params(("run_id" = String, Path, description = "Run ID"), ("id" = String, Path, description = "Service ID")), request_body = InvokeServiceRequest, responses((status = 200, description = "Run-scoped service invocation result")))]
+pub async fn invoke_run_service(
+    State(state): State<AppState>,
+    Path((run_id, id)): Path<(String, String)>,
+    Json(req): Json<InvokeServiceRequest>,
+) -> Response {
+    let mut context = req.context.unwrap_or_else(|| serde_json::json!({}));
+    if !context.is_object() {
+        context = serde_json::json!({});
+    }
+    if let Some(object) = context.as_object_mut() {
+        object.insert("run_id".to_string(), serde_json::Value::String(run_id));
+    }
+
+    invoke_service_request(
+        &state,
+        &id,
+        dm_core::service::ServiceInvocation {
+            method: req.method,
+            input: req.input,
+            context: Some(context),
+        },
+    )
+    .await
+}
+
+async fn invoke_service_request(
+    state: &AppState,
+    id: &str,
+    invocation: dm_core::service::ServiceInvocation,
+) -> Response {
+    match invoke_server_service(state, id, invocation.clone()).await {
+        Ok(Some(result)) => return Json(result).into_response(),
+        Ok(None) => {}
+        Err(error) => return service_invocation_error_response(error).into_response(),
+    }
+
+    match dm_core::service::invoke_service(&state.home, id, invocation).await {
         Ok(result) => Json(result).into_response(),
         Err(e) => service_invoke_err(e).into_response(),
     }
-}
-
-fn invoke_message_service(
-    state: &AppState,
-    req: InvokeServiceRequest,
-) -> Result<dm_core::service::ServiceInvocationResult, dm_core::service::ServiceInvocationError> {
-    let run_id = req
-        .context
-        .as_ref()
-        .and_then(|context| context.get("run_id"))
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| {
-            service_invocation_error(
-                "context_required",
-                "Service 'message' requires context.run_id",
-                "message",
-                Some(&req.method),
-            )
-        })?
-        .to_string();
-
-    let output = match req.method.as_str() {
-        "send" => invoke_message_send(state, &run_id, &req.input)?,
-        "list" => invoke_message_list(state, &run_id, &req.input)?,
-        "snapshots" => invoke_message_snapshots(state, &run_id)?,
-        method => {
-            return Err(service_invocation_error(
-                "method_not_found",
-                format!("Service 'message' does not declare method '{}'", method),
-                "message",
-                Some(method),
-            ));
-        }
-    };
-
-    Ok(dm_core::service::ServiceInvocationResult {
-        service_id: "message".to_string(),
-        method: req.method,
-        output,
-    })
-}
-
-fn invoke_message_send(
-    state: &AppState,
-    run_id: &str,
-    input: &serde_json::Value,
-) -> Result<serde_json::Value, dm_core::service::ServiceInvocationError> {
-    let from = required_string(input, "from", "message", "send")?;
-    let tag = required_string(input, "tag", "message", "send")?;
-    let payload = input.get("payload").cloned().ok_or_else(|| {
-        service_invocation_error(
-            "input_validation_failed",
-            "Service 'message.send' input requires 'payload'",
-            "message",
-            Some("send"),
-        )
-    })?;
-    let timestamp = input
-        .get("timestamp")
-        .and_then(serde_json::Value::as_i64)
-        .unwrap_or_else(crate::services::now_ts);
-    let payload = crate::handlers::messages::normalize_payload(&tag, payload).map_err(|err| {
-        service_invocation_error(
-            "input_validation_failed",
-            format!("Service 'message.send' input failed validation: {}", err),
-            "message",
-            Some("send"),
-        )
-    })?;
-    let service = MessageService::open(&state.home, run_id).map_err(|err| {
-        service_invocation_error(
-            "invoke_failed",
-            format!("Service 'message.send' failed: {}", err),
-            "message",
-            Some("send"),
-        )
-    })?;
-    let seq = service
-        .push(&from, &tag, &payload, timestamp)
-        .map_err(|err| {
-            service_invocation_error(
-                "invoke_failed",
-                format!("Service 'message.send' failed: {}", err),
-                "message",
-                Some("send"),
-            )
-        })?;
-    let _ = state.messages.send(MessageNotification {
-        run_id: run_id.to_string(),
-        seq,
-        from,
-        tag,
-    });
-
-    Ok(serde_json::json!({ "seq": seq }))
-}
-
-fn invoke_message_list(
-    state: &AppState,
-    run_id: &str,
-    input: &serde_json::Value,
-) -> Result<serde_json::Value, dm_core::service::ServiceInvocationError> {
-    let service = MessageService::open(&state.home, run_id).map_err(|err| {
-        service_invocation_error(
-            "invoke_failed",
-            format!("Service 'message.list' failed: {}", err),
-            "message",
-            Some("list"),
-        )
-    })?;
-    let response = service
-        .list(&MessageFilter {
-            after_seq: optional_i64(input, "after_seq", "message", "list")?,
-            before_seq: optional_i64(input, "before_seq", "message", "list")?,
-            from: optional_string_array(input, "from", "message", "list")?,
-            tag: optional_string_array(input, "tag", "message", "list")?,
-            target_to: None,
-            limit: optional_usize(input, "limit", "message", "list")?,
-            desc: input.get("desc").and_then(serde_json::Value::as_bool),
-        })
-        .map_err(|err| {
-            service_invocation_error(
-                "invoke_failed",
-                format!("Service 'message.list' failed: {}", err),
-                "message",
-                Some("list"),
-            )
-        })?;
-    serde_json::to_value(response).map_err(|err| {
-        service_invocation_error(
-            "invalid_output_json",
-            format!("Service 'message.list' returned invalid JSON: {}", err),
-            "message",
-            Some("list"),
-        )
-    })
-}
-
-fn invoke_message_snapshots(
-    state: &AppState,
-    run_id: &str,
-) -> Result<serde_json::Value, dm_core::service::ServiceInvocationError> {
-    let service = MessageService::open(&state.home, run_id).map_err(|err| {
-        service_invocation_error(
-            "invoke_failed",
-            format!("Service 'message.snapshots' failed: {}", err),
-            "message",
-            Some("snapshots"),
-        )
-    })?;
-    let snapshots = service.snapshots().map_err(|err| {
-        service_invocation_error(
-            "invoke_failed",
-            format!("Service 'message.snapshots' failed: {}", err),
-            "message",
-            Some("snapshots"),
-        )
-    })?;
-
-    Ok(serde_json::json!({ "snapshots": snapshots }))
 }
 
 fn service_invoke_err(error: anyhow::Error) -> impl IntoResponse {
@@ -319,139 +190,6 @@ fn service_invocation_error_response(
             detail: invocation_error.detail,
         }),
     )
-}
-
-fn service_invocation_error(
-    code: impl Into<String>,
-    message: impl Into<String>,
-    service_id: &str,
-    method: Option<&str>,
-) -> dm_core::service::ServiceInvocationError {
-    dm_core::service::ServiceInvocationError {
-        code: code.into(),
-        message: message.into(),
-        service_id: Some(service_id.to_string()),
-        method: method.map(ToString::to_string),
-        detail: None,
-    }
-}
-
-fn required_string(
-    input: &serde_json::Value,
-    key: &str,
-    service_id: &str,
-    method: &str,
-) -> Result<String, dm_core::service::ServiceInvocationError> {
-    input
-        .get(key)
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .map(ToString::to_string)
-        .ok_or_else(|| {
-            service_invocation_error(
-                "input_validation_failed",
-                format!(
-                    "Service '{}.{}' input requires '{}'",
-                    service_id, method, key
-                ),
-                service_id,
-                Some(method),
-            )
-        })
-}
-
-fn optional_i64(
-    input: &serde_json::Value,
-    key: &str,
-    service_id: &str,
-    method: &str,
-) -> Result<Option<i64>, dm_core::service::ServiceInvocationError> {
-    let Some(value) = input.get(key) else {
-        return Ok(None);
-    };
-    value.as_i64().map(Some).ok_or_else(|| {
-        service_invocation_error(
-            "input_validation_failed",
-            format!(
-                "Service '{}.{}' input field '{}' must be an integer",
-                service_id, method, key
-            ),
-            service_id,
-            Some(method),
-        )
-    })
-}
-
-fn optional_usize(
-    input: &serde_json::Value,
-    key: &str,
-    service_id: &str,
-    method: &str,
-) -> Result<Option<usize>, dm_core::service::ServiceInvocationError> {
-    let Some(value) = input.get(key) else {
-        return Ok(None);
-    };
-    let Some(value) = value.as_u64() else {
-        return Err(service_invocation_error(
-            "input_validation_failed",
-            format!(
-                "Service '{}.{}' input field '{}' must be a non-negative integer",
-                service_id, method, key
-            ),
-            service_id,
-            Some(method),
-        ));
-    };
-    usize::try_from(value).map(Some).map_err(|_| {
-        service_invocation_error(
-            "input_validation_failed",
-            format!(
-                "Service '{}.{}' input field '{}' is too large",
-                service_id, method, key
-            ),
-            service_id,
-            Some(method),
-        )
-    })
-}
-
-fn optional_string_array(
-    input: &serde_json::Value,
-    key: &str,
-    service_id: &str,
-    method: &str,
-) -> Result<Option<Vec<String>>, dm_core::service::ServiceInvocationError> {
-    let Some(value) = input.get(key) else {
-        return Ok(None);
-    };
-    let Some(items) = value.as_array() else {
-        return Err(service_invocation_error(
-            "input_validation_failed",
-            format!(
-                "Service '{}.{}' input field '{}' must be an array of strings",
-                service_id, method, key
-            ),
-            service_id,
-            Some(method),
-        ));
-    };
-    items
-        .iter()
-        .map(|item| {
-            item.as_str().map(ToString::to_string).ok_or_else(|| {
-                service_invocation_error(
-                    "input_validation_failed",
-                    format!(
-                        "Service '{}.{}' input field '{}' must be an array of strings",
-                        service_id, method, key
-                    ),
-                    service_id,
-                    Some(method),
-                )
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map(Some)
 }
 
 #[derive(Deserialize, ToSchema)]

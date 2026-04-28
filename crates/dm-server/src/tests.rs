@@ -1272,6 +1272,37 @@ async fn invoke_message_service_requires_run_context() {
 }
 
 #[tokio::test]
+async fn invoke_run_service_injects_run_context() {
+    let (_tmp, state) = test_state();
+    setup_run(&state.home, "run-service-route");
+
+    let resp = handlers::invoke_run_service(
+        State(state),
+        Path(("run-service-route".to_string(), "message".to_string())),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "method": "send",
+                "input": {
+                    "from": "web",
+                    "tag": "text",
+                    "payload": {"content": "hello route"}
+                }
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["service_id"], "message");
+    assert_eq!(json["method"], "send");
+    assert_eq!(json["output"]["seq"], 1);
+}
+
+#[tokio::test]
 async fn create_service_returns_success_and_duplicate_returns_bad_request() {
     let (_tmp, state) = test_state();
 
