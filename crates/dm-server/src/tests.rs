@@ -1153,7 +1153,39 @@ async fn invoke_service_returns_bad_request_for_unknown_method() {
 
     assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
     let body = body_text(resp).await;
-    assert!(body.contains("does not declare method"));
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["code"], "method_not_found");
+    assert!(json["error"]
+        .as_str()
+        .unwrap()
+        .contains("does not declare method"));
+}
+
+#[tokio::test]
+async fn invoke_service_returns_structured_error_for_invalid_input() {
+    let (_tmp, state) = test_state();
+
+    let resp = handlers::invoke_service(
+        State(state),
+        Path("add".to_string()),
+        Json(
+            serde_json::from_value(serde_json::json!({
+                "method": "add",
+                "input": {"x": 4}
+            }))
+            .unwrap(),
+        ),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    let body = body_text(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["code"], "input_validation_failed");
+    assert_eq!(json["service_id"], "add");
+    assert_eq!(json["method"], "add");
+    assert!(json["detail"]["errors"].as_array().unwrap().len() >= 1);
 }
 
 #[tokio::test]

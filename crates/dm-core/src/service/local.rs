@@ -90,6 +90,7 @@ if __name__ == "__main__":
                 kind: ServiceRuntimeKind::Command,
                 exec: None,
                 url: None,
+                timeout_ms: None,
             },
             files: ServiceFiles {
                 readme: "README.md".to_string(),

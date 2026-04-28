@@ -3,13 +3,25 @@ use axum::http::header::{self, HeaderValue};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::process::Command;
 
 use crate::handlers::err;
 use crate::state::AppState;
 
 use utoipa::ToSchema;
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ServiceErrorResponse {
+    pub error: String,
+    pub code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<serde_json::Value>,
+}
 
 /// GET /api/services
 #[utoipa::path(get, path = "/api/services", responses((status = 200, description = "List of available services")))]
@@ -97,8 +109,41 @@ pub async fn invoke_service(
     .await
     {
         Ok(result) => Json(result).into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        Err(e) => service_invoke_err(e).into_response(),
     }
+}
+
+fn service_invoke_err(error: anyhow::Error) -> impl IntoResponse {
+    if let Some(invocation_error) = error.downcast_ref::<dm_core::service::ServiceInvocationError>()
+    {
+        let status = match invocation_error.code.as_str() {
+            "service_not_found" => StatusCode::NOT_FOUND,
+            _ => StatusCode::BAD_REQUEST,
+        };
+        return (
+            status,
+            Json(ServiceErrorResponse {
+                error: invocation_error.message.clone(),
+                code: invocation_error.code.clone(),
+                service_id: invocation_error.service_id.clone(),
+                method: invocation_error.method.clone(),
+                detail: invocation_error.detail.clone(),
+            }),
+        )
+            .into_response();
+    }
+
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ServiceErrorResponse {
+            error: error.to_string(),
+            code: "invoke_failed".to_string(),
+            service_id: None,
+            method: None,
+            detail: None,
+        }),
+    )
+        .into_response()
 }
 
 #[derive(Deserialize, ToSchema)]

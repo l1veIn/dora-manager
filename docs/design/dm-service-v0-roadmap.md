@@ -63,6 +63,9 @@ a daemon, or imported from another tool ecosystem.
 - Invoke a service from Web.
 - Verify the first loop with a minimal `add(x, y)` command service before
   expanding into run-scoped services or SDK calls.
+- Validate method input and output against JSON Schema before treating an
+  invocation as successful.
+- Return structured invocation errors with stable codes and optional details.
 - Invoke a service from Node code through a small SDK.
 - Support global calls that do not require a run.
 - Support run-scoped calls that receive `run_id` context.
@@ -175,6 +178,8 @@ These are candidates, not a promise that all of them belong in v0.
 - Support streaming results when needed.
 - Support event push when needed.
 - Support timeout.
+- Treat command-service stdout as the JSON result channel.
+- Treat command-service stderr as diagnostic detail when the command fails.
 - Support retry policy later, if needed.
 - Support structured error codes.
 - Support call trace ids.

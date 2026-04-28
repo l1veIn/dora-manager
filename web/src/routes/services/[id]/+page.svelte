@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from "$app/state";
-    import { get, post, getText } from "$lib/api";
+    import { ApiError, get, post, getText } from "$lib/api";
     import { goto } from "$app/navigation";
     import { toast } from "svelte-sonner";
     import * as Tabs from "$lib/components/ui/tabs/index.js";
@@ -65,6 +65,7 @@
     let inputJson = $state("{}");
     let outputJson = $state("");
     let invoking = $state(false);
+    let inputMethod = $state("");
 
     // Actions state
     let operation = $state<string | null>(null);
@@ -226,7 +227,15 @@
     $effect(() => {
         if (!selectedMethod && serviceMethods.length > 0) {
             selectedMethod = serviceMethods[0].name;
-            inputJson = JSON.stringify(defaultInputForMethod(serviceMethods[0]), null, 2);
+        }
+    });
+
+    $effect(() => {
+        const method = serviceMethods.find((entry: any) => entry.name === selectedMethod);
+        if (method && inputMethod !== selectedMethod) {
+            inputJson = JSON.stringify(defaultInputForMethod(method), null, 2);
+            inputMethod = selectedMethod;
+            outputJson = "";
         }
     });
 
@@ -261,7 +270,13 @@
             outputJson = JSON.stringify(result, null, 2);
             toast.success(`${serviceId}.${selectedMethod} completed`);
         } catch (e: any) {
-            outputJson = e?.message || String(e);
+            if (e instanceof SyntaxError) {
+                outputJson = `Invalid JSON input: ${e.message}`;
+            } else if (e instanceof ApiError && e.details) {
+                outputJson = JSON.stringify(e.details, null, 2);
+            } else {
+                outputJson = e?.message || String(e);
+            }
             toast.error(`Failed to invoke service: ${e?.message || e}`);
         } finally {
             invoking = false;

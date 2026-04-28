@@ -158,6 +158,25 @@ fn service_invoke_add_returns_result() {
 }
 
 #[test]
+fn service_invoke_add_rejects_invalid_input() {
+    let home = tempdir().unwrap();
+
+    dm_cmd()
+        .args([
+            "--home",
+            home.path().to_str().unwrap(),
+            "service",
+            "invoke",
+            "add",
+            "add",
+            r#"{"x":2}"#,
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("input failed schema validation"));
+}
+
+#[test]
 fn service_describe_missing_service_shows_error() {
     let home = tempdir().unwrap();
 

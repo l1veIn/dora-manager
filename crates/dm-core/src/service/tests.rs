@@ -40,6 +40,42 @@ fn write_sample_service(root: &std::path::Path, id: &str) {
     std::fs::write(root.join("service.py"), "print('ok')\n").unwrap();
 }
 
+#[cfg(not(target_os = "windows"))]
+fn write_invokable_service(
+    home: &std::path::Path,
+    id: &str,
+    exec: &str,
+    output_schema: &str,
+    timeout_ms: Option<u64>,
+) {
+    let root = service_dir(home, id);
+    std::fs::create_dir_all(&root).unwrap();
+    let timeout = timeout_ms
+        .map(|value| format!(r#", "timeout_ms": {value}"#))
+        .unwrap_or_default();
+    let exec_json = serde_json::to_string(exec).unwrap();
+    std::fs::write(
+        root.join("service.json"),
+        format!(
+            r#"{{
+              "id": "{id}",
+              "name": "Invokable Service",
+              "version": "0.1.0",
+              "scope": "global",
+              "runtime": {{"kind": "command", "exec": {exec_json}{timeout}}},
+              "methods": [
+                {{
+                  "name": "run",
+                  "input_schema": {{"type": "object"}},
+                  "output_schema": {output_schema}
+                }}
+              ]
+            }}"#
+        ),
+    )
+    .unwrap();
+}
+
 #[test]
 fn list_services_includes_builtins() {
     let dir = tempdir().unwrap();
@@ -100,6 +136,116 @@ fn invoke_rejects_unknown_method() {
         .to_string();
 
     assert!(err.contains("does not declare method"));
+}
+
+#[test]
+fn invoke_rejects_invalid_input_schema() {
+    let dir = tempdir().unwrap();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let err = rt
+        .block_on(invoke_service(
+            dir.path(),
+            "add",
+            ServiceInvocation {
+                method: "add".to_string(),
+                input: serde_json::json!({"x": 2}),
+                context: None,
+            },
+        ))
+        .unwrap_err();
+    let invocation_err = err.downcast_ref::<ServiceInvocationError>().unwrap();
+
+    assert_eq!(invocation_err.code, "input_validation_failed");
+    assert!(invocation_err
+        .message
+        .contains("input failed schema validation"));
+}
+
+#[test]
+#[cfg(not(target_os = "windows"))]
+fn invoke_rejects_invalid_output_schema() {
+    let _guard = env_lock();
+    let dir = tempdir().unwrap();
+    write_invokable_service(
+        dir.path(),
+        "bad-output",
+        "printf '{\"value\":1}'",
+        r#"{"type":"object","required":["result"],"properties":{"result":{"type":"number"}}}"#,
+        None,
+    );
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let err = rt
+        .block_on(invoke_service(
+            dir.path(),
+            "bad-output",
+            ServiceInvocation {
+                method: "run".to_string(),
+                input: serde_json::json!({}),
+                context: None,
+            },
+        ))
+        .unwrap_err();
+    let invocation_err = err.downcast_ref::<ServiceInvocationError>().unwrap();
+
+    assert_eq!(invocation_err.code, "output_validation_failed");
+}
+
+#[test]
+#[cfg(not(target_os = "windows"))]
+fn invoke_times_out_command_service() {
+    let _guard = env_lock();
+    let dir = tempdir().unwrap();
+    write_invokable_service(
+        dir.path(),
+        "slow",
+        "sleep 2",
+        r#"{"type":"object"}"#,
+        Some(50),
+    );
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let err = rt
+        .block_on(invoke_service(
+            dir.path(),
+            "slow",
+            ServiceInvocation {
+                method: "run".to_string(),
+                input: serde_json::json!({}),
+                context: None,
+            },
+        ))
+        .unwrap_err();
+    let invocation_err = err.downcast_ref::<ServiceInvocationError>().unwrap();
+
+    assert_eq!(invocation_err.code, "timeout");
+}
+
+#[test]
+#[cfg(not(target_os = "windows"))]
+fn invoke_rejects_non_json_output() {
+    let _guard = env_lock();
+    let dir = tempdir().unwrap();
+    write_invokable_service(
+        dir.path(),
+        "text-output",
+        "printf plain",
+        r#"{"type":"object"}"#,
+        None,
+    );
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let err = rt
+        .block_on(invoke_service(
+            dir.path(),
+            "text-output",
+            ServiceInvocation {
+                method: "run".to_string(),
+                input: serde_json::json!({}),
+                context: None,
+            },
+        ))
+        .unwrap_err();
+    let invocation_err = err.downcast_ref::<ServiceInvocationError>().unwrap();
+
+    assert_eq!(invocation_err.code, "invalid_output_json");
 }
 
 #[test]
