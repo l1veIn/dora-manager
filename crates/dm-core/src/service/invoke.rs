@@ -1,11 +1,13 @@
 use std::fmt;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixStream;
 use tokio::process::Command;
 
 use crate::events::{EventSource, OperationEvent};
@@ -13,7 +15,10 @@ use crate::events::{EventSource, OperationEvent};
 use super::model::{Service, ServiceMethod};
 
 const DEFAULT_SERVICE_ENTRY: &str = "service.py";
-const DEFAULT_SERVICE_TIMEOUT_MS: u64 = 10_000;
+const SERVICE_SOCKET_NAME: &str = "service.sock";
+const SERVICED_READY_TIMEOUT_MS: u64 = 5_000;
+const SERVICED_READY_POLL_MS: u64 = 25;
+const DM_SERVICED_BIN_ENV_KEY: &str = "DM_SERVICED_BIN";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceInvocation {
@@ -31,7 +36,7 @@ pub struct ServiceInvocationResult {
     pub output: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceInvocationError {
     pub code: String,
     pub message: String,
@@ -44,7 +49,7 @@ pub struct ServiceInvocationError {
 }
 
 impl ServiceInvocationError {
-    fn new(
+    pub fn new(
         code: impl Into<String>,
         message: impl Into<String>,
         service_id: Option<String>,
@@ -59,7 +64,7 @@ impl ServiceInvocationError {
         }
     }
 
-    fn with_detail(mut self, detail: serde_json::Value) -> Self {
+    pub fn with_detail(mut self, detail: serde_json::Value) -> Self {
         self.detail = Some(detail);
         self
     }
@@ -103,7 +108,7 @@ pub async fn invoke_service(
             "input",
         )?;
 
-        let output = invoke_python_service(&service, &invocation).await?;
+        let output = invoke_python_service(home, &service, &invocation).await?;
 
         validate_json_schema(
             method.output_schema.as_ref(),
@@ -147,113 +152,139 @@ fn find_method<'a>(service: &'a Service, method: &str) -> Result<&'a ServiceMeth
 }
 
 async fn invoke_python_service(
+    home: &Path,
     service: &Service,
     invocation: &ServiceInvocation,
 ) -> Result<serde_json::Value> {
+    let socket_path = service_socket_path(home);
+    ensure_serviced_running(home, &socket_path).await?;
+
+    let stream = match UnixStream::connect(&socket_path).await {
+        Ok(stream) => stream,
+        Err(first_err) => {
+            if socket_path.exists() {
+                let _ = std::fs::remove_file(&socket_path);
+                spawn_serviced(home)?;
+                wait_for_serviced(&socket_path).await?;
+                UnixStream::connect(&socket_path)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "failed to connect dm-serviced at {} after restart; first error: {first_err}",
+                            socket_path.display()
+                        )
+                    })?
+            } else {
+                return Err(first_err).with_context(|| {
+                    format!("failed to connect dm-serviced at {}", socket_path.display())
+                });
+            }
+        }
+    };
+
     let request = serde_json::json!({
+        "service_id": service.id,
         "method": invocation.method,
         "input": invocation.input,
         "context": invocation.context,
     });
-    let command_label = service_command_label(service)?;
+    let (read_half, mut write_half) = stream.into_split();
+    let mut payload = serde_json::to_vec(&request)?;
+    payload.push(b'\n');
+    write_half.write_all(&payload).await?;
+    write_half.flush().await?;
 
-    let mut command = command_for_service(service)?;
-    let mut child = command
-        .kill_on_drop(true)
-        .current_dir(&service.path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .with_context(|| format!("Failed to start service command '{}'", command_label))?;
-
-    {
-        let stdin = child
-            .stdin
-            .as_mut()
-            .ok_or_else(|| anyhow::anyhow!("Failed to open stdin for service '{}'", service.id))?;
-        let payload = serde_json::to_vec(&request)
-            .with_context(|| format!("Failed to write request to service '{}'", service.id))?;
-        stdin
-            .write_all(&payload)
-            .await
-            .with_context(|| format!("Failed to write request to service '{}'", service.id))?;
-        stdin
-            .write_all(b"\n")
-            .await
-            .with_context(|| format!("Failed to finalize request for service '{}'", service.id))?;
+    let mut reader = BufReader::new(read_half);
+    let mut line = String::new();
+    if reader.read_line(&mut line).await? == 0 {
+        anyhow::bail!("dm-serviced closed the connection without a response");
     }
 
-    let timeout = Duration::from_millis(
-        service
-            .timeout_ms
-            .or(service.runtime.timeout_ms)
-            .unwrap_or(DEFAULT_SERVICE_TIMEOUT_MS),
-    );
-    let output = match tokio::time::timeout(timeout, child.wait_with_output()).await {
-        Ok(output) => output
-            .with_context(|| format!("Failed to read output from service '{}'", service.id))?,
-        Err(_) => {
-            return Err(service_error(
-                "timeout",
-                format!(
-                    "Service '{}.{}' timed out after {}ms",
-                    service.id,
-                    invocation.method,
-                    timeout.as_millis()
-                ),
-                &service.id,
-                Some(&invocation.method),
-            )
-            .into());
-        }
-    };
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let mut err = service_error(
-            "command_failed",
-            format!(
-                "Service '{}.{}' command failed with status {}{}",
-                service.id,
-                invocation.method,
-                output.status,
-                if stderr.is_empty() {
-                    String::new()
-                } else {
-                    format!(": {}", stderr)
-                }
-            ),
-            &service.id,
-            Some(&invocation.method),
-        );
-        if !stderr.is_empty() {
-            err = err.with_detail(serde_json::json!({
-                "stderr": stderr,
-                "status": output.status.to_string(),
-            }));
-        }
+    let value: serde_json::Value =
+        serde_json::from_str(line.trim()).context("dm-serviced returned invalid response JSON")?;
+    if value.get("code").is_some() {
+        let err: ServiceInvocationError = serde_json::from_value(value)
+            .context("dm-serviced returned an invalid error response")?;
         return Err(err.into());
     }
 
-    serde_json::from_slice(&output.stdout).map_err(|err| {
-        service_error(
-            "invalid_output_json",
-            format!(
-                "Service '{}.{}' returned invalid JSON: {}",
-                service.id, invocation.method, err
-            ),
-            &service.id,
-            Some(&invocation.method),
-        )
-        .with_detail(serde_json::json!({
-            "stdout": String::from_utf8_lossy(&output.stdout).trim(),
-        }))
-        .into()
-    })
+    let result: ServiceInvocationResult = serde_json::from_value(value)
+        .context("dm-serviced returned an invalid success response")?;
+    Ok(result.output)
 }
 
-fn command_for_service(service: &Service) -> Result<Command> {
+fn service_socket_path(home: &Path) -> PathBuf {
+    home.join(SERVICE_SOCKET_NAME)
+}
+
+async fn ensure_serviced_running(home: &Path, socket_path: &Path) -> Result<()> {
+    if socket_path.exists() {
+        return Ok(());
+    }
+    spawn_serviced(home)?;
+    wait_for_serviced(socket_path).await
+}
+
+fn spawn_serviced(home: &Path) -> Result<()> {
+    let mut command = Command::new(resolve_serviced_bin());
+    command
+        .env("DM_HOME", home)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    command.spawn().context("failed to spawn dm-serviced")?;
+    Ok(())
+}
+
+async fn wait_for_serviced(socket_path: &Path) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(SERVICED_READY_TIMEOUT_MS);
+    loop {
+        if socket_path.exists() && UnixStream::connect(socket_path).await.is_ok() {
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            anyhow::bail!(
+                "dm-serviced socket did not become ready at {}",
+                socket_path.display()
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(SERVICED_READY_POLL_MS)).await;
+    }
+}
+
+fn resolve_serviced_bin() -> PathBuf {
+    if let Some(path) = std::env::var_os(DM_SERVICED_BIN_ENV_KEY) {
+        return PathBuf::from(path);
+    }
+
+    let exe_name = if cfg!(windows) {
+        "dm-serviced.exe"
+    } else {
+        "dm-serviced"
+    };
+
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(dir) = current_exe.parent() {
+            let sibling = dir.join(exe_name);
+            if sibling.exists() {
+                return sibling;
+            }
+            if dir.file_name().is_some_and(|name| name == "deps") {
+                if let Some(target_dir) = dir.parent() {
+                    let target_sibling = target_dir.join(exe_name);
+                    if target_sibling.exists() {
+                        return target_sibling;
+                    }
+                }
+            }
+        }
+    }
+
+    PathBuf::from(exe_name)
+}
+
+#[allow(dead_code)]
+pub(super) fn command_for_service(service: &Service) -> Result<Command> {
     if let Some(exec) = legacy_exec(service) {
         return Ok(command_for_exec(exec));
     }
@@ -264,7 +295,8 @@ fn command_for_service(service: &Service) -> Result<Command> {
     Ok(command)
 }
 
-fn service_command_label(service: &Service) -> Result<String> {
+#[allow(dead_code)]
+pub(super) fn service_command_label(service: &Service) -> Result<String> {
     if let Some(exec) = legacy_exec(service) {
         return Ok(exec.to_string());
     }
@@ -272,7 +304,8 @@ fn service_command_label(service: &Service) -> Result<String> {
     Ok(format!("{} {}", python_for_service(service), entry))
 }
 
-fn legacy_exec(service: &Service) -> Option<&str> {
+#[allow(dead_code)]
+pub(super) fn legacy_exec(service: &Service) -> Option<&str> {
     service
         .runtime
         .exec
@@ -280,7 +313,8 @@ fn legacy_exec(service: &Service) -> Option<&str> {
         .filter(|value| !value.trim().is_empty())
 }
 
-fn service_entry(service: &Service) -> Option<String> {
+#[allow(dead_code)]
+pub(super) fn service_entry(service: &Service) -> Option<String> {
     if let Some(entry) = service
         .entry
         .as_deref()
@@ -297,7 +331,8 @@ fn service_entry(service: &Service) -> Option<String> {
         .then(|| DEFAULT_SERVICE_ENTRY.to_string())
 }
 
-fn python_for_service(service: &Service) -> String {
+#[allow(dead_code)]
+pub(super) fn python_for_service(service: &Service) -> String {
     let venv_python = if cfg!(windows) {
         service
             .path
@@ -314,7 +349,8 @@ fn python_for_service(service: &Service) -> String {
     "python3".to_string()
 }
 
-fn missing_entry_error(service: &Service) -> ServiceInvocationError {
+#[allow(dead_code)]
+pub(super) fn missing_entry_error(service: &Service) -> ServiceInvocationError {
     service_error(
         "runtime_not_configured",
         format!(
@@ -326,7 +362,8 @@ fn missing_entry_error(service: &Service) -> ServiceInvocationError {
     )
 }
 
-fn command_for_exec(exec: &str) -> Command {
+#[allow(dead_code)]
+pub(super) fn command_for_exec(exec: &str) -> Command {
     if cfg!(windows) {
         let mut command = Command::new("cmd");
         command.args(["/C", exec]);
@@ -387,7 +424,7 @@ fn validate_json_schema(
     .into())
 }
 
-fn service_error(
+pub(super) fn service_error(
     code: impl Into<String>,
     message: impl Into<String>,
     service_id: &str,

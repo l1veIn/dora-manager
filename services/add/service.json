@@ -16,7 +16,7 @@
   },
   "methods": [
     {
-      "name": "add",
+      "name": "run",
       "description": "Add two numbers.",
       "input_schema": {
         "type": "object",

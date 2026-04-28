@@ -88,6 +88,10 @@ pub struct ServiceRuntime {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_workers: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idle_timeout_secs: Option<u64>,
 }
 
 impl ServiceRuntime {
@@ -96,6 +100,8 @@ impl ServiceRuntime {
             && self.exec.is_none()
             && self.url.is_none()
             && self.timeout_ms.is_none()
+            && self.max_workers.is_none()
+            && self.idle_timeout_secs.is_none()
     }
 }
 

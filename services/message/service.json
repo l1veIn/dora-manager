@@ -3,11 +3,16 @@
   "name": "Message",
   "version": "0.1.0",
   "description": "Run-scoped message history and latest snapshots.",
+  "entry": "service.py",
   "display": {
     "category": "platform",
     "tags": ["messages", "run", "interaction"]
   },
   "scope": "run",
+  "runtime": {
+    "kind": "daemon",
+    "max_workers": 1
+  },
   "files": {
     "readme": "README.md"
   },

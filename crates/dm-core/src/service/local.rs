@@ -47,8 +47,11 @@ import sys
 
 
 def main():
-    request = json.load(sys.stdin)
-    json.dump({"ok": True, "echo": request}, sys.stdout)
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        request = json.loads(line)
+        print(json.dumps({"ok": True, "echo": request}), flush=True)
 
 
 if __name__ == "__main__":

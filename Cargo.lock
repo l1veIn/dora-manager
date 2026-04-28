@@ -1032,6 +1032,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dm-serviced"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dm-core",
+ "jsonschema",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "dora-arrow-convert"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

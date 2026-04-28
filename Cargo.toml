@@ -1,5 +1,11 @@
 [workspace]
-members = ["crates/dm-core", "crates/dm-cli", "crates/dm-server"]
+members = [
+    "crates/dm-core",
+    "crates/dm-cli",
+    "crates/dm-server",
+    "crates/dm-serviced",
+]
+default-members = ["crates/dm-core", "crates/dm-cli", "crates/dm-server"]
 resolver = "2"
 
 [workspace.package]

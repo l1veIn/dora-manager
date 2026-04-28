@@ -148,7 +148,7 @@ fn service_invoke_add_returns_result() {
             "service",
             "invoke",
             "add",
-            "add",
+            "run",
             r#"{"x":2,"y":8}"#,
         ])
         .assert()
@@ -168,7 +168,7 @@ fn service_invoke_add_rejects_invalid_input() {
             "service",
             "invoke",
             "add",
-            "add",
+            "run",
             r#"{"x":2}"#,
         ])
         .assert()

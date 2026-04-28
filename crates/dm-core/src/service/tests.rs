@@ -105,7 +105,7 @@ fn invoke_builtin_add_service() {
             dir.path(),
             "add",
             ServiceInvocation {
-                method: "add".to_string(),
+                method: "run".to_string(),
                 input: serde_json::json!({"x": 2, "y": 3}),
                 context: None,
             },
@@ -113,7 +113,7 @@ fn invoke_builtin_add_service() {
         .unwrap();
 
     assert_eq!(result.service_id, "add");
-    assert_eq!(result.method, "add");
+    assert_eq!(result.method, "run");
     assert_eq!(result.output["result"], 5);
 }
 
@@ -146,7 +146,7 @@ fn invoke_rejects_invalid_input_schema() {
             dir.path(),
             "add",
             ServiceInvocation {
-                method: "add".to_string(),
+                method: "run".to_string(),
                 input: serde_json::json!({"x": 2}),
                 context: None,
             },
@@ -245,6 +245,74 @@ fn invoke_rejects_non_json_output() {
     let invocation_err = err.downcast_ref::<ServiceInvocationError>().unwrap();
 
     assert_eq!(invocation_err.code, "invalid_output_json");
+}
+
+#[test]
+#[cfg(not(target_os = "windows"))]
+fn invoke_reuses_persistent_python_service_worker() {
+    let _guard = env_lock();
+    let dir = tempdir().unwrap();
+    let root = service_dir(dir.path(), "pooled");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(
+        root.join("service.json"),
+        r#"{
+          "id": "pooled",
+          "name": "Pooled Service",
+          "version": "0.1.0",
+          "scope": "global",
+          "entry": "service.py",
+          "runtime": {"kind": "command", "max_workers": 1, "idle_timeout_secs": 60},
+          "methods": [
+            {
+              "name": "run",
+              "input_schema": {"type": "object"},
+              "output_schema": {"type": "object", "required": ["pid"]}
+            }
+          ]
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("service.py"),
+        r#"import json
+import os
+import sys
+
+for line in sys.stdin:
+    if not line.strip():
+        continue
+    json.loads(line)
+    print(json.dumps({"pid": os.getpid()}), flush=True)
+"#,
+    )
+    .unwrap();
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let first = rt
+        .block_on(invoke_service(
+            dir.path(),
+            "pooled",
+            ServiceInvocation {
+                method: "run".to_string(),
+                input: serde_json::json!({}),
+                context: None,
+            },
+        ))
+        .unwrap();
+    let second = rt
+        .block_on(invoke_service(
+            dir.path(),
+            "pooled",
+            ServiceInvocation {
+                method: "run".to_string(),
+                input: serde_json::json!({}),
+                context: None,
+            },
+        ))
+        .unwrap();
+
+    assert_eq!(first.output["pid"], second.output["pid"]);
 }
 
 #[test]

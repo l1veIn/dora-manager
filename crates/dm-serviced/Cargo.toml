@@ -1,0 +1,14 @@
+[package]
+name = "dm-serviced"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dm-core = { path = "../dm-core" }
+tokio.workspace = true
+anyhow.workspace = true
+jsonschema.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
