@@ -204,13 +204,13 @@ fn service_import_readme_files_and_uninstall_work() {
         r#"{
           "id": "sample",
           "name": "Sample Service",
-          "version": "0.1.0",
-          "description": "Sample service",
-          "scope": "global",
-          "runtime": {"kind": "command", "exec": "python service.py"},
-          "files": {"readme": "README.md"},
-          "methods": [{"name": "echo"}]
-        }"#,
+	          "version": "0.1.0",
+	          "description": "Sample service",
+	          "scope": "global",
+	          "entry": "service.py",
+	          "files": {"readme": "README.md", "entry": "service.py"},
+	          "methods": [{"name": "echo"}]
+	        }"#,
     )
     .unwrap();
     std::fs::write(source.path().join("README.md"), "# Sample Service\n").unwrap();
@@ -367,7 +367,7 @@ exit 1
         .assert()
         .success()
         .stdout(predicate::str::contains("Installed service cli-sample"))
-        .stdout(predicate::str::contains(".venv/bin/cli-sample"));
+        .stdout(predicate::str::contains("Entry: service.py"));
 
     let manifest = std::fs::read_to_string(
         home.path()
@@ -376,7 +376,7 @@ exit 1
             .join("service.json"),
     )
     .unwrap();
-    assert!(manifest.contains(r#""exec": ".venv/bin/cli-sample""#));
+    assert!(manifest.contains(r#""entry": "service.py""#));
     assert!(manifest.contains(r#""installed_at": ""#));
     assert!(!manifest.contains(r#""installed_at": """#));
 }

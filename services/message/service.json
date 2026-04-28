@@ -8,9 +8,6 @@
     "tags": ["messages", "run", "interaction"]
   },
   "scope": "run",
-  "runtime": {
-    "kind": "builtin"
-  },
   "files": {
     "readme": "README.md"
   },

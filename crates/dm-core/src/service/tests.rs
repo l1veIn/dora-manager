@@ -27,7 +27,7 @@ fn write_sample_service(root: &std::path::Path, id: &str) {
               "version": "0.1.0",
               "description": "Sample service",
               "scope": "global",
-              "runtime": {{"kind": "command", "exec": "python service.py"}},
+              "entry": "service.py",
               "files": {{"readme": "README.md"}},
               "methods": [
                 {{"name": "echo", "input_schema": {{"type": "object"}}, "output_schema": {{"type": "object"}}}}
@@ -50,9 +50,7 @@ fn write_invokable_service(
 ) {
     let root = service_dir(home, id);
     std::fs::create_dir_all(&root).unwrap();
-    let timeout = timeout_ms
-        .map(|value| format!(r#", "timeout_ms": {value}"#))
-        .unwrap_or_default();
+    let timeout = timeout_ms.unwrap_or(10_000);
     let exec_json = serde_json::to_string(exec).unwrap();
     std::fs::write(
         root.join("service.json"),
@@ -62,7 +60,8 @@ fn write_invokable_service(
               "name": "Invokable Service",
               "version": "0.1.0",
               "scope": "global",
-              "runtime": {{"kind": "command", "exec": {exec_json}{timeout}}},
+              "runtime": {{"kind": "command", "exec": {exec_json}}},
+              "timeout_ms": {timeout},
               "methods": [
                 {{
                   "name": "run",
@@ -261,7 +260,7 @@ fn list_services_reads_service_json() {
           "version": "0.1.0",
           "description": "Simple math helpers",
           "scope": "global",
-          "runtime": {"kind": "command", "exec": "python service.py"},
+          "entry": "service.py",
           "methods": [
             {
               "name": "add",
@@ -281,7 +280,7 @@ fn list_services_reads_service_json() {
         .unwrap();
 
     assert_eq!(service.display_name(), "Calculator");
-    assert_eq!(service.runtime.kind, ServiceRuntimeKind::Command);
+    assert_eq!(service.entry.as_deref(), Some("service.py"));
     assert_eq!(service.methods[0].name, "add");
 }
 
@@ -300,7 +299,7 @@ fn create_service_scaffolds_workspace_and_config_roundtrips() {
     assert_eq!(service.id, "demo-service");
     assert!(service.path.join("service.json").exists());
     assert!(service.path.join("pyproject.toml").exists());
-    assert!(service.path.join("demo_service/main.py").exists());
+    assert!(service.path.join("service.py").exists());
 
     let config = serde_json::json!({"model": "tiny"});
     save_service_config(dir.path(), "demo-service", &config).unwrap();
@@ -327,17 +326,10 @@ fn install_service_creates_venv_and_updates_manifest() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let service = rt.block_on(install_service(home, "demo-service")).unwrap();
 
-    assert_eq!(
-        service.runtime.exec.as_deref(),
-        Some(".venv/bin/demo-service")
-    );
     assert!(!service.installed_at.is_empty());
 
     let persisted = get_service(home, "demo-service").unwrap().unwrap();
-    assert_eq!(
-        persisted.runtime.exec.as_deref(),
-        Some(".venv/bin/demo-service")
-    );
+    assert_eq!(persisted.entry.as_deref(), Some("service.py"));
 }
 
 #[test]

@@ -7,11 +7,17 @@ function installedAtValue(service: any): number {
 
 export function isInstalledService(service: any): boolean {
     if (service?.builtin) return true;
-    return Boolean(service?.runtime?.exec && String(service.runtime.exec).trim() !== "");
+    return Boolean(
+        service?.installed_at ||
+            service?.entry ||
+            service?.files?.entry ||
+            service?.runtime?.exec,
+    );
 }
 
 export function serviceRuntimeLabel(service: any): string {
-    return service?.runtime?.kind || "unknown";
+    if (service?.entry || service?.files?.entry) return "python";
+    return service?.runtime?.kind || "platform";
 }
 
 export function serviceCategory(service: any): string {

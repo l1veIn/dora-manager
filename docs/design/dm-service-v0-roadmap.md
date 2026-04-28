@@ -50,9 +50,9 @@ dm.service("config").get({"key": "model"})
 dm.service("yolo").detect({"image": "..."})
 ```
 
-The caller should not know whether the service is built into dm-server, backed
-by SQLite, forwarded to an HTTP endpoint, launched as a command, implemented by
-a daemon, or imported from another tool ecosystem.
+For v0, the caller should not know whether a Python service was launched from a
+workspace, an installed virtual environment, or a project-level built-in
+directory. Broader runtime routing can wait until a real need appears.
 
 ## Wishlist
 
@@ -62,7 +62,7 @@ a daemon, or imported from another tool ecosystem.
 - Describe a service, its methods, and its input/output schemas.
 - Invoke a service from CLI with JSON input.
 - Invoke a service from Web.
-- Verify the first loop with a minimal `add(x, y)` command service before
+- Verify the first loop with a minimal `add(x, y)` Python service before
   expanding into run-scoped services or SDK calls.
 - Validate method input and output against JSON Schema before treating an
   invocation as successful.
@@ -75,11 +75,12 @@ a daemon, or imported from another tool ecosystem.
 
 ### Service Types
 
-- dm-server built-in public services.
-- Local command services.
-- Local script services.
-- HTTP-backed services.
-- Long-running daemon services.
+- Local Python services.
+- Project built-in Python services.
+- Legacy local command services while compatibility is useful.
+- dm-server platform APIs that are intentionally not Python services.
+- HTTP-backed services later, if a concrete integration needs it.
+- Long-running daemon services later, if cold-start cost becomes real.
 - Run-scoped services started with a run.
 - Stateless on-demand utility services.
 - External API wrapper services.
@@ -110,6 +111,11 @@ The current implementation has started this migration with server-backed
 `POST /api/runs/{run_id}/services/message/invoke` and let dm-server inject
 `context.run_id`.
 
+This should be treated as a transitional platform API shape, not proof that
+message should become a Python service. Message should communicate with
+dm-server through HTTP or Unix sockets, following the existing `dm-bridge`
+direction, rather than through a Python service that calls back into dm-server.
+
 ### Node-Side Expectations
 
 - A node can discover its `run_id`.
@@ -138,6 +144,8 @@ The current implementation has started this migration with server-backed
 - A service has a `service.json` manifest.
 - The repository can ship default service manifests under `services/<id>/`,
   mirroring the existing `nodes/<id>/` layout for builtin nodes.
+- A v0 user-authored service is a Python workspace with `service.py` as the
+  default entry.
 - A service has an id, version, and description.
 - A service has methods.
 - Each method has a description.
@@ -147,7 +155,8 @@ The current implementation has started this migration with server-backed
 - A service can declare whether it is persistent or on-demand.
 - A service can declare timeout behavior.
 - A service can declare environment variables.
-- A service can declare backend/runtime type.
+- A service can declare `entry` and timeout behavior. Backend/runtime type
+  should not be part of the v0 happy path.
 
 ### Lifecycle And Operations
 
@@ -185,8 +194,8 @@ The current implementation has started this migration with server-backed
 - Support streaming results when needed.
 - Support event push when needed.
 - Support timeout.
-- Treat command-service stdout as the JSON result channel.
-- Treat command-service stderr as diagnostic detail when the command fails.
+- Treat service stdout as the JSON result channel.
+- Treat service stderr as diagnostic detail when the entry script fails.
 - Support retry policy later, if needed.
 - Support structured error codes.
 - Support call trace ids.

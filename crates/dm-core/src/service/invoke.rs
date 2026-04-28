@@ -10,9 +10,10 @@ use tokio::process::Command;
 
 use crate::events::{EventSource, OperationEvent};
 
-use super::model::{Service, ServiceMethod, ServiceRuntimeKind};
+use super::model::{Service, ServiceMethod};
 
-const DEFAULT_COMMAND_TIMEOUT_MS: u64 = 10_000;
+const DEFAULT_SERVICE_ENTRY: &str = "service.py";
+const DEFAULT_SERVICE_TIMEOUT_MS: u64 = 10_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceInvocation {
@@ -102,35 +103,7 @@ pub async fn invoke_service(
             "input",
         )?;
 
-        let output = match service.runtime.kind {
-            ServiceRuntimeKind::Command => invoke_command_service(&service, &invocation).await?,
-            ServiceRuntimeKind::Builtin => {
-                return Err(service_error(
-                    "unsupported_runtime",
-                    format!(
-                        "Builtin service '{}' does not implement direct invocation yet",
-                        id
-                    ),
-                    id,
-                    Some(&invocation.method),
-                )
-                .into());
-            }
-            ServiceRuntimeKind::Http
-            | ServiceRuntimeKind::Daemon
-            | ServiceRuntimeKind::External => {
-                return Err(service_error(
-                    "unsupported_runtime",
-                    format!(
-                        "Service runtime '{:?}' does not support invoke yet",
-                        service.runtime.kind
-                    ),
-                    id,
-                    Some(&invocation.method),
-                )
-                .into());
-            }
-        };
+        let output = invoke_python_service(&service, &invocation).await?;
 
         validate_json_schema(
             method.output_schema.as_ref(),
@@ -173,41 +146,26 @@ fn find_method<'a>(service: &'a Service, method: &str) -> Result<&'a ServiceMeth
         })
 }
 
-async fn invoke_command_service(
+async fn invoke_python_service(
     service: &Service,
     invocation: &ServiceInvocation,
 ) -> Result<serde_json::Value> {
-    let exec = service
-        .runtime
-        .exec
-        .as_deref()
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| {
-            service_error(
-                "runtime_not_configured",
-                format!(
-                    "Service '{}' has no runtime exec. Install it first or define runtime.exec.",
-                    service.id
-                ),
-                &service.id,
-                Some(&invocation.method),
-            )
-        })?;
-
     let request = serde_json::json!({
         "method": invocation.method,
         "input": invocation.input,
         "context": invocation.context,
     });
+    let command_label = service_command_label(service)?;
 
-    let mut child = command_for_exec(exec)
+    let mut command = command_for_service(service)?;
+    let mut child = command
         .kill_on_drop(true)
         .current_dir(&service.path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .with_context(|| format!("Failed to start service command '{}'", exec))?;
+        .with_context(|| format!("Failed to start service command '{}'", command_label))?;
 
     {
         let stdin = child
@@ -228,9 +186,9 @@ async fn invoke_command_service(
 
     let timeout = Duration::from_millis(
         service
-            .runtime
             .timeout_ms
-            .unwrap_or(DEFAULT_COMMAND_TIMEOUT_MS),
+            .or(service.runtime.timeout_ms)
+            .unwrap_or(DEFAULT_SERVICE_TIMEOUT_MS),
     );
     let output = match tokio::time::timeout(timeout, child.wait_with_output()).await {
         Ok(output) => output
@@ -293,6 +251,79 @@ async fn invoke_command_service(
         }))
         .into()
     })
+}
+
+fn command_for_service(service: &Service) -> Result<Command> {
+    if let Some(exec) = legacy_exec(service) {
+        return Ok(command_for_exec(exec));
+    }
+
+    let entry = service_entry(service).ok_or_else(|| missing_entry_error(service))?;
+    let mut command = Command::new(python_for_service(service));
+    command.arg(entry);
+    Ok(command)
+}
+
+fn service_command_label(service: &Service) -> Result<String> {
+    if let Some(exec) = legacy_exec(service) {
+        return Ok(exec.to_string());
+    }
+    let entry = service_entry(service).ok_or_else(|| missing_entry_error(service))?;
+    Ok(format!("{} {}", python_for_service(service), entry))
+}
+
+fn legacy_exec(service: &Service) -> Option<&str> {
+    service
+        .runtime
+        .exec
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+}
+
+fn service_entry(service: &Service) -> Option<String> {
+    if let Some(entry) = service
+        .entry
+        .as_deref()
+        .or(service.files.entry.as_deref())
+        .filter(|value| !value.trim().is_empty())
+    {
+        return Some(entry.to_string());
+    }
+
+    service
+        .path
+        .join(DEFAULT_SERVICE_ENTRY)
+        .exists()
+        .then(|| DEFAULT_SERVICE_ENTRY.to_string())
+}
+
+fn python_for_service(service: &Service) -> String {
+    let venv_python = if cfg!(windows) {
+        service
+            .path
+            .join(".venv")
+            .join("Scripts")
+            .join("python.exe")
+    } else {
+        service.path.join(".venv").join("bin").join("python")
+    };
+    if venv_python.exists() {
+        return venv_python.to_string_lossy().to_string();
+    }
+
+    "python3".to_string()
+}
+
+fn missing_entry_error(service: &Service) -> ServiceInvocationError {
+    service_error(
+        "runtime_not_configured",
+        format!(
+            "Service '{}' has no entry script. Add '{}' or set entry in service.json.",
+            service.id, DEFAULT_SERVICE_ENTRY
+        ),
+        &service.id,
+        None,
+    )
 }
 
 fn command_for_exec(exec: &str) -> Command {

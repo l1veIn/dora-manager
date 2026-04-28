@@ -8,9 +8,6 @@
     "tags": ["registry", "discovery"]
   },
   "scope": "global",
-  "runtime": {
-    "kind": "builtin"
-  },
   "files": {
     "readme": "README.md"
   },

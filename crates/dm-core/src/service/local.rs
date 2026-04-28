@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 
 use crate::events::{EventSource, OperationEvent};
 
-use super::model::{Service, ServiceFiles, ServiceRuntime, ServiceRuntimeKind, ServiceScope};
+use super::model::{Service, ServiceFiles, ServiceRuntime, ServiceScope};
 use super::paths::{
     builtin_services_dir, configured_service_dirs, resolve_service_dir, service_dir,
 };
@@ -23,12 +23,10 @@ pub fn create_service(home: &Path, id: &str, description: &str) -> Result<Servic
             );
         }
 
-        let module_name = id.replace('-', "_");
-        let module_dir = service_path.join(&module_name);
-        std::fs::create_dir_all(&module_dir).with_context(|| {
+        std::fs::create_dir_all(&service_path).with_context(|| {
             format!(
-                "Failed to create module directory: {}",
-                module_dir.display()
+                "Failed to create service directory: {}",
+                service_path.display()
             )
         })?;
 
@@ -39,15 +37,12 @@ version = "0.1.0"
 description = "{description}"
 requires-python = ">=3.10"
 dependencies = []
-
-[project.scripts]
-{id} = "{module_name}.main:main"
 "#,
         );
         std::fs::write(service_path.join("pyproject.toml"), pyproject)
             .context("Failed to write pyproject.toml")?;
 
-        let main_py = r#"import json
+        let service_py = r#"import json
 import sys
 
 
@@ -59,9 +54,8 @@ def main():
 if __name__ == "__main__":
     main()
 "#;
-        std::fs::write(module_dir.join("main.py"), main_py).context("Failed to write main.py")?;
-        std::fs::write(module_dir.join("__init__.py"), "")
-            .context("Failed to write __init__.py")?;
+        std::fs::write(service_path.join("service.py"), service_py)
+            .context("Failed to write service.py")?;
 
         let readme = format!(
             "# {id}\n\n{description}\n\n## Methods\n\n- `echo`: returns the input request.\n",
@@ -87,14 +81,13 @@ if __name__ == "__main__":
                 output_schema: Some(serde_json::json!({"type": "object"})),
             }],
             runtime: ServiceRuntime {
-                kind: ServiceRuntimeKind::Command,
-                exec: None,
-                url: None,
-                timeout_ms: None,
+                ..Default::default()
             },
+            entry: Some("service.py".to_string()),
+            timeout_ms: Some(10_000),
             files: ServiceFiles {
                 readme: "README.md".to_string(),
-                entry: Some(format!("{module_name}/main.py")),
+                entry: Some("service.py".to_string()),
                 config: Some("config.json".to_string()),
                 tests: Vec::new(),
                 examples: Vec::new(),

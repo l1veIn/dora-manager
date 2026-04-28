@@ -25,7 +25,9 @@ pub async fn install(home: &Path, ids: Vec<String>) -> Result<()> {
                     service.display_name().bold(),
                     service.id.dimmed()
                 );
-                if let Some(exec) = service.runtime.exec.as_deref() {
+                if let Some(entry) = service.entry.as_deref().or(service.files.entry.as_deref()) {
+                    println!("  Entry: {}", entry.dimmed());
+                } else if let Some(exec) = service.runtime.exec.as_deref() {
                     println!("  Exec: {}", exec.dimmed());
                 }
                 ok += 1;
@@ -60,7 +62,7 @@ pub fn list(home: &Path) -> Result<()> {
     println!();
     for service in &services {
         let scope = format!("{:?}", service.scope).to_lowercase();
-        let runtime = format!("{:?}", service.runtime.kind).to_lowercase();
+        let runtime = service_runtime_label(service);
         let builtin = if service.builtin { " builtin" } else { "" };
         let category = if service.display.category.is_empty() {
             String::new()
@@ -105,7 +107,7 @@ pub fn describe(home: &Path, id: &str) -> Result<()> {
     };
 
     let scope = format!("{:?}", service.scope).to_lowercase();
-    let runtime = format!("{:?}", service.runtime.kind).to_lowercase();
+    let runtime = service_runtime_label(&service);
 
     println!(
         "🧩 {} ({})",
@@ -115,6 +117,9 @@ pub fn describe(home: &Path, id: &str) -> Result<()> {
     println!("  Version: {}", service.version);
     println!("  Scope: {}", scope);
     println!("  Runtime: {}", runtime);
+    if let Some(entry) = service.entry.as_deref().or(service.files.entry.as_deref()) {
+        println!("  Entry: {}", entry);
+    }
     if !service.display.category.is_empty() {
         println!("  Category: {}", service.display.category);
     }
@@ -154,6 +159,16 @@ pub fn describe(home: &Path, id: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn service_runtime_label(service: &dm_core::service::Service) -> String {
+    if service.entry.is_some() || service.files.entry.is_some() {
+        "python".to_string()
+    } else if service.runtime.exec.is_some() {
+        "command".to_string()
+    } else {
+        format!("{:?}", service.runtime.kind).to_lowercase()
+    }
 }
 
 pub async fn invoke(home: &Path, id: &str, method: &str, raw_json: &str) -> Result<()> {

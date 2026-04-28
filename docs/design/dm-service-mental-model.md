@@ -4,8 +4,8 @@
 
 ## One Sentence
 
-Service is structurally like Node, but behaviorally like an MCP tool or a cloud
-function.
+Service is structurally like Node, but behaviorally like a Python cloud
+function or an MCP tool.
 
 ## Structural Model
 
@@ -46,25 +46,32 @@ error codes, readable messages, and optional details.
 This is intentionally closer to MCP tools, cloud functions, n8n actions, Dify
 tools, and OpenAI tool calls than to Dora topics or Arrow streams.
 
-## Runtime Ownership
+## Python Runner
 
-Core owns service discovery, workspace management, manifest parsing, and generic
-command-service invocation. Core can run a local command service because the
-contract is process-local and self-contained: write one JSON request to stdin
-and read one JSON result from stdout.
+Service v0 is intentionally not a general runtime platform. A user service is a
+Python workspace with a `service.py` entry script by default. Core owns service
+discovery, workspace management, manifest parsing, dependency installation, and
+Python invocation.
 
-dm-server owns server-backed built-in services. These services need server
-state, broadcast channels, runtime context, or existing server subsystems. For
-example, `message.send` needs the run-scoped message store and the server's
-message notification channel, so it is invoked by dm-server rather than by
-core.
+The minimal workspace is:
 
-This split keeps core reusable while still allowing dm-server to expose common
-platform capabilities as services.
+```text
+services/<id>/
+  service.json
+  service.py
+  README.md
+```
 
-## Current Runtime Semantics
+This keeps Service close to a cloud-function authoring model: users write a
+small Python entry point, while dm handles invocation, timeout, schema
+validation, and diagnostics.
 
-Command services receive:
+If a workload needs low-latency continuous processing, it should be a Node in a
+Dora graph instead of a Service.
+
+## Current Invocation Semantics
+
+Python services receive:
 
 ```json
 {
@@ -74,14 +81,25 @@ Command services receive:
 }
 ```
 
-Command services return JSON on stdout. Stderr is diagnostic output and is
-included in failure details when the command exits with a non-zero status. A
-command that does not finish before its timeout fails with a structured timeout
+Python services return JSON on stdout. Stderr is diagnostic output and is
+included in failure details when the process exits with a non-zero status. A
+service that does not finish before its timeout fails with a structured timeout
 error.
 
-Server built-in services receive the same logical request, but execute inside
-dm-server. Run-scoped built-ins use `context.run_id` as the first stable context
-field.
+For compatibility, manifests that still provide `runtime.exec` can be invoked
+through the same JSON protocol. That path is legacy; new services should use
+`entry`, defaulting to `service.py`.
+
+## DM Platform APIs
+
+dm-server platform capabilities such as message, config, run, artifact, and
+media are not Python services. They are server APIs exposed over HTTP and, where
+latency or graph integration needs it, Unix sockets. The existing `dm-bridge`
+virtual node is the reference shape for this local IPC model.
+
+`message` belongs here. It should not be implemented by a Python service that
+calls back into dm-server, because that would create a recursive server ->
+service -> server loop.
 
 dm-server also exposes a run-scoped invocation shortcut:
 
@@ -89,9 +107,9 @@ dm-server also exposes a run-scoped invocation shortcut:
 POST /api/runs/{run_id}/services/{service_id}/invoke
 ```
 
-This route injects `context.run_id` before dispatching the service call. It is
-the preferred shape for future node SDK calls and run-detail Web surfaces,
-because callers already know the run from the URL or runtime environment.
+This route currently acts as a transitional server API for run-scoped platform
+capabilities. Future SDKs should prefer direct HTTP or Unix socket access to
+the platform API when the target is dm-server itself.
 
 ## Boundary With Node
 

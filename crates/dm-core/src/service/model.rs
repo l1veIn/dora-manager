@@ -90,6 +90,15 @@ pub struct ServiceRuntime {
     pub timeout_ms: Option<u64>,
 }
 
+impl ServiceRuntime {
+    pub fn is_empty(&self) -> bool {
+        self.kind == ServiceRuntimeKind::Builtin
+            && self.exec.is_none()
+            && self.url.is_none()
+            && self.timeout_ms.is_none()
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceMethod {
     pub name: String,
@@ -123,8 +132,12 @@ pub struct Service {
     pub scope: ServiceScope,
     #[serde(default, alias = "provides")]
     pub methods: Vec<ServiceMethod>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "ServiceRuntime::is_empty")]
     pub runtime: ServiceRuntime,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<u64>,
     #[serde(default)]
     pub files: ServiceFiles,
     #[serde(default)]

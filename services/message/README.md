@@ -1,11 +1,11 @@
 # Message Service
 
-The Message service exposes dm's run-scoped message store as a server-backed
-builtin service.
+The Message platform API exposes dm's run-scoped message store.
 
-This service is hosted by dm-server because it needs access to the run message
-database and the server's message notification channel. It uses the same
-invocation shape as command services, but requires `context.run_id`.
+Message is hosted by dm-server because it needs access to the run message
+database and the server's message notification channel. It should be used via
+HTTP or Unix socket APIs, following the same local IPC direction as the
+`dm-bridge` virtual node.
 
 Run-scoped HTTP callers can use `/api/runs/{run_id}/services/message/invoke` to
 have dm-server inject `context.run_id` automatically.

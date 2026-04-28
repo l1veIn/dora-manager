@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use crate::events::{EventSource, OperationEvent};
 
 use super::local::load_service_from_dir;
-use super::model::{Service, ServiceRuntimeKind};
+use super::model::Service;
 use super::paths::{
     resolve_service_dir, resolve_service_json_path, service_dir, service_json_path,
 };
@@ -26,23 +26,14 @@ pub async fn install_service(home: &Path, id: &str) -> Result<Service> {
 
         let mut service = load_service_from_dir(&service_path)?;
 
-        match service.runtime.kind {
-            ServiceRuntimeKind::Builtin => {
-                bail!("Builtin service '{}' does not need installation", id);
-            }
-            ServiceRuntimeKind::Command => {
-                install_local_python_service(&service_path).await?;
-                service.runtime.exec = Some(service_executable(id));
-            }
-            ServiceRuntimeKind::Http
-            | ServiceRuntimeKind::Daemon
-            | ServiceRuntimeKind::External => {
-                bail!(
-                    "Service runtime '{:?}' does not support install yet",
-                    service.runtime.kind
-                );
-            }
+        if service_path.starts_with(super::paths::builtin_services_dir()) {
+            bail!("Built-in service '{}' does not need installation", id);
         }
+
+        if service.entry.is_none() && service.files.entry.is_none() {
+            bail!("Service '{}' is not a local Python service", id);
+        }
+        install_local_python_service(&service_path).await?;
 
         service.installed_at = crate::service::current_timestamp();
 
@@ -123,13 +114,5 @@ async fn install_local_python_service(service_path: &Path) -> Result<()> {
         Ok(status) if status.success() => Ok(()),
         Ok(_) => bail!("Failed to install local service via pip install -e ."),
         Err(err) => bail!("Failed to run pip install: {}", err),
-    }
-}
-
-fn service_executable(id: &str) -> String {
-    if cfg!(windows) {
-        format!(".venv/Scripts/{}.exe", id)
-    } else {
-        format!(".venv/bin/{}", id)
     }
 }

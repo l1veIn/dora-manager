@@ -8,11 +8,8 @@
     "tags": ["builtin", "example", "math"]
   },
   "scope": "global",
-  "runtime": {
-    "kind": "command",
-    "exec": "python3 service.py",
-    "timeout_ms": 5000
-  },
+  "entry": "service.py",
+  "timeout_ms": 5000,
   "files": {
     "readme": "README.md",
     "entry": "service.py"

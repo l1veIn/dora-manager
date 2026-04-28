@@ -1,6 +1,6 @@
 # Add Service
 
-Minimal command service for verifying dm service invocation.
+Minimal Python service for verifying dm service invocation.
 
 ## Methods
 
@@ -8,7 +8,7 @@ Minimal command service for verifying dm service invocation.
 
 ## Protocol
 
-The command reads one JSON request from stdin:
+The service entry script reads one JSON request from stdin:
 
 ```json
 {"method":"add","input":{"x":1,"y":2}}
