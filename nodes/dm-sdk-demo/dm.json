@@ -1,0 +1,35 @@
+# nodes/dm-sdk-demo/dm.json
+{
+  "id": "dm-sdk-demo",
+  "name": "dm-sdk-demo",
+  "version": "0.1.0",
+  "source": {
+    "build": "pip install -e ."
+  },
+  "description": "Demo node that uses dm SDK to register widgets, receive input, and send results — no bridge needed.",
+  "executable": ".venv/bin/dm-sdk-demo",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "license": "MIT",
+  "display": {
+    "category": "Builtin/Demo",
+    "tags": ["demo", "sdk", "interaction"]
+  },
+  "capabilities": ["configurable"],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": []
+  },
+  "ports": [],
+  "files": {
+    "readme": "README.md",
+    "entry": "main.py",
+    "tests": []
+  },
+  "examples": [],
+  "config_schema": {}
+}

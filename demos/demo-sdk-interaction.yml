@@ -1,0 +1,33 @@
+# Demo: SDK Interaction (No Bridge)
+#
+# 描述:
+#   展示 dm SDK 的能力 —— 一个节点完成"注册控件 → 监听用户输入 →
+#   反转字符串 → 发回 Web UI"的全链路，无需 bridge、无需 dm-message 等
+#   中间节点。所有通信通过 dm SDK（HTTP + WebSocket）直达 dm-server。
+#
+# 数据流:
+#   dm-sdk-demo (注册控件)
+#       │
+#       ├── SDK send("widgets", ...)  ──HTTP──▶ dm-server ──WS──▶ Web UI
+#       │
+#       Web UI ──POST input──▶ dm-server ──SDK get()──▶ dm-sdk-demo
+#       │                                                     │
+#       │                                         反转字符串    │
+#       │                                                     │
+#       └──── SDK send("text", ...) ◀─────────────────────────┘
+#
+# 前置条件:
+#   需要安装 dm SDK:
+#     pip install ./sdk/python/
+#
+# 使用方法:
+#   dm start demos/demo-sdk-interaction.yml
+#   打开 http://127.0.0.1:3210 进入运行实例。
+#   在右侧面板输入文字，按回车，左侧面板会显示反转结果。
+#
+# 停止:
+#   Ctrl+C 或 dm stop <run_id>
+
+nodes:
+  - id: sdk-demo
+    node: dm-sdk-demo
