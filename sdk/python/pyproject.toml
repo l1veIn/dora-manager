@@ -1,0 +1,12 @@
+[project]
+name = "dm"
+version = "0.1.0"
+description = "Python SDK for dora-manager message and service APIs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
