@@ -1,8 +1,8 @@
-# nodes/dm-sdk-demo/dm.json
 {
   "id": "dm-sdk-demo",
   "name": "dm-sdk-demo",
   "version": "0.1.0",
+  "installed_at": "2026-04-29T10:30:00Z",
   "source": {
     "build": "pip install -e ."
   },
@@ -31,5 +31,6 @@
     "tests": []
   },
   "examples": [],
-  "config_schema": {}
+  "config_schema": null,
+  "dynamic_ports": false
 }
