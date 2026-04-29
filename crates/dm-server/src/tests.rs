@@ -241,7 +241,6 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         maintainers: Vec::new(),
         license: None,
         display: dm_core::node::NodeDisplay::default(),
-        dm: None,
         capabilities: Vec::new(),
         runtime: dm_core::node::NodeRuntime::default(),
         ports: Vec::new(),
@@ -249,7 +248,6 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         files: dm_core::node::NodeFiles::default(),
         examples: Vec::new(),
         config_schema: None,
-        interaction: None,
         path: Default::default(),
     };
     std::fs::write(

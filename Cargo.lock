@@ -970,6 +970,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dm-faasd"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "dirs 6.0.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "dm-server"
 version = "0.1.0"
 dependencies = [

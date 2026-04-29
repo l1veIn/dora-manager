@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/dm-core", "crates/dm-cli", "crates/dm-server"]
+members = [
+    "crates/dm-core",
+    "crates/dm-cli",
+    "crates/dm-faasd",
+    "crates/dm-server",
+]
 resolver = "2"
 
 [workspace.package]
@@ -50,6 +55,10 @@ uuid = { version = "1", features = ["v4"] }
 semver = { version = "1", features = ["serde"] }
 sha2 = "0.10"
 
+# dora-rs
+dora-core = "0.4.1"
+dora-node-api = "0.4.1"
+
 # HTTP server
 axum = { version = "0.8", features = ["ws"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
@@ -58,14 +67,11 @@ mime_guess = "2"
 
 # Async utilities
 futures-util = "0.3"
-dora-node-api = "0.4.1"
 
-# Testing
+# Tracing/logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Dev / test
 assert_cmd = "2"
 predicates = "3"
-
-[profile.release]
-lto = true
-codegen-units = 1
-strip = true
-opt-level = 3
