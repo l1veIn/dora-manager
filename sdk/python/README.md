@@ -9,14 +9,14 @@ cd ~/Desktop/dora-manager/sdk/python
 python -m pip install -e .
 ```
 
-## Send and pull messages
+## Send and get messages
 
 ```python
 import dm
 
 msg = dm.Message(run_id="test-e2e", server_url="http://127.0.0.1:3210")
 seq = msg.send("text", {"content": "hello"}, from_="example.py")
-messages = msg.pull(after_seq=seq - 1)
+messages = msg.get(after_seq=seq - 1)
 print(messages[-1])
 ```
 
@@ -27,6 +27,17 @@ import dm
 
 msg = dm.Message()
 msg.send("status", {"ready": True})
+```
+
+Subscribe to real-time message notifications and fetch full payloads:
+
+```python
+import dm
+
+msg = dm.Message(run_id="test-e2e", server_url="http://127.0.0.1:3210")
+with msg.subscribe(tag="text") as stream:
+    for event in stream:
+        print(event["seq"], event["from"], event["payload"])
 ```
 
 ## Call services

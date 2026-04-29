@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from dm import Message
+from dm import Message, MessageStream
 
 
 class Response:
@@ -58,7 +58,7 @@ def test_send_posts_message_and_returns_seq(monkeypatch):
     assert isinstance(calls["json"]["timestamp"], int)
 
 
-def test_pull_builds_query_and_returns_messages(monkeypatch):
+def test_get_builds_query_and_returns_messages(monkeypatch):
     calls = {}
 
     def fake_get(url, params=None, timeout=None):
@@ -67,7 +67,7 @@ def test_pull_builds_query_and_returns_messages(monkeypatch):
 
     monkeypatch.setattr("dm._message.requests.get", fake_get)
 
-    messages = Message(run_id="run-1", server_url="http://server").pull(
+    messages = Message(run_id="run-1", server_url="http://server").get(
         tag="text", from_="node-a", after_seq=1, before_seq=5, limit=10
     )
 
@@ -94,6 +94,107 @@ def test_snapshots_returns_list(monkeypatch):
     assert snapshots == [{"node_id": "node-a", "tag": "text"}]
 
 
-def test_subscribe_is_stub():
-    with pytest.raises(NotImplementedError, match="Coming soon"):
-        Message(run_id="run-1").subscribe()
+def test_subscribe_returns_message_stream():
+    stream = Message(run_id="run-1", server_url="http://server", timeout=3).subscribe(
+        tag="text", from_="node-a", timeout=7
+    )
+
+    assert isinstance(stream, MessageStream)
+    assert stream.run_id == "run-1"
+    assert stream.server_url == "http://server"
+    assert stream.tag == "text"
+    assert stream.from_ == "node-a"
+    assert stream.timeout == 7
+
+
+def test_message_stream_connects_to_ws_and_closes(monkeypatch):
+    class FakeWebSocket:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    calls = {}
+    websocket = FakeWebSocket()
+
+    def fake_connect(url, open_timeout=None, close_timeout=None):
+        calls.update(url=url, open_timeout=open_timeout, close_timeout=close_timeout)
+        return websocket
+
+    monkeypatch.setattr("dm._stream.connect", fake_connect)
+
+    with MessageStream("run-1", "http://server", timeout=9) as stream:
+        assert stream is not None
+
+    assert calls == {
+        "url": "ws://server/api/runs/run-1/messages/ws",
+        "open_timeout": 9,
+        "close_timeout": 9,
+    }
+    assert websocket.closed is True
+
+
+def test_message_stream_fetches_payload_and_filters(monkeypatch):
+    class FakeWebSocket:
+        def __init__(self):
+            self.notifications = iter(
+                [
+                    '{"run_id":"run-1","seq":2,"from":"node-b","tag":"text"}',
+                    '{"run_id":"run-1","seq":3,"from":"node-a","tag":"text"}',
+                ]
+            )
+
+        def recv(self, timeout=None):
+            return next(self.notifications)
+
+    calls = []
+
+    def fake_get(url, params=None, timeout=None):
+        calls.append({"url": url, "params": params, "timeout": timeout})
+        seq = params["after_seq"] + 1
+        return Response(
+            {
+                "messages": [
+                    {
+                        "seq": seq,
+                        "from": "node-b" if seq == 2 else "node-a",
+                        "tag": "text",
+                        "payload": {"seq": seq},
+                        "timestamp": 123,
+                    }
+                ]
+            }
+        )
+
+    stream = MessageStream(
+        "run-1",
+        "http://server",
+        tag="text",
+        from_="node-a",
+        timeout=4,
+    )
+    stream._ws = FakeWebSocket()
+    monkeypatch.setattr("dm._stream.requests.get", fake_get)
+
+    message = next(stream)
+
+    assert message == {
+        "seq": 3,
+        "from": "node-a",
+        "tag": "text",
+        "payload": {"seq": 3},
+        "timestamp": 123,
+    }
+    assert calls == [
+        {
+            "url": "http://server/api/runs/run-1/messages",
+            "params": {"after_seq": 1, "limit": 1},
+            "timeout": 4,
+        },
+        {
+            "url": "http://server/api/runs/run-1/messages",
+            "params": {"after_seq": 2, "limit": 1},
+            "timeout": 4,
+        },
+    ]

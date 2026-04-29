@@ -5,6 +5,7 @@ from typing import Any
 
 import requests
 
+from ._stream import MessageStream
 from ._util import detect_caller_id, env_or_default, normalize_url
 
 
@@ -43,7 +44,7 @@ class Message:
         data = response.json()
         return data["seq"]
 
-    def pull(
+    def get(
         self,
         *,
         tag: str | None = None,
@@ -52,7 +53,7 @@ class Message:
         before_seq: int | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        """Fetch message history in ascending sequence order."""
+        """Get message history in ascending sequence order."""
         params: dict[str, Any] = {"limit": limit}
         if tag is not None:
             params["tag"] = tag
@@ -81,9 +82,35 @@ class Message:
         response.raise_for_status()
         return response.json()
 
-    def subscribe(self):
-        """Subscribe to future messages via WebSocket once real-time SDK support lands."""
-        raise NotImplementedError("Coming soon")
+    def subscribe(
+        self,
+        *,
+        tag: str | None = None,
+        from_: str | None = None,
+        timeout: float | None = None,
+    ) -> MessageStream:
+        """
+        Subscribe to real-time messages via WebSocket.
+
+        Returns a MessageStream context manager that yields messages as they arrive.
+
+        Usage:
+            with msg.subscribe() as stream:
+                for event in stream:
+                    print(event)  # {"seq": ..., "from": ..., "tag": ..., "payload": ...}
+
+        The WebSocket connects to /api/runs/{run_id}/messages/ws on the dm-server.
+        The server pushes MessageNotification events: {run_id, seq, from, tag}.
+        After receiving a notification, the SDK fetches the full message payload via
+        GET /api/runs/{run_id}/messages?after_seq={seq - 1}&limit=1.
+        """
+        return MessageStream(
+            self.run_id,
+            self.server_url,
+            tag=tag,
+            from_=from_,
+            timeout=self.timeout if timeout is None else timeout,
+        )
 
     def _url(self, suffix: str) -> str:
         return f"{self.server_url}/api/runs/{self.run_id}{suffix}"
