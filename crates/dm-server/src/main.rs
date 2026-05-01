@@ -1,3 +1,4 @@
+mod faas;
 mod handlers;
 pub mod services;
 pub mod state;
@@ -87,12 +88,14 @@ async fn main() {
     if let Err(err) = media.initialize().await {
         eprintln!("[dm-server] media runtime init failed: {err}");
     }
+    let faas = Arc::new(faas::FaasState::new(&home).expect("Failed to init FaaS"));
 
     let state = AppState {
         home: Arc::new(home),
         events: Arc::new(events),
         messages: broadcast::channel(512).0,
         media,
+        faas,
     };
 
     let app = Router::new()
@@ -109,6 +112,11 @@ async fn main() {
         .route("/api/use", post(handlers::use_version))
         .route("/api/up", post(handlers::up))
         .route("/api/down", post(handlers::down))
+        // ─── FaaS (Function as a Service) ───
+        .route("/api/fn", get(handlers::list_functions))
+        .route("/api/fn/{id}", get(handlers::get_function))
+        .route("/api/fn/{id}/invoke", post(handlers::invoke_function))
+        .route("/api/fn/health", get(handlers::faas_health))
         // ─── Node Management ───
         .route("/api/nodes", get(handlers::list_nodes))
         .route("/api/nodes/install", post(handlers::install_node))
@@ -248,6 +256,28 @@ async fn main() {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(30)).await;
             dm_core::auto_down_if_idle(&monitor_home, false).await;
+        }
+    });
+
+    // Worker reaper: clean up idle Python workers
+    let reap_faas = state.faas.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            reap_faas.pools.reap().await;
+        }
+    });
+
+    // Function rescan: periodically discover new functions
+    let rescan_faas = state.faas.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            if let Ok(fns) = faas::discovery::discover_functions(&rescan_faas.functions_dir) {
+                *rescan_faas.functions.lock().await = fns;
+            }
         }
     });
 

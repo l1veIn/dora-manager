@@ -10,6 +10,7 @@ use tokio::sync::broadcast;
 
 use crate::handlers;
 use crate::handlers::runs::StartRunRequest;
+use crate::faas::FaasState;
 use crate::services::media::MediaRuntime;
 use crate::state::AppState;
 
@@ -24,6 +25,7 @@ fn test_state() -> (TempDir, AppState) {
         events: Arc::new(events),
         messages: broadcast::channel(64).0,
         media: MediaRuntime::new(tmp.path(), dm_core::config::DmConfig::default()),
+        faas: Arc::new(FaasState::new(&home).unwrap()),
     };
     (tmp, state)
 }

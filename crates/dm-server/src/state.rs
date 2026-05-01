@@ -5,6 +5,7 @@ use tokio::sync::broadcast;
 
 use dm_core::events::EventStore;
 
+use crate::faas::FaasState;
 use crate::services::media::MediaRuntime;
 
 #[derive(Clone)]
@@ -13,6 +14,7 @@ pub struct AppState {
     pub events: Arc<EventStore>,
     pub messages: broadcast::Sender<MessageNotification>,
     pub media: Arc<MediaRuntime>,
+    pub faas: Arc<FaasState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
