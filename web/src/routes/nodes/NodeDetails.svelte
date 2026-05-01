@@ -111,7 +111,7 @@
     async function saveConfig() {
         savingConfig = true;
         try {
-            await fetch(`http://127.0.0.1:3210/api/nodes/${node.id}/config`, {
+            await fetch(`/api/nodes/${node.id}/config`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData),
