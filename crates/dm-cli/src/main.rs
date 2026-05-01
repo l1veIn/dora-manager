@@ -2,6 +2,8 @@ mod bridge;
 mod cmd;
 mod display;
 
+use std::time::{Duration, Instant};
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -439,6 +441,8 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
         anyhow::bail!("Graph file '{}' not found.", file_path.display());
     }
 
+    ensure_dm_server_for_dataflow(home, &file_path)?;
+
     println!("{} Starting dataflow...", "🚀".green());
     let strategy = if force {
         dm_core::runs::StartConflictStrategy::StopAndRestart
@@ -469,4 +473,113 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
     }
     println!("  {}", result.message);
     Ok(())
+}
+
+fn ensure_dm_server_for_dataflow(
+    home: &std::path::Path,
+    file_path: &std::path::Path,
+) -> Result<()> {
+    let yaml = std::fs::read_to_string(file_path)
+        .with_context(|| format!("Failed to read graph yaml at {}", file_path.display()))?;
+
+    if !dataflow_requires_dm_server(home, &yaml) || dm_server_ready() {
+        return Ok(());
+    }
+
+    println!("dm-server not detected — auto-starting...");
+    let _child = std::process::Command::new("dm-server")
+        .spawn()
+        .context("Failed to auto-start dm-server")?;
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        if dm_server_ready() {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_secs(1));
+    }
+
+    anyhow::bail!("dm-server did not become ready within 30 seconds");
+}
+
+fn dm_server_ready() -> bool {
+    reqwest::blocking::get("http://127.0.0.1:3210/api/doctor")
+        .map(|response| response.status().is_success())
+        .unwrap_or(false)
+}
+
+fn dataflow_requires_dm_server(home: &std::path::Path, yaml: &str) -> bool {
+    let detail = dm_core::dataflow::inspect_yaml(home, yaml);
+    if detail.summary.requires_media_backend {
+        return true;
+    }
+
+    let Ok(graph) = serde_yaml::from_str::<serde_yaml::Value>(yaml) else {
+        return false;
+    };
+
+    if graph.get("services").is_some()
+        || graph.get("functions").is_some()
+        || graph.get("faas").is_some()
+    {
+        return true;
+    }
+
+    graph
+        .get("nodes")
+        .and_then(|nodes| nodes.as_sequence())
+        .into_iter()
+        .flatten()
+        .filter_map(|node| node.get("node").and_then(|value| value.as_str()))
+        .any(|node_id| node_metadata_requires_dm_server(home, node_id))
+}
+
+fn node_metadata_requires_dm_server(home: &std::path::Path, node_id: &str) -> bool {
+    let Some(path) = dm_core::node::resolve_dm_json_path(home, node_id) else {
+        return false;
+    };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    let Ok(node) = serde_json::from_str::<dm_core::node::Node>(&content) else {
+        return false;
+    };
+
+    if node.capabilities.iter().any(|capability| {
+        matches!(
+            capability.name(),
+            "display" | "media" | "widget_input" | "dm_sdk" | "dm-server" | "faas"
+        )
+    }) {
+        return true;
+    }
+
+    if node
+        .display
+        .tags
+        .iter()
+        .any(|tag| matches!(tag.as_str(), "sdk" | "interaction" | "media" | "faas"))
+        || node.description.contains("dm SDK")
+        || node.description.contains("dm-server")
+    {
+        return true;
+    }
+
+    serde_json::from_str::<serde_json::Value>(&content)
+        .map(|metadata| json_contains_dm_server_env(&metadata))
+        .unwrap_or(false)
+}
+
+fn json_contains_dm_server_env(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::String(value) => {
+            matches!(value.as_str(), "DM_SERVER_URL" | "DM_FAASD_URL")
+        }
+        serde_json::Value::Array(values) => values.iter().any(json_contains_dm_server_env),
+        serde_json::Value::Object(map) => map.iter().any(|(key, value)| {
+            matches!(key.as_str(), "DM_SERVER_URL" | "DM_FAASD_URL")
+                || json_contains_dm_server_env(value)
+        }),
+        _ => false,
+    }
 }
