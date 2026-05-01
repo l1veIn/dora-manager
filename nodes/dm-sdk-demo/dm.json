@@ -19,6 +19,7 @@
     "tags": ["demo", "sdk", "interaction"]
   },
   "capabilities": ["configurable"],
+  "needs": ["dm-server"],
   "runtime": {
     "language": "python",
     "python": ">=3.10",

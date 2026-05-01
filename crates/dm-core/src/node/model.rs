@@ -219,6 +219,9 @@ pub struct Node {
     /// strings; richer capability families can carry structured bindings.
     #[serde(default)]
     pub capabilities: Vec<NodeCapability>,
+    /// Platform services this node expects tooling to provide.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub needs: Option<Vec<String>>,
     /// Runtime requirements and language metadata.
     #[serde(default)]
     pub runtime: NodeRuntime,
@@ -270,6 +273,7 @@ impl Node {
             license: None,
             display: NodeDisplay::default(),
             capabilities: Vec::new(),
+            needs: None,
             runtime: NodeRuntime::default(),
             ports: Vec::new(),
             files: NodeFiles::default(),

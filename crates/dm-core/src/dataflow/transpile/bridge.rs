@@ -184,6 +184,7 @@ mod tests {
             license: None,
             display: NodeDisplay::default(),
             capabilities,
+            needs: None,
             runtime: NodeRuntime::default(),
             ports: Vec::new(),
             files: NodeFiles::default(),
