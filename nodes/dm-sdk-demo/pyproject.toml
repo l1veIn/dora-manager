@@ -6,4 +6,4 @@ requires-python = ">=3.10"
 dependencies = ["dora-rs == 0.4.1", "pyarrow"]
 
 [project.scripts]
-dm-sdk-demo = "main:main"
+dm-sdk-demo = "dm_sdk_demo.main:main"

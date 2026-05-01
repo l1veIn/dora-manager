@@ -6,6 +6,7 @@
         Waypoints,
         History,
         ActivitySquare,
+        Box,
         Settings,
     } from "lucide-svelte";
     import { page } from "$app/state";
@@ -15,6 +16,7 @@
         { title: "Dashboard", url: "/", icon: LayoutDashboard },
         { title: "Nodes", url: "/nodes", icon: PackageSearch },
         { title: "Dataflows", url: "/dataflows", icon: Waypoints },
+        { title: "Functions", url: "/functions", icon: Box },
         { title: "Runs", url: "/runs", icon: History },
         { title: "Events", url: "/events", icon: ActivitySquare },
         { title: "Settings", url: "/settings", icon: Settings },

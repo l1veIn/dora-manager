@@ -28,7 +28,7 @@
   "ports": [],
   "files": {
     "readme": "README.md",
-    "entry": "main.py",
+    "entry": "dm_sdk_demo/main.py",
     "tests": []
   },
   "examples": [],

@@ -27,7 +27,7 @@ from dora import Node
 
 # Add SDK to path for development
 SDK_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "..", "sdk", "python"
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sdk", "python"
 )
 SDK_PATH = os.path.normpath(SDK_PATH)
 if os.path.isdir(SDK_PATH) and SDK_PATH not in sys.path:
