@@ -1,5 +1,6 @@
 mod faas;
 mod handlers;
+mod message;
 pub mod services;
 pub mod state;
 #[cfg(test)]
@@ -68,13 +69,13 @@ struct WebAssets;
         handlers::runs::stop_run,
         handlers::runs::delete_runs,
         // Interaction
-        handlers::messages::get_interaction,
-        handlers::messages::push_message,
-        handlers::messages::list_messages,
-        handlers::messages::get_snapshots,
-        handlers::messages::list_streams,
-        handlers::messages::get_stream,
-        handlers::messages::serve_artifact_file,
+        message::get_interaction,
+        message::push_message,
+        message::list_messages,
+        message::get_snapshots,
+        message::list_streams,
+        message::get_stream,
+        message::serve_artifact_file,
     )
 )]
 struct ApiDoc;
@@ -115,10 +116,10 @@ async fn main() {
         .route("/api/up", post(handlers::up))
         .route("/api/down", post(handlers::down))
         // ─── FaaS (Function as a Service) ───
-        .route("/api/fn", get(handlers::list_functions))
-        .route("/api/fn/{id}", get(handlers::get_function))
-        .route("/api/fn/{id}/invoke", post(handlers::invoke_function))
-        .route("/api/fn/health", get(handlers::faas_health))
+        .route("/api/fn", get(faas::list_functions))
+        .route("/api/fn/{id}", get(faas::get_function))
+        .route("/api/fn/{id}/invoke", post(faas::invoke_function))
+        .route("/api/fn/health", get(faas::faas_health))
         // ─── Node Management ───
         .route("/api/nodes", get(handlers::list_nodes))
         .route("/api/nodes/install", post(handlers::install_node))
@@ -210,26 +211,26 @@ async fn main() {
             "/api/runs/{id}/logs/{node_id}/tail",
             get(handlers::tail_run_logs),
         )
-        .route("/api/runs/{id}/interaction", get(handlers::get_interaction))
-        .route("/api/runs/{id}/messages", get(handlers::list_messages))
-        .route("/api/runs/{id}/messages", post(handlers::push_message))
+        .route("/api/runs/{id}/interaction", get(message::get_interaction))
+        .route("/api/runs/{id}/messages", get(message::list_messages))
+        .route("/api/runs/{id}/messages", post(message::push_message))
         .route(
             "/api/runs/{id}/messages/snapshots",
-            get(handlers::get_snapshots),
+            get(message::get_snapshots),
         )
-        .route("/api/runs/{id}/streams", get(handlers::list_streams))
+        .route("/api/runs/{id}/streams", get(message::list_streams))
         .route(
             "/api/runs/{id}/streams/{stream_id}",
-            get(handlers::get_stream),
+            get(message::get_stream),
         )
-        .route("/api/runs/{id}/messages/ws", get(handlers::messages_ws))
+        .route("/api/runs/{id}/messages/ws", get(message::messages_ws))
         .route(
             "/api/runs/{id}/messages/ws/{node_id}",
-            get(handlers::node_ws),
+            get(message::node_ws),
         )
         .route(
             "/api/runs/{id}/artifacts/{*path}",
-            get(handlers::serve_artifact_file),
+            get(message::serve_artifact_file),
         )
         .route("/api/runs/{id}/ws", get(handlers::run_ws))
         // ─── Events / Observability ───

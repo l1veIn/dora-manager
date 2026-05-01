@@ -8,9 +8,10 @@ use axum::Json;
 use tempfile::TempDir;
 use tokio::sync::broadcast;
 
+use crate::faas::FaasState;
 use crate::handlers;
 use crate::handlers::runs::StartRunRequest;
-use crate::faas::FaasState;
+use crate::message;
 use crate::services::media::MediaRuntime;
 use crate::state::AppState;
 
@@ -1728,7 +1729,7 @@ async fn messages_roundtrip_persists_file_state() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-display");
 
-    let resp = handlers::push_message(
+    let resp = message::push_message(
         State(state.clone()),
         Path("run-display".to_string()),
         Json(
@@ -1748,7 +1749,7 @@ async fn messages_roundtrip_persists_file_state() {
     .into_response();
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
-    let get_resp = handlers::get_interaction(State(state.clone()), Path("run-display".to_string()))
+    let get_resp = message::get_interaction(State(state.clone()), Path("run-display".to_string()))
         .await
         .into_response();
     let body = body_text(get_resp).await;
@@ -1764,7 +1765,7 @@ async fn messages_roundtrip_persists_inline_content() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-inline-display");
 
-    let resp = handlers::push_message(
+    let resp = message::push_message(
         State(state.clone()),
         Path("run-inline-display".to_string()),
         Json(
@@ -1784,7 +1785,7 @@ async fn messages_roundtrip_persists_inline_content() {
     .into_response();
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
-    let get_resp = handlers::get_interaction(State(state), Path("run-inline-display".to_string()))
+    let get_resp = message::get_interaction(State(state), Path("run-inline-display".to_string()))
         .await
         .into_response();
     let body = body_text(get_resp).await;
@@ -1800,7 +1801,7 @@ async fn messages_query_returns_history() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-message-history");
 
-    let _ = handlers::push_message(
+    let _ = message::push_message(
         State(state.clone()),
         Path("run-message-history".to_string()),
         Json(
@@ -1819,7 +1820,7 @@ async fn messages_query_returns_history() {
     .await
     .into_response();
 
-    let _ = handlers::push_message(
+    let _ = message::push_message(
         State(state.clone()),
         Path("run-message-history".to_string()),
         Json(
@@ -1838,7 +1839,7 @@ async fn messages_query_returns_history() {
     .await
     .into_response();
 
-    let resp = handlers::list_messages(
+    let resp = message::list_messages(
         State(state),
         Path("run-message-history".to_string()),
         Query(
@@ -1867,7 +1868,7 @@ async fn widgets_and_input_messages_roundtrip() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-input");
 
-    let register = handlers::push_message(
+    let register = message::push_message(
         State(state.clone()),
         Path("run-input".to_string()),
         Json(
@@ -1892,7 +1893,7 @@ async fn widgets_and_input_messages_roundtrip() {
     .into_response();
     assert_eq!(register.status(), axum::http::StatusCode::OK);
 
-    let emit = handlers::push_message(
+    let emit = message::push_message(
         State(state.clone()),
         Path("run-input".to_string()),
         Json(
@@ -1912,7 +1913,7 @@ async fn widgets_and_input_messages_roundtrip() {
     .into_response();
     assert_eq!(emit.status(), axum::http::StatusCode::OK);
 
-    let claim = handlers::list_messages(
+    let claim = message::list_messages(
         State(state.clone()),
         Path("run-input".to_string()),
         Query(
@@ -1932,7 +1933,7 @@ async fn widgets_and_input_messages_roundtrip() {
     assert_eq!(json["messages"].as_array().unwrap().len(), 1);
     assert_eq!(json["messages"][0]["payload"]["value"], "world");
 
-    let snapshots = handlers::get_snapshots(State(state.clone()), Path("run-input".to_string()))
+    let snapshots = message::get_snapshots(State(state.clone()), Path("run-input".to_string()))
         .await
         .into_response();
     assert_eq!(snapshots.status(), axum::http::StatusCode::OK);
@@ -1941,7 +1942,7 @@ async fn widgets_and_input_messages_roundtrip() {
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json.as_array().unwrap().len(), 2);
 
-    let interaction = handlers::get_interaction(State(state), Path("run-input".to_string()))
+    let interaction = message::get_interaction(State(state), Path("run-input".to_string()))
         .await
         .into_response();
     let body = body_text(interaction).await;
@@ -1955,7 +1956,7 @@ async fn stream_messages_are_exposed_via_stream_api() {
     let (_tmp, state) = test_state();
     setup_run(&state.home, "run-streams");
 
-    let resp = handlers::push_message(
+    let resp = message::push_message(
         State(state.clone()),
         Path("run-streams".to_string()),
         Json(
@@ -1985,7 +1986,7 @@ async fn stream_messages_are_exposed_via_stream_api() {
     .into_response();
     assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
-    let list = handlers::list_streams(State(state.clone()), Path("run-streams".to_string()))
+    let list = message::list_streams(State(state.clone()), Path("run-streams".to_string()))
         .await
         .into_response();
     assert_eq!(list.status(), axum::http::StatusCode::OK);
@@ -1996,7 +1997,7 @@ async fn stream_messages_are_exposed_via_stream_api() {
     assert_eq!(json["streams"][0]["kind"], "video");
     assert!(json["streams"][0]["viewer"].is_null());
 
-    let get = handlers::get_stream(
+    let get = message::get_stream(
         State(state),
         Path((
             "run-streams".to_string(),
@@ -2020,7 +2021,7 @@ async fn serve_artifact_file_reads_run_out_and_rejects_traversal() {
     std::fs::create_dir_all(out_dir.join("nested")).unwrap();
     std::fs::write(out_dir.join("nested/result.json"), "{\"ok\":true}").unwrap();
 
-    let bad = handlers::serve_artifact_file(
+    let bad = message::serve_artifact_file(
         State(state.clone()),
         Path(("run-artifact".to_string(), "../secret.txt".to_string())),
     )
@@ -2028,7 +2029,7 @@ async fn serve_artifact_file_reads_run_out_and_rejects_traversal() {
     .into_response();
     assert_eq!(bad.status(), axum::http::StatusCode::BAD_REQUEST);
 
-    let ok = handlers::serve_artifact_file(
+    let ok = message::serve_artifact_file(
         State(state),
         Path(("run-artifact".to_string(), "nested/result.json".to_string())),
     )

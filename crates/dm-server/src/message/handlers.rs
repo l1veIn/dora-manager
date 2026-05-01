@@ -3,39 +3,15 @@ use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use serde::Deserialize;
 
 use crate::handlers::err;
+use crate::message::{
+    ListMessagesParams, Message as ServiceMessage, MessageFilter, MessageService, MessageSnapshot,
+    NodeWsParams, PushMessageRequest, StreamDescriptor, StreamViewer,
+};
 use crate::services;
 use crate::services::media::{MediaBackendStatus, MediaStatus};
-use crate::services::message::{MessageFilter, MessageService, StreamDescriptor, StreamViewer};
 use crate::state::{AppState, MessageNotification};
-
-use utoipa::ToSchema;
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct PushMessageRequest {
-    pub from: String,
-    pub tag: String,
-    pub payload: serde_json::Value,
-    pub timestamp: Option<i64>,
-}
-
-#[derive(Debug, Deserialize, Default, ToSchema)]
-pub struct ListMessagesParams {
-    pub after_seq: Option<i64>,
-    pub before_seq: Option<i64>,
-    #[serde(rename = "from")]
-    pub from_filter: Option<String>,
-    pub tag: Option<String>,
-    pub limit: Option<usize>,
-    pub desc: Option<bool>,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct NodeWsParams {
-    pub since: Option<i64>,
-}
 
 #[utoipa::path(
     get,
@@ -359,10 +335,7 @@ async fn handle_node_ws(
     }
 }
 
-async fn send_node_message(
-    socket: &mut WebSocket,
-    event: &crate::services::message::Message,
-) -> Result<(), ()> {
+async fn send_node_message(socket: &mut WebSocket, event: &ServiceMessage) -> Result<(), ()> {
     socket
         .send(Message::Text(
             serde_json::to_string(event).map_err(|_| ())?.into(),
@@ -448,7 +421,7 @@ fn normalize_stream_payload(payload: serde_json::Value) -> anyhow::Result<serde_
 fn stream_descriptor_from_snapshot(
     state: &AppState,
     media_status: &MediaStatus,
-    snapshot: crate::services::message::MessageSnapshot,
+    snapshot: MessageSnapshot,
 ) -> anyhow::Result<StreamDescriptor> {
     let payload = snapshot.payload;
     let stream_id = payload

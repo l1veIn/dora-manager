@@ -7,7 +7,8 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::sync::broadcast;
 
-use crate::services::{self, message::MessageService};
+use crate::message::{Message, MessageFilter, MessageService};
+use crate::services;
 use crate::state::MessageNotification;
 
 #[derive(Debug, Deserialize)]
@@ -158,9 +159,9 @@ fn handle_push(
     }
 }
 
-fn lookup_input(home: &PathBuf, run_id: &str, seq: i64) -> Option<services::message::Message> {
+fn lookup_input(home: &PathBuf, run_id: &str, seq: i64) -> Option<Message> {
     let service = MessageService::open(home, run_id).ok()?;
-    let filter = services::message::MessageFilter {
+    let filter = MessageFilter {
         after_seq: Some(seq - 1),
         before_seq: Some(seq + 1),
         from: None,

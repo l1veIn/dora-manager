@@ -1,8 +1,6 @@
 pub(crate) mod bridge_socket;
 pub(crate) mod dataflow;
 pub(crate) mod events;
-pub(crate) mod faas;
-pub(crate) mod messages;
 pub(crate) mod nodes;
 pub(crate) mod run_ws;
 pub(crate) mod runs;
@@ -20,11 +18,6 @@ pub use dataflow::{
     save_dataflow_meta, save_dataflow_view, start_dataflow, stop_dataflow,
 };
 pub use events::{count_events, export_events, ingest_event, query_events};
-pub(crate) use faas::{faas_health, get_function, invoke_function, list_functions};
-pub use messages::{
-    get_interaction, get_snapshots, get_stream, list_messages, list_streams, messages_ws, node_ws,
-    push_message, serve_artifact_file,
-};
 pub use nodes::{
     create_node, get_node_config, get_node_file_content, get_node_files, import_node, install_node,
     list_nodes, node_readme, node_status, open_node, save_node_config, serve_node_artifact_file,
