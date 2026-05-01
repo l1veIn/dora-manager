@@ -2,7 +2,6 @@
 members = [
     "crates/dm-core",
     "crates/dm-cli",
-    "crates/dm-faasd",
     "crates/dm-server",
 ]
 resolver = "2"
