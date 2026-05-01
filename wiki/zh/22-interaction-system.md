@@ -359,6 +359,58 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-but
 
 Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L236-L282), [InteractionPane.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/routes/runs/[id]/InteractionPane.svelte#L200-L321)
 
+## SDK 交互模型（无需 Bridge）
+
+对于使用 Python SDK 的节点，交互系统提供了第二条路径——**通过 dm.Message() 直接与 dm-server 通信**，跳过 Bridge 和 Arrow 端口。
+
+### 适用场景
+
+- 节点需要与 Web UI 进行实时双向交互
+- 节点需要调用 dm-server 的函数服务（FaaS）
+- 节点不需要与其他 dora 节点通过 Arrow 端口通信
+
+### 工作原理
+
+```mermaid
+graph TB
+    SDKNode["SDK 节点<br/>(dm.Message())"] -->|"WebSocket subscribe"| Server["dm-server"]
+    SDKNode -->|"HTTP POST /api/fn/..."| Server
+    Web["Web Browser"] -->|"HTTP POST /api/runs/.../messages"| Server
+    Server -->|"WebSocket push"| Web
+    Server -->|"WebSocket notify"| SDKNode
+```
+
+1. SDK 节点在初始化时通过 HTTP 与 dm-server 建立连接
+2. 节点注册 Widget 到 Web UI（`msg.send("widgets", ...)`）
+3. 用户通过 Web UI 输入数据
+4. SDK 节点通过 `msg.subscribe(tag="input")` 实时接收用户输入
+5. SDK 节点处理数据，可调用 FaaS 函数（`POST /api/fn/{id}/invoke`）
+6. SDK 节点通过 `msg.send("text", {...})` 将结果发回 Web UI
+
+### SDK 节点声明
+
+在节点的 `dm.json` 中声明 `"needs": ["dm-server"]` 即可被系统识别为 SDK 节点。
+
+### 代码示例
+
+```python
+from dm import Message
+
+msg = Message()
+msg.send("widgets", {
+    "label": "My Widget",
+    "widgets": {
+        "input": {"type": "input", "label": "Enter text"}
+    }
+})
+
+with msg.subscribe(tag="input", timeout=3600) as stream:
+    for event in stream:
+        value = event["payload"]["value"]
+        # Process and respond
+        msg.send("text", {"content": f"Received: {value}"})
+```
+
 ## 相关阅读
 
 - [Capability Binding：节点能力声明与运行时角色绑定](23-capability-binding-jie-dian-neng-li-sheng-ming-yu-yun-xing-shi-jiao-se-bang-ding) — 深入了解 capability 体系的完整设计

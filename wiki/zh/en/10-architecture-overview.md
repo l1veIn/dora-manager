@@ -1,4 +1,4 @@
-The backend of Dora Manager adopts a classic **three-tier separated architecture**, organizing all Rust code into three independent crates: `dm-core` hosts all business logic, `dm-cli` provides terminal command-line access, and `dm-server` provides HTTP/WebSocket access. Their relationship can be summarized in one phrase -- **one headless engine, two thin adapter shells**. This document systematically analyzes the responsibility boundaries, module organization, and interaction patterns of each tier, helping you build a clear mental model before diving into individual subsystems.
+The backend of Dora Manager adopts a classic **three-tier separated architecture**, organizing all Rust code into three independent crates: `dm-core` hosts all business logic, `dm-cli` provides terminal command-line access, and `dm-server` provides HTTP/WebSocket access with an embedded function execution runtime. Their relationship can be summarized in one phrase -- **one headless engine, two thin adapter shells**. This document systematically analyzes the responsibility boundaries, module organization, and interaction patterns of each tier, helping you build a clear mental model before diving into individual subsystems.
 
 Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.toml), [crates/dm-core/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/Cargo.toml#L1-L8), [crates/dm-cli/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/Cargo.toml#L1-L12), [crates/dm-server/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/Cargo.toml#L1-L12)
 
@@ -10,7 +10,7 @@ The Mermaid diagram below shows the dependency direction between the three crate
 graph TD
     subgraph "Application Layer"
         CLI["dm-cli (bin: dm)<br/>Terminal CLI<br/>clap · colored · indicatif"]
-        SRV["dm-server (bin: dm-server)<br/>HTTP API + WebSocket<br/>axum · utoipa · rust-embed"]
+        SRV["dm-server (bin: dm-server)<br/>HTTP API + WebSocket + FaaS Runtime<br/>axum · utoipa · rust-embed"]
     end
 
     subgraph "Core Layer"
@@ -33,6 +33,8 @@ graph TD
 ```
 
 The core design constraint is very clear: **there is no direct dependency between dm-cli and dm-server**. Both are merely consumers of dm-core, providing differentiated access experiences for terminal users and web browsers respectively. The only exception is the Bridge IPC mechanism (via Unix Socket), which allows the Bridge process in dm-cli to establish a real-time communication channel with dm-server at runtime.
+
+For nodes using the SDK (declaring `"needs": ["dm-server"]`), the Python SDK (`dm.Message`) establishes a direct WebSocket connection to dm-server without routing through a Bridge node. SDK nodes can subscribe to messages, invoke functions, and send results, with all communication happening on the DM Plane.
 
 Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.toml), [crates/dm-cli/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/Cargo.toml#L15), [crates/dm-server/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/Cargo.toml#L15)
 

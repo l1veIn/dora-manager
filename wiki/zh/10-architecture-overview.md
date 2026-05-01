@@ -1,4 +1,4 @@
-Dora Manager 的后端采用经典的**三层分离架构**，将全部 Rust 代码组织为三个独立的 crate：`dm-core` 承载所有业务逻辑，`dm-cli` 提供终端命令行接入，`dm-server` 提供 HTTP/WebSocket 接入。三者的关系可以概括为一句话——**一个无头引擎、两套薄壳适配器**。本文将系统性地解析每一层的职责边界、模块组织和交互模式，帮助你在后续深入各子系统之前建立清晰的思维模型。
+Dora Manager 的后端采用经典的**三层分离架构**，将全部 Rust 代码组织为三个独立的 crate：`dm-core` 承载所有业务逻辑，`dm-cli` 提供终端命令行接入，`dm-server` 提供 HTTP/WebSocket 接入并内嵌函数执行运行时。三者的关系可以概括为一句话——**一个无头引擎、两套薄壳适配器**。本文将系统性地解析每一层的职责边界、模块组织和交互模式，帮助你在后续深入各子系统之前建立清晰的思维模型。
 
 Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.toml), [crates/dm-core/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/Cargo.toml#L1-L8), [crates/dm-cli/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/Cargo.toml#L1-L12), [crates/dm-server/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/Cargo.toml#L1-L12)
 
@@ -10,7 +10,7 @@ Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.tom
 graph TD
     subgraph "接入层 Application Layer"
         CLI["dm-cli (bin: dm)<br/>终端 CLI<br/>clap · colored · indicatif"]
-        SRV["dm-server (bin: dm-server)<br/>HTTP API + WebSocket<br/>axum · utoipa · rust-embed"]
+        SRV["dm-server (bin: dm-server)<br/>HTTP API + WebSocket + FaaS Runtime<br/>axum · utoipa · rust-embed"]
     end
 
     subgraph "核心层 Core Layer"
@@ -33,6 +33,8 @@ graph TD
 ```
 
 核心设计约束非常明确：**dm-cli 与 dm-server 之间不存在直接依赖**。两者都只是 dm-core 的消费者，分别面向终端用户和 Web 浏览器提供差异化的接入体验。唯一例外是 Bridge IPC 机制（通过 Unix Socket），它让 dm-cli 中的 Bridge 进程在运行时与 dm-server 建立实时通信通道。
+
+对于使用 SDK 的节点（声明 `"needs": ["dm-server"]`），它们通过 Python SDK (`dm.Message`) 与 dm-server 直接建立 WebSocket 连接，无需 Bridge 节点中转。SDK 节点可以订阅消息、调用函数、发送结果，所有通信发生在 DM Plane 上。
 
 Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.toml), [crates/dm-cli/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/Cargo.toml#L15), [crates/dm-server/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/Cargo.toml#L15)
 

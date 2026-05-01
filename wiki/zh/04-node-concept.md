@@ -117,6 +117,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-and
 | `runtime.python` | string | — | Python 版本要求（如 `">=3.10"`） |
 | `runtime.platforms` | string[] | — | 支持的平台列表（空 = 全平台） |
 | `capabilities` | array | — | 运行时能力声明（详见下文） |
+| `needs` | string[] | — | 平台服务依赖声明（如 `["dm-server"]`）。节点声明后，`dm run` 会自动确保对应服务已启动 |
 | `dynamic_ports` | bool | — | 是否允许 YAML 中声明未在 `ports` 预定义的端口 |
 
 ### 接口与配置

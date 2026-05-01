@@ -117,6 +117,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-and
 | `runtime.python` | string | — | Python version requirement (e.g., `">=3.10"`) |
 | `runtime.platforms` | string[] | — | List of supported platforms (empty = all platforms) |
 | `capabilities` | array | — | Runtime capability declarations (see details below) |
+| `needs` | string[] | — | Platform service dependencies (e.g. `["dm-server"]`). When declared, `dm run` auto-starts the required services |
 | `dynamic_ports` | bool | — | Whether to allow declaring ports in YAML that are not pre-defined in `ports` |
 
 ### Interface and Configuration

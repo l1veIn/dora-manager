@@ -1,10 +1,10 @@
-dm-server is the HTTP service layer of Dora Manager, built on the **Axum** framework, and always listens on `127.0.0.1:3210`. It exposes two types of communication interfaces to the upper-layer SvelteKit frontend: **REST API** (request-response pattern, used for resource CRUD and command execution) and **WebSocket / SSE real-time channels** (push pattern, used for log streaming, metrics collection, and interactive messaging). All REST endpoints are automatically annotated with `utoipa` to generate an OpenAPI specification, which can be browsed interactively through Swagger UI. This chapter will systematically break down all routes, request/response structures, real-time channel protocols by functional domain, and how to access the full documentation in Swagger.
+dm-server is the HTTP service layer of Dora Manager, built on the **Axum** framework, and listens on `127.0.0.1:3210` by default. The port can be configured with the `--port` argument or the `DM_SERVER_PORT` environment variable. It exposes two types of communication interfaces to the upper-layer SvelteKit frontend: **REST API** (request-response pattern, used for resource CRUD and command execution) and **WebSocket / SSE real-time channels** (push pattern, used for log streaming, metrics collection, and interactive messaging). All REST endpoints are automatically annotated with `utoipa` to generate an OpenAPI specification, which can be browsed interactively through Swagger UI. This chapter will systematically break down all routes, request/response structures, real-time channel protocols by functional domain, and how to access the full documentation in Swagger.
 
 Sources: [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L1-L270), [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/Cargo.toml#L1-L38)
 
 ## Service Startup and Global Architecture
 
-On startup, dm-server performs four initializations: parsing the `DM_HOME` directory and loading configuration, opening the event store (SQLite), initializing the media runtime (MediaMTX bridge), and building the Axum router table and binding the listening port. Additionally, it starts two background tasks -- an idle monitor that runs every 30 seconds (auto `dora down`) and a Unix Domain Socket listener (`$DM_HOME/bridge.sock`) for IPC communication with Bridge nodes within the dataflow.
+On startup, dm-server performs four initializations: parsing the `DM_HOME` directory and loading configuration, opening the event store (SQLite), initializing the media runtime (MediaMTX bridge), and building the Axum router table and binding the listening port (configurable with the `--port` argument or the `DM_SERVER_PORT` environment variable, default 3210). Additionally, it starts two background tasks -- an idle monitor that runs every 30 seconds (auto `dora down`) and a Unix Domain Socket listener (`$DM_HOME/bridge.sock`) for IPC communication with Bridge nodes within the dataflow.
 
 Sources: [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L79-L269)
 
@@ -31,7 +31,7 @@ The entire route table is registered in a `Router::new()` chained call, divided 
 
 ```mermaid
 graph LR
-    Client["Frontend / External Client"] -->|HTTP / WS| Listener["TcpListener<br/>127.0.0.1:3210"]
+    Client["Frontend / External Client"] -->|HTTP / WS| Listener["TcpListener<br/>127.0.0.1:3210 (default)"]
     Listener --> Axum["Axum Router"]
     Axum --> Cors["CorsLayer<br/>(permissive)"]
     Cors --> State["AppState Injection"]
@@ -175,6 +175,17 @@ The `tag` field determines the routing semantics of the message: `"input"` repre
 
 Sources: [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L1-L558), [message.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L1-L120)
 
+### Function Services (FaaS)
+
+Function services are embedded in dm-server and provide lightweight stateless function invocation.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/fn` | List registered functions |
+| POST | `/api/fn/{id}/invoke` | Invoke the specified function (body: `{"method":"run","input":{...}}`) |
+
+Functions are registered through `service.json` + `service.py` under the `services/` directory. See [Service Development Guide]().
+
 ### Events and Observability
 
 | Method | Path | Purpose | Key Parameters |
@@ -192,7 +203,7 @@ dm-server provides three WebSocket endpoints and one Unix Domain Socket IPC chan
 
 ```mermaid
 graph TB
-    subgraph "HTTP Port 3210"
+    subgraph "HTTP Port 3210 (default, configurable)"
         WS_Run["/api/runs/{id}/ws<br/>Run Monitoring Channel"]
         WS_Msg["/api/runs/{id}/messages/ws<br/>Message Broadcast Channel"]
         WS_Node["/api/runs/{id}/messages/ws/{node_id}<br/>Node-Directed Channel"]
@@ -270,8 +281,8 @@ dm-server integrates `utoipa` + `utoipa-swagger-ui`. All registered REST endpoin
 
 ### Access Methods
 
-- **Swagger UI interactive interface**: `http://127.0.0.1:3210/swagger-ui/`
-- **OpenAPI JSON specification**: `http://127.0.0.1:3210/api-docs/openapi.json`
+- **Swagger UI interactive interface**: default address `http://127.0.0.1:3210/swagger-ui/`
+- **OpenAPI JSON specification**: default address `http://127.0.0.1:3210/api-docs/openapi.json`
 
 In Swagger UI, you can directly test each endpoint -- enter path parameters, request bodies, execute, and view responses. All structs annotated with `ToSchema` (such as `StartRunRequest`, `PushMessageRequest`, `StreamDescriptor`, etc.) also automatically generate Schema definitions.
 

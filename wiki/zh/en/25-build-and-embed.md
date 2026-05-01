@@ -168,7 +168,7 @@ flowchart TB
     subgraph Dev["Local Development Environment"]
         Browser["Browser<br/>http://127.0.0.1:5173"]
         ViteDev["Vite Dev Server<br/>:5173"]
-        DmServer["dm-server<br/>:3210"]
+        DmServer["dm-server<br/>:3210 (configurable)"]
 
         Browser -->|"Page request"| ViteDev
         ViteDev -->|"/api/* proxy<br/>ws: true"| DmServer
@@ -182,6 +182,7 @@ The Vite dev server configures proxy rules in [vite.config.ts](https://github.co
 server: {
     proxy: {
         '/api': {
+            // Default backend address; the port is configurable with --port or DM_SERVER_PORT
             target: 'http://127.0.0.1:3210',
             changeOrigin: true,
             ws: true    // WebSocket proxy
@@ -197,9 +198,9 @@ server: {
 The [dev.sh](https://github.com/l1veIn/dora-manager/blob/main/dev.sh) script orchestrates the dual processes in the following order:
 
 1. **Prerequisite checks**: Verifies that `cargo` and `node` are installed
-2. **Backend startup**: `cargo run -p dm-server &` starts the Rust backend, waiting for port 3210 to be ready (30-second timeout)
+2. **Backend startup**: `cargo run -p dm-server &` starts the Rust backend, waiting for the default port 3210 to be ready (30-second timeout)
 3. **Frontend startup**: `npm run dev -- --host 127.0.0.1 --port 5173` starts the Vite dev server
-4. **Smart reuse**: If port 3210 is already occupied by a `dm-server` process, the backend startup is skipped and only the frontend dev server is started
+4. **Smart reuse**: If the default port 3210 is already occupied by a `dm-server` process, the backend startup is skipped and only the frontend dev server is started
 5. **Graceful shutdown**: `trap cleanup EXIT INT TERM` captures Ctrl+C signals to ensure both child processes are properly terminated
 
 This dual-process development experience is superior to recompiling the Rust binary on every frontend change -- frontend code modifications take effect almost instantly via Vite HMR, while backend API changes only require restarting `dm-server`.
@@ -354,8 +355,8 @@ cargo build --release -p dm-server
 | Local development | `./dev.sh` | Dual-process hot reload, no need to recompile Rust |
 | Manual production build | First `cd web && npm run build`, then `cargo build --release -p dm-server` | Frontend before backend |
 | Trigger official release | `git tag v0.x.x && git push --tags` | Automatically triggers the Release pipeline |
-| Verify embedding works | `cargo run -p dm-server`, visit `http://127.0.0.1:3210` | Should see the frontend page |
-| View API docs | Visit `http://127.0.0.1:3210/swagger-ui/` | Swagger UI starts with the server |
+| Verify embedding works | `cargo run -p dm-server`, visit the default address `http://127.0.0.1:3210` | Should see the frontend page; port is configurable |
+| View API docs | Visit the default address `http://127.0.0.1:3210/swagger-ui/` | Swagger UI starts with the server; port is configurable |
 
 Sources: [dev.sh](https://github.com/l1veIn/dora-manager/blob/main/dev.sh), [CHANGELOG.md](https://github.com/l1veIn/dora-manager/blob/main/CHANGELOG.md)
 

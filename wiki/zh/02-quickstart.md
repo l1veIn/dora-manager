@@ -165,6 +165,8 @@ CLI 输出类似：
 
 > **注意**：`dm start` 会自动检测 dora 运行时是否已启动；若未运行则自动执行 `dm up`，因此你无需手动启动运行时。
 
+> **提示：** 如果 dataflow 中的节点声明了 `"needs": ["dm-server"]`，`dm run` 会自动启动 dm-server 并等待就绪，无需手动启动。
+
 Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L353-L384)
 
 ### `dm start` 背后发生了什么

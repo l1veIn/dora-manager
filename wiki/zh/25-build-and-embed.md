@@ -168,7 +168,7 @@ flowchart TB
     subgraph Dev["本地开发环境"]
         Browser["浏览器<br/>http://127.0.0.1:5173"]
         ViteDev["Vite Dev Server<br/>:5173"]
-        DmServer["dm-server<br/>:3210"]
+        DmServer["dm-server<br/>:3210（可配置）"]
         
         Browser -->|"页面请求"| ViteDev
         ViteDev -->|"/api/* 代理<br/>ws: true"| DmServer
@@ -182,6 +182,7 @@ Vite 开发服务器在 [vite.config.ts](https://github.com/l1veIn/dora-manager/
 server: {
     proxy: {
         '/api': {
+            // 默认后端地址；端口可通过 --port 或 DM_SERVER_PORT 配置
             target: 'http://127.0.0.1:3210',
             changeOrigin: true,
             ws: true    // WebSocket 代理
@@ -197,9 +198,9 @@ server: {
 [dev.sh](https://github.com/l1veIn/dora-manager/blob/main/dev.sh) 脚本按以下顺序编排双进程：
 
 1. **前置检查**：验证 `cargo` 和 `node` 已安装
-2. **后端启动**：`cargo run -p dm-server &` 启动 Rust 后端，等待端口 3210 就绪（超时 30 秒）
+2. **后端启动**：`cargo run -p dm-server &` 启动 Rust 后端，等待默认端口 3210 就绪（超时 30 秒）
 3. **前端启动**：`npm run dev -- --host 127.0.0.1 --port 5173` 启动 Vite 开发服务器
-4. **智能复用**：如果检测到端口 3210 已被 `dm-server` 进程占用，则跳过后端启动，仅启动前端开发服务器
+4. **智能复用**：如果检测到默认端口 3210 已被 `dm-server` 进程占用，则跳过后端启动，仅启动前端开发服务器
 5. **优雅退出**：通过 `trap cleanup EXIT INT TERM` 捕获 Ctrl+C 信号，确保两个子进程都被正确终止
 
 这种双进程模式的开发体验优于每次前端变更都要重新编译 Rust 二进制——前端代码的修改通过 Vite HMR 几乎即时生效，而后端 API 的变更只需重启 `dm-server`。
@@ -354,8 +355,8 @@ cargo build --release -p dm-server
 | 本地开发 | `./dev.sh` | 双进程热更新，无需重新编译 Rust |
 | 手动生产构建 | 先 `cd web && npm run build`，再 `cargo build --release -p dm-server` | 前端先于后端 |
 | 触发正式发布 | `git tag v0.x.x && git push --tags` | 自动触发 Release 流水线 |
-| 验证嵌入效果 | `cargo run -p dm-server`，访问 `http://127.0.0.1:3210` | 应看到前端页面 |
-| 查看 API 文档 | 访问 `http://127.0.0.1:3210/swagger-ui/` | Swagger UI 随服务启动 |
+| 验证嵌入效果 | `cargo run -p dm-server`，访问默认地址 `http://127.0.0.1:3210` | 应看到前端页面；端口可配置 |
+| 查看 API 文档 | 访问默认地址 `http://127.0.0.1:3210/swagger-ui/` | Swagger UI 随服务启动；端口可配置 |
 
 Sources: [dev.sh](https://github.com/l1veIn/dora-manager/blob/main/dev.sh), [CHANGELOG.md](https://github.com/l1veIn/dora-manager/blob/main/CHANGELOG.md)
 

@@ -359,6 +359,58 @@ Creating new interaction nodes follows a strict contract and requires no modific
 
 Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L236-L282), [InteractionPane.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/routes/runs/[id]/InteractionPane.svelte#L200-L321)
 
+## SDK Interaction Model (No Bridge Required)
+
+For nodes using the Python SDK, the interaction system provides a second path: **communicating directly with dm-server through dm.Message()**, bypassing the Bridge and Arrow ports.
+
+### When to Use It
+
+- The node needs real-time bidirectional interaction with the Web UI
+- The node needs to invoke dm-server's function services (FaaS)
+- The node does not need to communicate with other dora nodes through Arrow ports
+
+### How It Works
+
+```mermaid
+graph TB
+    SDKNode["SDK Node<br/>(dm.Message())"] -->|"WebSocket subscribe"| Server["dm-server"]
+    SDKNode -->|"HTTP POST /api/fn/..."| Server
+    Web["Web Browser"] -->|"HTTP POST /api/runs/.../messages"| Server
+    Server -->|"WebSocket push"| Web
+    Server -->|"WebSocket notify"| SDKNode
+```
+
+1. The SDK node establishes a connection to dm-server over HTTP during initialization
+2. The node registers widgets with the Web UI (`msg.send("widgets", ...)`)
+3. The user enters data through the Web UI
+4. The SDK node receives user input in real time through `msg.subscribe(tag="input")`
+5. The SDK node processes the data and can invoke FaaS functions (`POST /api/fn/{id}/invoke`)
+6. The SDK node sends results back to the Web UI with `msg.send("text", {...})`
+
+### SDK Node Declaration
+
+Declare `"needs": ["dm-server"]` in the node's `dm.json` so the system recognizes it as an SDK node.
+
+### Code Example
+
+```python
+from dm import Message
+
+msg = Message()
+msg.send("widgets", {
+    "label": "My Widget",
+    "widgets": {
+        "input": {"type": "input", "label": "Enter text"}
+    }
+})
+
+with msg.subscribe(tag="input", timeout=3600) as stream:
+    for event in stream:
+        value = event["payload"]["value"]
+        # Process and respond
+        msg.send("text", {"content": f"Received: {value}"})
+```
+
 ## Related Reading
 
 - [Capability Binding: Node Capability Declaration and Runtime Role Binding](23-capability-binding.md) -- a deeper look at the complete design of the capability system

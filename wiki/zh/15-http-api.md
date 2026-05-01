@@ -1,10 +1,10 @@
-dm-server 是 Dora Manager 的 HTTP 服务层，基于 **Axum** 框架构建，固定监听 `127.0.0.1:3210`。它向上层 SvelteKit 前端暴露两类通信接口：**REST API**（请求-响应模式，用于资源 CRUD 与命令执行）和 **WebSocket / SSE 实时通道**（推送模式，用于日志流、指标采集与交互消息）。所有 REST 端点通过 `utoipa` 注解自动生成 OpenAPI 规范，并通过 Swagger UI 交互式浏览。本章将按功能域逐层拆解全部路由、请求/响应结构、实时通道协议，以及如何在 Swagger 中查阅完整文档。
+dm-server 是 Dora Manager 的 HTTP 服务层，基于 **Axum** 框架构建，默认监听 `127.0.0.1:3210`，可通过 `--port` 参数或 `DM_SERVER_PORT` 环境变量配置。它向上层 SvelteKit 前端暴露两类通信接口：**REST API**（请求-响应模式，用于资源 CRUD 与命令执行）和 **WebSocket / SSE 实时通道**（推送模式，用于日志流、指标采集与交互消息）。所有 REST 端点通过 `utoipa` 注解自动生成 OpenAPI 规范，并通过 Swagger UI 交互式浏览。本章将按功能域逐层拆解全部路由、请求/响应结构、实时通道协议，以及如何在 Swagger 中查阅完整文档。
 
 Sources: [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L1-L270), [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/Cargo.toml#L1-L38)
 
 ## 服务启动与全局架构
 
-dm-server 在启动时执行四项初始化：解析 `DM_HOME` 目录并加载配置、打开事件存储（SQLite）、初始化媒体运行时（MediaMTX 桥接）、构建 Axum 路由表并绑定监听端口。此外它还启动两个后台任务——每 30 秒的空闲监控器（自动 `dora down`）和一个 Unix Domain Socket 监听器（`$DM_HOME/bridge.sock`），用于与数据流内的 Bridge 节点进行 IPC 通信。
+dm-server 在启动时执行四项初始化：解析 `DM_HOME` 目录并加载配置、打开事件存储（SQLite）、初始化媒体运行时（MediaMTX 桥接）、构建 Axum 路由表并绑定监听端口（端口可通过 `--port` 参数或 `DM_SERVER_PORT` 环境变量配置，默认 3210）。此外它还启动两个后台任务——每 30 秒的空闲监控器（自动 `dora down`）和一个 Unix Domain Socket 监听器（`$DM_HOME/bridge.sock`），用于与数据流内的 Bridge 节点进行 IPC 通信。
 
 Sources: [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L79-L269)
 
@@ -31,7 +31,7 @@ Sources: [state.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-s
 
 ```mermaid
 graph LR
-    Client["前端 / 外部客户端"] -->|HTTP / WS| Listener["TcpListener<br/>127.0.0.1:3210"]
+    Client["前端 / 外部客户端"] -->|HTTP / WS| Listener["TcpListener<br/>127.0.0.1:3210（默认）"]
     Listener --> Axum["Axum Router"]
     Axum --> Cors["CorsLayer<br/>(permissive)"]
     Cors --> State["AppState 注入"]
@@ -175,6 +175,17 @@ Sources: [runs.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-se
 
 Sources: [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L1-L558), [message.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L1-L120)
 
+### 函数服务 (FaaS)
+
+函数服务内嵌在 dm-server 中，提供轻量无状态函数调用能力。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/fn` | 列举已注册的函数 |
+| POST | `/api/fn/{id}/invoke` | 调用指定函数（body: `{"method":"run","input":{...}}`） |
+
+函数通过 `services/` 目录下的 `service.json` + `service.py` 注册。详见 [服务开发指南]()。
+
 ### 事件与可观测性
 
 | 方法 | 路径 | 用途 | 关键参数 |
@@ -192,7 +203,7 @@ dm-server 提供三个 WebSocket 端点和一个 Unix Domain Socket IPC 通道�
 
 ```mermaid
 graph TB
-    subgraph "HTTP 端口 3210"
+    subgraph "HTTP 端口 3210（默认，可配置）"
         WS_Run["/api/runs/{id}/ws<br/>运行监控通道"]
         WS_Msg["/api/runs/{id}/messages/ws<br/>消息广播通道"]
         WS_Node["/api/runs/{id}/messages/ws/{node_id}<br/>节点定向通道"]
@@ -270,8 +281,8 @@ dm-server 集成了 `utoipa` + `utoipa-swagger-ui`，所有已注册的 REST 端
 
 ### 访问方式
 
-- **Swagger UI 交互式界面**：`http://127.0.0.1:3210/swagger-ui/`
-- **OpenAPI JSON 规范**：`http://127.0.0.1:3210/api-docs/openapi.json`
+- **Swagger UI 交互式界面**：默认地址 `http://127.0.0.1:3210/swagger-ui/`
+- **OpenAPI JSON 规范**：默认地址 `http://127.0.0.1:3210/api-docs/openapi.json`
 
 在 Swagger UI 中可直接测试每个端点——输入路径参数、请求体，执行并查看响应。所有 `ToSchema` 标注的结构体（如 `StartRunRequest`、`PushMessageRequest`、`StreamDescriptor` 等）也会自动生成 Schema 定义。
 

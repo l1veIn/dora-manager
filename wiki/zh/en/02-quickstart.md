@@ -165,6 +165,8 @@ The CLI output looks like:
 
 > **Note**: `dm start` automatically checks if the dora runtime is running; if not, it automatically executes `dm up`, so you don't need to start the runtime manually.
 
+> **Tip:** If a node in the dataflow declares `"needs": ["dm-server"]`, `dm run` automatically starts dm-server and waits until it is ready, so no manual startup is required.
+
 Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L353-L384)
 
 ### What Happens Behind `dm start`
