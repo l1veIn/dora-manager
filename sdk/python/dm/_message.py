@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -19,13 +20,16 @@ class Message:
         *,
         timeout: float = 5.0,
     ):
+        explicit_server_url = server_url or env_or_default("DM_SERVER_URL")
+        self.server_url = normalize_url(
+            explicit_server_url or "http://127.0.0.1:3210"
+        )
+        self.timeout = timeout
+        if explicit_server_url and _is_local_server_url(self.server_url):
+            self._check_server_reachable()
         self.run_id = run_id or env_or_default("DM_RUN_ID")
         if not self.run_id:
             raise RuntimeError("run_id is required or DM_RUN_ID must be set")
-        self.server_url = normalize_url(
-            server_url or env_or_default("DM_SERVER_URL", "http://127.0.0.1:3210")
-        )
-        self.timeout = timeout
 
     def send(self, tag: str, payload: dict[str, Any], *, from_: str | None = None) -> int:
         """Persist a message and return its sequence number."""
@@ -114,3 +118,19 @@ class Message:
 
     def _url(self, suffix: str) -> str:
         return f"{self.server_url}/api/runs/{self.run_id}{suffix}"
+
+    def _check_server_reachable(self) -> None:
+        try:
+            requests.get(f"{self.server_url}/api/doctor", timeout=self.timeout)
+        except requests.RequestException:
+            message = (
+                f"❌ dm-server not reachable at {self.server_url}\n"
+                "   This node requires dm-server for message and function services.\n"
+                "   Start dm-server first, or use `dm run` which manages it automatically."
+            )
+            raise RuntimeError(message) from None
+
+
+def _is_local_server_url(url: str) -> bool:
+    hostname = urlparse(url).hostname
+    return hostname in {"127.0.0.1", "localhost", "::1"}
