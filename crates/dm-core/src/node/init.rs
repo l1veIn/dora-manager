@@ -95,6 +95,7 @@ pub fn init_dm_json(id: &str, node_path: &Path, hints: InitHints) -> Result<Node
         license: pyproject.as_ref().and_then(|p| p.license.clone()),
         display: NodeDisplay::default(),
         capabilities: Vec::new(),
+        needs: None,
         runtime,
         ports: Vec::new(),
         files,

@@ -79,6 +79,7 @@ mod tests {
             license: None,
             display: NodeDisplay::default(),
             capabilities: Vec::new(),
+            needs: None,
             runtime: NodeRuntime::default(),
             ports: Vec::new(),
             files: NodeFiles::default(),
