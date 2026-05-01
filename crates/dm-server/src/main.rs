@@ -18,6 +18,8 @@ use utoipa_swagger_ui::SwaggerUi;
 use dm_core::events::EventStore;
 pub use state::{AppState, MessageNotification};
 
+const DEFAULT_PORT: u16 = 3210;
+
 #[derive(Embed)]
 #[folder = "../../web/build"]
 struct WebAssets;
@@ -243,10 +245,11 @@ async fn main() {
         // ─── Static Frontend Assets ───
         .fallback(axum::routing::get(handlers::serve_web));
 
-    let addr = "127.0.0.1:3210";
+    let port = configured_port();
+    let addr = format!("127.0.0.1:{port}");
     println!("🚀 dm-server listening on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr)
+    let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .expect("Failed to bind");
 
@@ -297,6 +300,30 @@ async fn main() {
     }
 
     axum::serve(listener, app).await.expect("Server error");
+}
+
+fn configured_port() -> u16 {
+    let mut port = env::var("DM_SERVER_PORT")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            value
+                .parse::<u16>()
+                .expect("DM_SERVER_PORT must be a valid u16 port")
+        })
+        .unwrap_or(DEFAULT_PORT);
+
+    let mut args = env::args().skip(1);
+    while let Some(arg) = args.next() {
+        if arg == "--port" {
+            let value = args.next().expect("--port requires a value");
+            port = value.parse::<u16>().expect("--port must be a valid u16 port");
+        } else if let Some(value) = arg.strip_prefix("--port=") {
+            port = value.parse::<u16>().expect("--port must be a valid u16 port");
+        }
+    }
+
+    port
 }
 
 fn configure_dm_cli_bridge_entrypoint() {
