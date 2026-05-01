@@ -21,7 +21,7 @@ fn test_state() -> (TempDir, AppState) {
     let home = tmp.path().to_path_buf();
     let events = dm_core::events::EventStore::open(&home).unwrap();
     let state = AppState {
-        home: Arc::new(home),
+        home: Arc::new(home.clone()),
         events: Arc::new(events),
         messages: broadcast::channel(64).0,
         media: MediaRuntime::new(tmp.path(), dm_core::config::DmConfig::default()),
@@ -244,6 +244,7 @@ fn setup_node_with_build(home: &std::path::Path, id: &str, build: &str) {
         license: None,
         display: dm_core::node::NodeDisplay::default(),
         capabilities: Vec::new(),
+        needs: None,
         runtime: dm_core::node::NodeRuntime::default(),
         ports: Vec::new(),
         dynamic_ports: false,
