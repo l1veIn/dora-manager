@@ -24,6 +24,15 @@ web/.svelte-kit
 .idea/
 .vscode/
 
+# Python build artifacts
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+
+# Memory / session notes
+memory/
+
 # OS
 .DS_Store
 Thumbs.db
