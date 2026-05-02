@@ -1,0 +1,10 @@
+{
+  "filled": {
+    "ok": true,
+    "count": 1,
+    "value": "abcdef"
+  },
+  "sent": true,
+  "body": "Dora Manager\nToggle Sidebar\nPlatform\nDashboard\nNodes\nDataflows\nFunctions\nRuns\nEvents\nSettings\nTheme\n语言 (ZH-CN)\nToggle Sidebar\ndm\n...\nRuns\n/\ndemo-sdk-interaction\nrunning\nRunning\nStop\nYAML\nTranspiled\nGraph\nRUN SUMMARY\n0.0%\n65 MB\nCLI\nRun ID\n6a4c4b44-2eee-46e5-8ac6-6dae036e7c6f\nDora ID\n019de845-acd2-70fc-bfad-62aee8721e68\nStarted\n2026/5/2 18:39:33\nDuration\n1m 12s\nExit Code\n-\nObserved Nodes\n1 / 1\nNODE LOGS\nsdk-demo\n0.0%\n65 MB\nWorkspace\nAdd Panel\nThis run is interactive. Use the Input panel to send a value, then watch the result appear in the Message panel.\nMessage\nAll Sources\nAll Tags\n-- TOP OF HISTORY --\n-- SDK DEMO REGISTERED INPUT CONTROL FOR VALUE --\ndm-sdk-demo\n11:21:45\nWIDGET-REGISTER\nDEFAULT JSON VIEW\n{\nnode_id\n:\ninput-text \ntype\n:\ntext-input \nlabel\n:\nText to reverse \nplaceholder\n:\nType something and press Enter... \n}\ndm-sdk-demo\n11:21:50\nTEXT\n✅ SDK Demo node started — type something to reverse\ndogfood.py\n18:38:56\nTEXT\nhello from sdk dogfood\n18:40:42\nweb\nabcdef\nTO DM-SDK-DEMO.VALUE\ndm-sdk-demo\n06:23:33\nTEXT\n**📝 Original:** abcdef\n**🔁 Reversed:** fedcba\n**📏 Length:** 6\nInput\nAll Sources\n2 Cols\nSDK Demo\ndm-sdk-demo\nSend\n\nPress Enter or use Send.",
+  "logs": []
+}

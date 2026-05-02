@@ -72,7 +72,7 @@
         }
         isCreateDialogOpen = false;
         try {
-            const initialYaml = `nodes:\n  - id: custom_node\n    operator:\n      python: |\n        def process(event, state):\n            return event\n`;
+            const initialYaml = `nodes:\n  - id: timer\n    node: dora/timer/millis/1000\n  - id: display\n    node: dm-display\n    config:\n      enable_input: false\nconnections:\n  - timer -> display@data\n`;
             await post(`/dataflows/${safeName}`, { yaml: initialYaml });
             goto(`/dataflows/${safeName}`);
         } catch (e: any) {

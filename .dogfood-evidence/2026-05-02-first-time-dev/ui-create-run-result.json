@@ -1,0 +1,15 @@
+{
+  "clicked": true,
+  "filled": true,
+  "created": true,
+  "urlAfterCreate": "http://127.0.0.1:3210/dataflows",
+  "runClicked": false,
+  "urlAfterRun": "http://127.0.0.1:3210/dataflows",
+  "bodyText": "Dora Manager\nToggle Sidebar\nPlatform\nDashboard\nNodes\nDataflows\nFunctions\nRuns\nEvents\nSettings\nTheme\n语言 (ZH-CN)\nToggle Sidebar\ndm\n...\nDataflows\nNew Dataflow\n\nThis page is your saved workspace map.\n\nUse Run to start a fresh run from the saved workspace. Use Workspace to inspect or edit the persistent YAML and graph.\n\nIf you are deciding where to go after the first demo, start with demo-hello-timer or interaction-demo. Items that need fixes or extra setup are grouped below.\n\nNo dataflows found\n\nCreate your first dataflow to start processing data.\n\nNew Dataflow\nCreate Dataflow\nCancel\nCreate\nClose",
+  "consoleLogs": [
+    {
+      "type": "info",
+      "args": "Autofocus processing was blocked because a document already has a focused element."
+    }
+  ]
+}

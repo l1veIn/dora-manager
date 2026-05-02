@@ -1,0 +1,21 @@
+{
+  "clicked": true,
+  "fillInfo": {
+    "ok": true,
+    "count": 2,
+    "value": "dogfood-ui-20260502",
+    "active": true
+  },
+  "created": true,
+  "urlAfterCreate": "http://127.0.0.1:3210/dataflows/dogfood-ui-20260502",
+  "bodyAfterCreate": "Dora Manager\nToggle Sidebar\nPlatform\nDashboard\nNodes\nDataflows\nFunctions\nRuns\nEvents\nSettings\nTheme\n语言 (ZH-CN)\nToggle Sidebar\ndm\n...\nBack to Dataflows\ndogfood-ui-20260502\nReady\nRun\nGraph Editor\ndataflow.yml\nflow.json\nHistory\nOpen Editor\ncustom_node\nunknown\nuntitled page",
+  "runClicked": true,
+  "urlAfterRun": "http://127.0.0.1:3210/runs/05a562be-50dd-48a3-b21e-24406c422b73",
+  "bodyAfterRun": "Dora Manager\nToggle Sidebar\nPlatform\nDashboard\nNodes\nDataflows\nFunctions\nRuns\nEvents\nSettings\nTheme\n语言 (ZH-CN)\nToggle Sidebar\ndm\n...\nRuns\n/\ndogfood-ui-20260502\nrunning\nRunning\nStop\nYAML\nTranspiled\nGraph\nRUN SUMMARY\n0.0%\n0 MB\nSERVER\nRun ID\n05a562be-50dd-48a3-b21e-24406c422b73\nDora ID\n019de844-c35c-7c05-aa5b-8c297773572c\nStarted\n2026/5/2 18:38:33\nDuration\n3s\nExit Code\n-\nObserved Nodes\n1 / 1\nNODE LOGS\ncustom_node\n349 B\nWorkspace\nAdd Panel\nMessage\nAll Sources\nAll Tags\n> No Messages\nInput\nAll Sources\n2 Cols\nNo input controls available.\nuntitled page",
+  "consoleLogs": [
+    {
+      "type": "info",
+      "args": "Autofocus processing was blocked because a document already has a focused element."
+    }
+  ]
+}

@@ -5,7 +5,7 @@ mod display;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{error::ErrorKind, Parser, Subcommand};
 use colored::Colorize;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -83,6 +83,15 @@ enum Commands {
 
     /// Start a dataflow on the running dora runtime
     Start {
+        /// Path to dataflow YAML file
+        file: String,
+        /// Stop an active run with the same dataflow name before starting
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Start a dataflow (alias for start)
+    Run {
         /// Path to dataflow YAML file
         file: String,
         /// Stop an active run with the same dataflow name before starting
@@ -185,9 +194,97 @@ enum NodeCommands {
 // Main dispatch
 // ---------------------------------------------------------------------------
 
+struct CommandSuggestion {
+    attempted: &'static str,
+    replacement: &'static str,
+    reason: &'static str,
+}
+
+fn known_command_suggestion(tokens: &[String]) -> Option<CommandSuggestion> {
+    match tokens {
+        [command, subcommand] if command == "dataflow" && subcommand == "list" => {
+            Some(CommandSuggestion {
+                attempted: "dataflow list",
+                replacement: "dm dataflow",
+                reason: "dataflow commands",
+            })
+        }
+        [command] if command == "nodes" => Some(CommandSuggestion {
+            attempted: "nodes",
+            replacement: "dm node",
+            reason: "node commands",
+        }),
+        [command, subcommand] if command == "node" && subcommand == "list" => {
+            Some(CommandSuggestion {
+                attempted: "node list",
+                replacement: "dm node list",
+                reason: "list installed nodes",
+            })
+        }
+        [command, help] if command == "run" && help == "--help" => Some(CommandSuggestion {
+            attempted: "run --help",
+            replacement: "dm start --help",
+            reason: "start a dataflow",
+        }),
+        _ => None,
+    }
+}
+
+fn attempted_command_tokens() -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut args = std::env::args().skip(1).peekable();
+
+    while let Some(arg) = args.next() {
+        if tokens.is_empty() {
+            match arg.as_str() {
+                "--home" => {
+                    let _ = args.next();
+                    continue;
+                }
+                "--verbose" | "-v" => continue,
+                _ if arg.starts_with("--home=") => continue,
+                _ => {}
+            }
+        }
+
+        tokens.push(arg);
+        tokens.extend(args);
+        break;
+    }
+
+    tokens
+}
+
+fn print_command_suggestion(err: &clap::Error) -> bool {
+    if err.kind() != ErrorKind::InvalidSubcommand {
+        return false;
+    }
+
+    let tokens = attempted_command_tokens();
+    let Some(suggestion) = known_command_suggestion(&tokens) else {
+        return false;
+    };
+
+    eprintln!("error: unknown command \"{}\"", suggestion.attempted);
+    eprintln!(
+        "help: did you mean `{}` ({})?",
+        suggestion.replacement, suggestion.reason
+    );
+    eprintln!("      Run `dm help` to see all available commands.");
+    true
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => {
+            if print_command_suggestion(&err) {
+                std::process::exit(2);
+            }
+            err.exit();
+        }
+    };
     let home = dm_core::config::resolve_home(cli.home)?;
 
     match cli.command {
@@ -241,7 +338,9 @@ async fn main() -> Result<()> {
             DataflowCommands::Import { sources } => cmd::dataflow::import(&home, sources).await?,
         },
 
-        Commands::Start { file, force } => cmd_start(&home, cli.verbose, &file, force).await?,
+        Commands::Start { file, force } | Commands::Run { file, force } => {
+            cmd_start(&home, cli.verbose, &file, force).await?
+        }
 
         Commands::Runs { command } => match command {
             None => cmd::runs::list(&home).await?,

@@ -1372,3 +1372,49 @@ Replace the experimental Python hidden bridge with a CLI-managed bridge path ins
 
 - Dogfood the `New Dataflow` path end to end:
   template selection, file target clarity, first editor state, and whether the user understands what was just created.
+
+## Round 26
+
+### Goal
+
+Run a first-time developer experience pass across docs, release CLI, a built-in demo, the embedded Web UI, and the Python SDK.
+
+### Tester path
+
+1. Read `README.md`, `README_zh.md`, `PROJECT_CONSTITUTION.md`, and the English wiki overview/quickstart/core concept pages.
+2. Build release binaries, then run the requested first CLI commands.
+3. Start `demos/demo-hello-timer.yml` and verify real run output through the API and Web UI.
+4. Start `dm-server`, capture the main UI pages, create a new dataflow from the UI, and run it from the UI.
+5. Inspect `sdk/python`, node `dm.json` contracts, and run the SDK demo flow including one UI input round trip.
+
+### Findings
+
+- The docs explain the product concept quickly, but command vocabulary is still inconsistent in places: the tested CLI has `dm start`, not `dm run`, and `dm dataflow list` is not a valid command.
+- The requested `ls nodes/*.json` path does not match the repo layout; node contracts are under `nodes/*/dm.json`.
+- `dm node install terminal-print` appears in `node list` as an available node but fails by looking for `dora-terminal-print` on crates.io.
+- The UI creation flow works, but the default generated dataflow runs without visible messages, so the first created flow is less confidence-building than the built-in Hello Timer demo.
+- The Python SDK README example uses an arbitrary run id (`test-e2e`); against a live local server this returned HTTP 500 unless a real run id was used.
+- Importing the SDK directly with `PYTHONPATH=sdk/python python3` failed until dependencies were installed through the SDK project environment.
+
+### Validation
+
+- `cargo build --release` completed in about one minute, with one `dm-cli` dead-code warning.
+- `dm doctor` reported Python, uv, Rust, and dora `0.4.1` ready.
+- `dm start demos/demo-hello-timer.yml` created run `55713fd8-735f-4193-9fc4-0f5fa94dc679`; `/api/runs/:id/messages` returned `tick #N` messages.
+- The embedded UI at `http://127.0.0.1:3210` rendered Dashboard, Nodes, Dataflows, Runs, Events, Functions, Settings, a dataflow graph workspace, and a run workspace.
+- UI creation produced dataflow `dogfood-ui-20260502` and UI run `05a562be-50dd-48a3-b21e-24406c422b73`.
+- `demos/demo-sdk-interaction.yml` created run `6a4c4b44-2eee-46e5-8ac6-6dae036e7c6f`; sending `abcdef` from the UI produced the reversed `fedcba` result.
+- Screenshots and JSON evidence are under `.dogfood-evidence/2026-05-02-first-time-dev/`.
+
+### Remaining issues
+
+- The top first-time doc fix is to align README/wiki/CLI examples around the current commands and repo layout.
+- The CLI should either support list/help aliases for obvious first-time guesses or make the correct command discoverable from errors.
+- The default New Dataflow template should produce a visible success signal or offer a starter template based on Hello Timer.
+- The SDK README should show a real run-backed example and document dependency setup before `import dm`.
+
+### Next focus
+
+- Fix the command/documentation mismatches first, because they are cheap and affect the first 10 minutes.
+- Then make `New Dataflow` create a first-run-friendly template or ask the user to choose a starter.
+- Finally, make SDK examples executable copy-paste paths from a fresh checkout.
