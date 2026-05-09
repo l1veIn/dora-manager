@@ -88,14 +88,14 @@
         const key = widgetKey(nodeId, outputId);
         draftValues[key] = value;
         sendingId = key;
-        const widgetKey = binding?.payload?.widget_key;
+        const wKey = binding?.payload?.widget_key;
         try {
             await context.emitMessage({
                 from: "web",
                 tag: "input",
                 payload: {
-                    to: widgetKey ?? nodeId,
-                    widget_key: widgetKey,
+                    to: wKey ?? nodeId,
+                    widget_key: wKey,
                     output_id: outputId,
                     value,
                 },

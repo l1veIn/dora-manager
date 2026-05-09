@@ -70,7 +70,11 @@ export function createMessageHistoryState(runId: () => string, filters: () => Me
     }
 
     async function loadNew(onLoaded?: () => void) {
-        if (!runId() || fetching || newestSeq === null) return;
+        if (!runId() || fetching) return;
+        if (newestSeq === null) {
+            // No messages loaded yet — reload initial instead
+            return loadInitial(onLoaded);
+        }
         fetching = true;
         try {
             const res: any = await get(buildUrl({ after_seq: newestSeq, limit: 50 }));
