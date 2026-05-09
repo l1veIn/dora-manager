@@ -2,9 +2,10 @@
   "id": "dm-sdk-demo",
   "name": "dm-sdk-demo",
   "version": "0.1.0",
-  "installed_at": "2026-04-29T10:30:00Z",
+  "installed_at": "1778310825",
   "source": {
-    "build": "pip install -e ."
+    "build": "pip install -e .",
+    "github": null
   },
   "description": "Demo node that uses dm SDK to register widgets, receive input, and send results — no bridge needed.",
   "executable": ".venv/bin/dm-sdk-demo",
@@ -16,10 +17,18 @@
   "license": "MIT",
   "display": {
     "category": "Builtin/Demo",
-    "tags": ["demo", "sdk", "interaction"]
+    "tags": [
+      "demo",
+      "sdk",
+      "interaction"
+    ]
   },
-  "capabilities": ["configurable"],
-  "needs": ["dm-server"],
+  "capabilities": [
+    "configurable"
+  ],
+  "needs": [
+    "dm-server"
+  ],
   "runtime": {
     "language": "python",
     "python": ">=3.10",
@@ -29,9 +38,10 @@
   "files": {
     "readme": "README.md",
     "entry": "dm_sdk_demo/main.py",
-    "tests": []
+    "tests": [],
+    "examples": []
   },
   "examples": [],
-  "config_schema": null,
-  "dynamic_ports": false
+  "dynamic_ports": false,
+  "path": ""
 }
