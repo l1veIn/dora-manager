@@ -25,20 +25,120 @@ class Message:
             explicit_server_url or "http://127.0.0.1:3210"
         )
         self.timeout = timeout
+        self._default_embed: dict[str, Any] | None = None
         if explicit_server_url and _is_local_server_url(self.server_url):
             self._check_server_reachable()
         self.run_id = run_id or env_or_default("DM_RUN_ID")
         if not self.run_id:
             raise RuntimeError("run_id is required or DM_RUN_ID must be set")
 
-    def send(self, tag: str, payload: dict[str, Any], *, from_: str | None = None) -> int:
-        """Persist a message and return its sequence number."""
+    def embed(
+        self,
+        *,
+        author: dict | None = None,
+        title: str | None = None,
+        title_url: str | None = None,
+        body: str | None = None,
+        body_formatted: str | None = None,
+        body_format: str = "plain",
+        color: str | int | None = None,
+        fields: list[dict] | None = None,
+        media: dict | None = None,
+        thumbnail: dict | None = None,
+        footer: dict | None = None,
+        side: str | None = None,
+        width: str | None = None,
+        actions: list[dict] | None = None,
+        status: str | None = None,
+        progress: float | None = None,
+        timestamp_display: str | None = None,
+    ) -> Message:
+        """Set default embed template for all subsequent sends.
+
+        All fields are optional. Calling embed() multiple times merges
+        the new fields into the existing template (shallow merge).
+
+        Returns self for chaining.
+
+        Example::
+
+            msg = Message().embed(author={"name": "Bot"}, color="green")
+            msg.send("text", {"content": "hello"})
+            # → payload automatically includes embed
+        """
+        new_embed: dict[str, Any] = {}
+        if author is not None:
+            new_embed["author"] = author
+        if title is not None:
+            new_embed["title"] = title
+        if title_url is not None:
+            new_embed["title_url"] = title_url
+        if body is not None:
+            new_embed["body"] = body
+        if body_formatted is not None:
+            new_embed["body_formatted"] = body_formatted
+        if body_format != "plain":
+            new_embed["body_format"] = body_format
+        if color is not None:
+            new_embed["color"] = _normalize_color(color)
+        if fields is not None:
+            new_embed["fields"] = fields
+        if media is not None:
+            new_embed["media"] = media
+        if thumbnail is not None:
+            new_embed["thumbnail"] = thumbnail
+        if footer is not None:
+            new_embed["footer"] = footer
+        if side is not None:
+            new_embed["side"] = side
+        if width is not None:
+            new_embed["width"] = width
+        if actions is not None:
+            new_embed["actions"] = actions
+        if status is not None:
+            new_embed["status"] = status
+        if progress is not None:
+            new_embed["progress"] = progress
+        if timestamp_display is not None:
+            new_embed["timestamp"] = timestamp_display
+        if self._default_embed is None:
+            self._default_embed = {}
+        self._default_embed.update(new_embed)
+        return self
+
+    def send(
+        self,
+        tag: str,
+        payload: dict[str, Any],
+        *,
+        from_: str | None = None,
+        embed: dict[str, Any] | None = None,
+    ) -> int:
+        """Persist a message and return its sequence number.
+
+        If embed is provided, it is merged into payload["embed"].
+        If embed is not provided but a default template was set via
+        embed(), the default template is automatically applied.
+
+        Args:
+            tag: Message tag (e.g. "text", "image", "json")
+            payload: Message content as a JSON-serializable dict
+            from_: Override sender ID (auto-detected by default)
+            embed: Optional render description object. Takes priority
+                   over the default template set by embed().
+        """
         body = {
             "from": from_ or detect_caller_id(),
             "tag": tag,
-            "payload": payload,
+            "payload": dict(payload),
             "timestamp": int(time.time() * 1000),
         }
+        if embed is not None:
+            merged = dict(self._default_embed or {})
+            merged.update(embed)
+            body["payload"]["embed"] = merged
+        elif self._default_embed is not None:
+            body["payload"]["embed"] = dict(self._default_embed)
         response = requests.post(
             self._url("/messages"),
             json=body,
@@ -134,3 +234,37 @@ class Message:
 def _is_local_server_url(url: str) -> bool:
     hostname = urlparse(url).hostname
     return hostname in {"127.0.0.1", "localhost", "::1"}
+
+
+_SEMANTIC_COLORS: dict[str, int] = {
+    "green": 0x22c55e,
+    "red": 0xef4444,
+    "yellow": 0xeab308,
+    "blue": 0x3b82f6,
+    "purple": 0xa855f7,
+    "gray": 0x6b7280,
+    "orange": 0xf97316,
+}
+
+
+def _normalize_color(color: str | int) -> int:
+    """Convert a color value to a normalized integer RGB.
+
+    Accepts:
+    - Semantic names: \"green\", \"red\", \"yellow\", \"blue\", \"purple\", \"gray\", \"orange\"
+    - Hex integer: 0x00ff00
+    """
+    if isinstance(color, int):
+        return color
+    lowered = color.lower().strip()
+    if lowered in _SEMANTIC_COLORS:
+        return _SEMANTIC_COLORS[lowered]
+    if lowered.startswith("#"):
+        try:
+            return int(lowered[1:], 16)
+        except ValueError:
+            return _SEMANTIC_COLORS.get("gray", 0x6b7280)
+    try:
+        return int(lowered, 16)
+    except ValueError:
+        return _SEMANTIC_COLORS.get("gray", 0x6b7280)

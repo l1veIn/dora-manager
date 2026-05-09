@@ -198,3 +198,94 @@ def test_message_stream_fetches_payload_and_filters(monkeypatch):
             "timeout": 4,
         },
     ]
+
+
+def test_embed_sets_default_template_and_merges_into_send(monkeypatch):
+    calls = {}
+
+    def fake_post(url, json, timeout):
+        calls.update(url=url, json=json, timeout=timeout)
+        return Response({"seq": 1})
+
+    monkeypatch.setattr("dm._message.requests.post", fake_post)
+
+    msg = Message(run_id="run-1", server_url="http://server")
+    msg.embed(author={"name": "Bot"}, color="green")
+    msg.send("text", {"content": "hello"})
+
+    embed = calls["json"]["payload"].get("embed", {})
+    assert embed["author"] == {"name": "Bot"}
+    assert embed["color"] == 0x22C55E
+
+
+def test_embed_per_message_overrides_default(monkeypatch):
+    calls = []
+
+    def fake_post(url, json, timeout):
+        calls.append(json)
+        return Response({"seq": 1})
+
+    monkeypatch.setattr("dm._message.requests.post", fake_post)
+
+    msg = Message(run_id="run-1", server_url="http://server")
+    msg.embed(author={"name": "Bot"}, color="green")
+
+    msg.send("text", {"content": "one"})
+    msg.send("text", {"content": "two"}, embed={"color": "red"})
+
+    assert calls[0]["payload"]["embed"]["color"] == 0x22C55E
+    assert calls[1]["payload"]["embed"]["color"] == "red"
+    assert calls[1]["payload"]["embed"]["author"] == {"name": "Bot"}
+
+
+def test_embed_chaining_returns_self():
+    msg = Message(run_id="run-1", server_url="http://server")
+    result = msg.embed(author={"name": "X"})
+    assert result is msg
+    assert msg._default_embed["author"] == {"name": "X"}
+
+
+def test_embed_merge_called_twice():
+    msg = Message(run_id="run-1", server_url="http://server")
+    msg.embed(author={"name": "Bot"})
+    msg.embed(color="blue")
+    assert msg._default_embed["author"] == {"name": "Bot"}
+    assert msg._default_embed["color"] == 0x3B82F6
+
+
+def test_embed_send_without_default_does_not_inject(monkeypatch):
+    calls = {}
+
+    def fake_post(url, json, timeout):
+        calls.update(json=json)
+        return Response({"seq": 1})
+
+    monkeypatch.setattr("dm._message.requests.post", fake_post)
+
+    msg = Message(run_id="run-1", server_url="http://server")
+    msg.send("text", {"content": "no embed"})
+
+    assert "embed" not in calls["json"]["payload"]
+
+
+def test_normalize_color_by_name():
+    from dm._message import _normalize_color
+    assert _normalize_color("green") == 0x22C55E
+    assert _normalize_color("RED") == 0xEF4444
+    assert _normalize_color("Blue") == 0x3B82F6
+
+
+def test_normalize_color_by_hex_string():
+    from dm._message import _normalize_color
+    assert _normalize_color("#ff0000") == 0xFF0000
+    assert _normalize_color("00ff00") == 0x00FF00
+
+
+def test_normalize_color_by_int():
+    from dm._message import _normalize_color
+    assert _normalize_color(0xFFA500) == 0xFFA500
+
+
+def test_normalize_color_unknown_falls_back_to_gray():
+    from dm._message import _normalize_color
+    assert _normalize_color("nonexistent") == 0x6B7280
