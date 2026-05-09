@@ -330,6 +330,6 @@ Sources: [steering-cycles.md](https://github.com/l1veIn/dora-manager/blob/main/d
 ## Further Reading
 
 - [Overall Layered Architecture: dm-core / dm-cli / dm-server Responsibility Division](10-zheng-ti-fen-ceng-jia-gou-dm-core-dm-cli-dm-server-zhi-ze-hua-fen) — Understanding how constitutional principle 7.7 (core layer node-agnostic) lands in code layering
-- [Interaction System Architecture: dm-input / dm-message / Bridge Node Injection Principles](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) — Understanding the practical implementation of "platform-independent interaction nodes" in architecture principles
+- [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu) — Understanding the practical implementation of "platform-independent interaction nodes" in architecture principles
 - [Testing Strategy: Unit Tests, Data Flow Integration Tests, and System Testing CheckList](26-ce-shi-ce-lue-dan-yuan-ce-shi-shu-ju-liu-ji-cheng-ce-shi-yu-xi-tong-ce-shi-checklist) — Understanding how the "runtime truth" principle is guaranteed at the testing level
 - [Frontend-Backend Co-build and Release: rust-embed Static Embedding and CI/CD Pipeline](25-qian-hou-duan-lian-bian-yu-fa-bu-rust-embed-jing-tai-qian-ru-yu-ci-cd-liu-shui-xian) — Understanding how the CI pipeline enforces the "truth before polish" principle

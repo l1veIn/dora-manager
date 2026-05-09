@@ -1,10 +1,10 @@
-数据流（Dataflow）是 Dora Manager 的核心执行单元，但它并非直接被 dora-rs 运行时消费。用户编写的 DM 风格 YAML 包含声明式的 `node:` 引用、内联 `config:` 块和端口拓扑，这些语义必须被**转译**（transpile）为 dora-rs 能理解的标准 `Descriptor` 格式——以绝对 `path:` 替代符号引用、以 `env:` 注入合并后的配置值、以隐式 Bridge 节点注入交互能力。转译器（Transpiler）正是完成这一转换的多 Pass 管线，它驻留在 `dm-core` crate 中，是连接「用户意图」与「运行时执行」的关键编译层。
+数据流（Dataflow）是 Dora Manager 的核心执行单元，但它并非直接被 dora-rs 运行时消费。用户编写的 DM 风格 YAML 包含声明式的 `node:` 引用、内联 `config:` 块和端口拓扑，这些语义必须被**转译**（transpile）为 dora-rs 能理解的标准 `Descriptor` 格式——以绝对 `path:` 替代符号引用、以 `env:` 注入合并后的配置值。转译器（Transpiler）正是完成这一转换的多 Pass 管线，它驻留在 `dm-core` crate 中，是连接「用户意图」与「运行时执行」的关键编译层。
 
 Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/mod.rs#L1-L11)
 
 ## 管线全景：从 DM YAML 到 dora Descriptor
 
-转译器的入口函数 `transpile_graph_for_run` 接收 DM_HOME 路径和 YAML 文件路径，按照固定顺序执行七个 Pass。整个过程不使用短路（short-circuit）错误处理，而是通过诊断收集机制（diagnostics）让用户一次性看到所有问题。下图展示了管线的完整数据流：
+转译器的入口函数 `transpile_graph_for_run` 接收 DM_HOME 路径和 YAML 文件路径，按照固定顺序执行六个 Pass。整个过程不使用短路（short-circuit）错误处理，而是通过诊断收集机制（diagnostics）让用户一次性看到所有问题。下图展示了管线的完整数据流：
 
 ```mermaid
 flowchart TD
@@ -36,10 +36,6 @@ flowchart TD
         G["DM_RUN_ID / DM_NODE_ID<br/>DM_RUN_OUT_DIR"]
     end
 
-    subgraph "Pass 4.5: Inject DM Bridge"
-        G2["注入隐藏 __dm_bridge 节点<br/>widget_input / display 能力绑定"]
-    end
-
     subgraph "Pass 5: Emit"
         H["标准 dora Descriptor YAML<br/>(path: + env: + inputs/outputs)"]
     end
@@ -50,11 +46,10 @@ flowchart TD
     D --> E
     E --> F
     F --> G
-    G --> G2
-    G2 --> H
+    G --> H
 ```
 
-管线的核心设计原则是**渐进式丰富**（progressive enrichment）：每个 Pass 只负责一个关注点，向 IR 中填充特定字段。`DmGraph` 作为所有 Pass 共享的可变状态，其字段由各 Pass 逐步填充 —— `resolved_path` 由 `resolve_paths` 填充，`merged_env` 由 `merge_config`、`inject_runtime_env` 和 `inject_dm_bridge` 三个 Pass 共同丰富。
+管线的核心设计原则是**渐进式丰富**（progressive enrichment）：每个 Pass 只负责一个关注点，向 IR 中填充特定字段。`DmGraph` 作为所有 Pass 共享的可变状态，其字段由各 Pass 逐步填充 —— `resolved_path` 由 `resolve_paths` 填充，`merged_env` 由 `merge_config` 和 `inject_runtime_env` 两个 Pass 共同丰富。
 
 Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/mod.rs#L47-L80)
 
@@ -79,7 +74,7 @@ pub(crate) struct ManagedNode {
     pub node_id: String,            // node: 字段的值（节点标识符）
     pub inline_config: Value,       // YAML 中 config: 块的内联配置
     pub resolved_path: Option<String>, // Pass 2 填充的绝对可执行路径
-    pub merged_env: Mapping,        // Pass 3/4/4.5 填充的环境变量
+    pub merged_env: Mapping,        // Pass 3/4 填充的环境变量
     pub extra_fields: Mapping,      // inputs/outputs 等其他字段透传
 }
 ```
@@ -96,7 +91,7 @@ Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 
 ## Pass 1.5: Validate Reserved — 保留节点 ID 检查
 
-此 Pass 当前为空操作。代码注释明确指出 `dm-core` 不再硬编码对特定节点 ID 的知识，保留 ID 冲突检查被委托给更上层的业务逻辑或运行时。它的存在是架构演化的产物——早期版本在此处检查保留节点 ID（如 `__dm_bridge`），后来随着 Bridge 注入逻辑的完善，此检查变得多余但接口被保留以维持管线结构的稳定性。
+此 Pass 当前为空操作。代码注释明确指出 `dm-core` 不再硬编码对特定节点 ID 的知识，保留 ID 冲突检查被委托给更上层的业务逻辑或运行时。它的存在是架构演化的产物，在当前版本中此 Pass 未执行任何实际校验，接口被保留以维持管线结构的稳定性。
 
 Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L102-L113)
 
@@ -257,58 +252,6 @@ Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 
 Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L423-L450)
 
-## Pass 4.5: Inject DM Bridge — 隐藏 Bridge 节点注入
-
-这是转译管线中最具架构意义的 Pass。它扫描所有 Managed 节点的 `dm.json`，提取声明了 `widget_input` 或 `display` capability 的节点，并将它们的能力绑定（capability bindings）**降级**（lower）为一个隐藏的 `__dm_bridge` 节点。这个隐藏节点在转译输出的 YAML 中对用户不可见（ID 以双下划线开头），但它是交互系统运转的核心——它作为所有 UI 控件和显示面板的消息路由中枢。
-
-### Bridge 注入的工作机制
-
-注入过程分为四个阶段：
-
-1. **扫描**：遍历所有 Managed 节点，加载其 `dm.json`，调用 `build_bridge_node_spec` 提取 `widget_input` 和 `display` 类型的 capability binding
-2. **连线重写**：为每个有 `display` 能力的节点创建一个到 Bridge 的 input mapping（`dm_bridge_input_internal → __dm_bridge/dm_bridge_to_<yaml_id>`），为每个有 `widget_input` 能力的节点创建一个 output port（`dm_bridge_output_internal`）并让 Bridge 订阅它
-3. **环境注入**：向节点注入 `DM_BRIDGE_INPUT_PORT` 和 `DM_BRIDGE_OUTPUT_PORT` 环境变量，告知节点其与 Bridge 的通信端口名
-4. **Bridge 节点创建**：将所有收集到的 binding 规格序列化为 JSON，以 `DM_CAPABILITIES_JSON` 环境变量的形式注入 Bridge 节点
-
-```mermaid
-flowchart LR
-    subgraph "数据流中的 Managed 节点"
-        S["dm-slider<br/>(widget_input)"]
-        D["dm-message<br/>(display)"]
-    end
-
-    subgraph "Pass 4.5 注入的隐藏拓扑"
-        B["__dm_bridge<br/>(dm bridge --run-id ...)"]
-    end
-
-    S -->|"dm_bridge_output_internal"| B
-    B -->|"dm_bridge_to_display"| D
-
-    style B fill:#f9f,stroke:#333,stroke-dasharray: 5 5
-```
-
-### Bridge 节点的最终形态
-
-注入完成后，`__dm_bridge` 节点被追加到 `DmGraph.nodes` 的末尾，其结构如下：
-
-| 字段 | 值 | 说明 |
-|------|------|------|
-| `yaml_id` | `__dm_bridge` | 隐藏标识，不会出现在用户视角 |
-| `node_id` | `dm` | 指向 dm CLI 自身 |
-| `resolved_path` | dm CLI 可执行文件的绝对路径 | 由 `resolve_dm_cli_exe` 解析 |
-| `args` | `bridge --run-id <run_id>` | Bridge 子命令 |
-| `env.DM_CAPABILITIES_JSON` | 序列化的 `Vec<HiddenBridgeNodeSpec>` | 所有节点的交互能力声明 |
-| `inputs` | 来自各 display 节点的端口映射 | Bridge 接收 display 内容 |
-| `outputs` | 发往各 widget_input 节点的端口列表 | Bridge 分发 UI 控件输入 |
-
-Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L453-L570), [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/bridge.rs#L1-L161)
-
-### 幂等性保护
-
-Pass 4.5 在执行前会先检查 `DmGraph` 中是否已存在 `yaml_id == "__dm_bridge"` 的节点。如果存在则直接返回，不做任何操作。这保证了转译器的幂等性——即使被意外多次调用，也不会产生重复的 Bridge 节点。此外，如果没有任何节点声明了 `widget_input` 或 `display` 能力（即 `all_specs` 为空），Bridge 节点也不会被创建。
-
-Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L460-L517)
-
 ## Pass 5: Emit — IR 序列化为标准 YAML
 
 Emit 阶段是管线的终点，它将丰富后的 `DmGraph` IR 转换回 `serde_yaml::Value`。对于 Managed 节点，它构建一个全新的 YAML Mapping，依次写入 `id`、`path`（已解析的绝对路径）、`env`（合并后的环境变量映射）以及所有 `extra_fields`（inputs、outputs、args 等），确保 emit 顺序与字段逻辑一致。External 节点则直接使用其保存的原始映射，不做任何修改。
@@ -329,7 +272,7 @@ Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 | `InvalidPortSchema` | 端口 Schema 无法解析 | Warning（类型检查跳过） |
 | `IncompatiblePortSchema` | 输出端口与输入端口类型不兼容 | Warning（运行时可能出错） |
 
-诊断信息包含 `yaml_id`（YAML 中的节点 ID）和 `node_id`（节点标识符）双重定位，方便用户快速定位问题。值得注意的是，`inject_runtime_env` 和 `inject_dm_bridge` 不产生诊断——前者是确定性操作，后者的失败模式（dm.json 不可读）已在 `resolve_paths` 阶段被捕获。
+诊断信息包含 `yaml_id`（YAML 中的节点 ID）和 `node_id`（节点标识符）双重定位，方便用户快速定位问题。值得注意的是，`inject_runtime_env` 不产生诊断，因为它是确定性操作。
 
 Sources: [error.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/error.rs#L1-L62), [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/mod.rs#L71-L74)
 
@@ -358,7 +301,7 @@ sequenceDiagram
     Service->>Service: 生成 run_id, 创建目录布局
     Service->>FS: 保存 dataflow.yml (snapshot)
     Service->>Transpile: transpile_graph_for_run(home, snapshot, run_id)
-    Transpile->>Transpile: Parse → Validate → Resolve → Schema → Merge → Inject → Bridge → Emit
+    Transpile->>Transpile: Parse → Validate → Resolve → Schema → Merge → Inject → Emit
     Transpile-->>Service: TranspileResult { yaml }
     Service->>FS: 保存 dataflow.transpiled.yml
     Service->>Dora: dora start transpiled.yml
@@ -383,7 +326,7 @@ Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-c
 
 1. **节点契约** → [节点（Node）：dm.json 契约与可执行单元](4-jie-dian-node-dm-json-qi-yue-yu-ke-zhi-xing-dan-yuan)：理解 `dm.json` 的 `executable`、`config_schema`、`ports`、`capabilities` 字段如何被转译器消费
 2. **数据流格式** → [数据流（Dataflow）：YAML 拓扑定义与节点连接](5-shu-ju-liu-dataflow-yaml-tuo-bu-ding-yi-yu-jie-dian-lian-jie)：理解 DM YAML 的 `node:` / `config:` / `inputs:` 语法
-3. **交互系统** → [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)：深入理解 Pass 4.5 注入的 Bridge 节点如何驱动 UI 控件和面板
+3. **交互系统** → [交互系统架构：SDK 双端口模型与消息服务](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu)：深入理解 SDK 驱动的交互节点如何与 dm-server 通信
 4. **端口类型系统** → [Port Schema 与端口类型校验](8-port-schema-yu-duan-kou-lei-xing-xiao-yan)：理解 Pass 2.5 使用的 Arrow 类型兼容性校验
 5. **运行时调用** → [运行时服务：启动编排、状态刷新与 CPU/内存指标采集](13-yun-xing-shi-fu-wu-qi-dong-bian-pai-zhuang-tai-shua-xin-yu-cpu-nei-cun-zhi-biao-cai-ji)：理解转译结果如何被 `service_start` 消费
 6. **配置体系** → [配置体系：DM_HOME 目录结构与 config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml)：理解 `DM_HOME` 目录结构与节点路径解析

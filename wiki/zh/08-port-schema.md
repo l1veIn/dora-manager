@@ -327,7 +327,7 @@ Pass 2:   Resolve Paths — node: → 绝对 path:
 Pass 1.6: Validate Port Schemas — 端口 schema 兼容性检查 ← 这里
 Pass 3:   Merge Config — 四层配置合并 → env:
 Pass 4:   Inject Runtime Env — 注入运行时环境变量
-Pass 5:   Inject DM Bridge — Bridge 节点注入
+Pass 5:   Emit — 序列化为 dora 兼容 YAML
 Pass 6:   Emit — DmGraph → dora YAML
 ```
 

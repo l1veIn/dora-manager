@@ -1,10 +1,10 @@
-Dataflow is the core execution unit of Dora Manager, but it is not directly consumed by the dora-rs runtime. The DM-style YAML written by users contains declarative `node:` references, inline `config:` blocks, and port topologies. These semantics must be **transpiled** into the standard `Descriptor` format that dora-rs understands -- replacing symbolic references with absolute `path:`, injecting merged configuration values via `env:`, and injecting interaction capabilities via implicit Bridge nodes. The Transpiler is the multi-pass pipeline that performs this transformation. It resides in the `dm-core` crate and is the key compilation layer that bridges "user intent" with "runtime execution."
+Dataflow is the core execution unit of Dora Manager, but it is not directly consumed by the dora-rs runtime. The DM-style YAML written by users contains declarative `node:` references, inline `config:` blocks, and port topologies. These semantics must be **transpiled** into the standard `Descriptor` format that dora-rs understands -- replacing symbolic references with absolute `path:`, injecting merged configuration values via `env:`, and injecting merged configuration values via env. The Transpiler is the multi-pass pipeline that performs this transformation. It resides in the `dm-core` crate and is the key compilation layer that bridges "user intent" with "runtime execution."
 
 Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/mod.rs#L1-L11)
 
 ## Pipeline Overview: From DM YAML to dora Descriptor
 
-The transpiler entry function `transpile_graph_for_run` receives the DM_HOME path and YAML file path, executing seven passes in a fixed order. The entire process does not use short-circuit error handling; instead, it employs a diagnostic collection mechanism (diagnostics) that lets users see all issues at once. The following diagram illustrates the complete data flow of the pipeline:
+The transpiler entry function `transpile_graph_for_run` receives the DM_HOME path and YAML file path, executing six passes in a fixed order. The entire process does not use short-circuit error handling; instead, it employs a diagnostic collection mechanism (diagnostics) that lets users see all issues at once. The following diagram illustrates the complete data flow of the pipeline:
 
 ```mermaid
 flowchart TD
@@ -36,10 +36,6 @@ flowchart TD
         G["DM_RUN_ID / DM_NODE_ID<br/>DM_RUN_OUT_DIR"]
     end
 
-    subgraph "Pass 4.5: Inject DM Bridge"
-        G2["Inject Hidden __dm_bridge Node<br/>widget_input / display Capability Bindings"]
-    end
-
     subgraph "Pass 5: Emit"
         H["Standard dora Descriptor YAML<br/>(path: + env: + inputs/outputs)"]
     end
@@ -50,11 +46,10 @@ flowchart TD
     D --> E
     E --> F
     F --> G
-    G --> G2
-    G2 --> H
+    G --> H
 ```
 
-The core design principle of the pipeline is **progressive enrichment**: each pass is responsible for a single concern, populating specific fields in the IR. `DmGraph` serves as the mutable state shared across all passes, with its fields progressively populated by each pass -- `resolved_path` is filled by `resolve_paths`, and `merged_env` is enriched by three passes: `merge_config`, `inject_runtime_env`, and `inject_dm_bridge`.
+The core design principle of the pipeline is **progressive enrichment**: each pass is responsible for a single concern, populating specific fields in the IR. `DmGraph` serves as the mutable state shared across all passes, with its fields progressively populated by each pass -- `resolved_path` is filled by `resolve_paths`, and `merged_env` is enriched by two passes: `merge_config` and `inject_runtime_env`.
 
 Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/mod.rs#L47-L80)
 
@@ -79,7 +74,7 @@ pub(crate) struct ManagedNode {
     pub node_id: String,            // value of node: field (node identifier)
     pub inline_config: Value,       // inline config from config: block in YAML
     pub resolved_path: Option<String>, // absolute executable path filled by Pass 2
-    pub merged_env: Mapping,        // environment variables filled by Pass 3/4/4.5
+    pub merged_env: Mapping,        // environment variables filled by Pass 3/4
     pub extra_fields: Mapping,      // pass through other fields like inputs/outputs
 }
 ```
@@ -96,7 +91,7 @@ Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 
 ## Pass 1.5: Validate Reserved -- Reserved Node ID Check
 
-This pass is currently a no-op. The code comments explicitly state that `dm-core` no longer hardcodes knowledge of specific node IDs, and reserved ID conflict checking is delegated to higher-level business logic or the runtime. Its existence is a product of architectural evolution -- earlier versions checked reserved node IDs (such as `__dm_bridge`) here, but as the Bridge injection logic matured, this check became redundant, though the interface was preserved to maintain the stability of the pipeline structure.
+This pass is currently a no-op. The code comments explicitly state that `dm-core` no longer hardcodes knowledge of specific node IDs, and reserved ID conflict checking is delegated to higher-level business logic or the runtime. Its existence is a product of architectural evolution -- earlier versions checked reserved node IDs here, but as the architecture evolved, this check became redundant, though the interface was preserved to maintain the stability of the pipeline structure.
 
 Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L102-L113)
 
@@ -257,58 +252,6 @@ These environment variables are directly appended to the `merged_env` mapping. S
 
 Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L423-L450)
 
-## Pass 4.5: Inject DM Bridge -- Hidden Bridge Node Injection
-
-This is the most architecturally significant pass in the transpilation pipeline. It scans the `dm.json` of all Managed nodes, extracts nodes that declare `widget_input` or `display` capabilities, and **lowers** their capability bindings into a hidden `__dm_bridge` node. This hidden node is invisible to users in the transpiled YAML output (its ID starts with a double underscore), but it is the core of the interaction system -- serving as the message routing hub for all UI controls and display panels.
-
-### How Bridge Injection Works
-
-The injection process is divided into four stages:
-
-1. **Scan**: Iterate over all Managed nodes, load their `dm.json`, and call `build_bridge_node_spec` to extract capability bindings of type `widget_input` and `display`.
-2. **Connection Rewriting**: For each node with `display` capability, create an input mapping to the Bridge (`dm_bridge_input_internal -> __dm_bridge/dm_bridge_to_<yaml_id>`). For each node with `widget_input` capability, create an output port (`dm_bridge_output_internal`) and have the Bridge subscribe to it.
-3. **Environment Injection**: Inject `DM_BRIDGE_INPUT_PORT` and `DM_BRIDGE_OUTPUT_PORT` environment variables into the nodes, informing them of their communication port names with the Bridge.
-4. **Bridge Node Creation**: Serialize all collected binding specs into JSON and inject them into the Bridge node as the `DM_CAPABILITIES_JSON` environment variable.
-
-```mermaid
-flowchart LR
-    subgraph "Managed Nodes in Dataflow"
-        S["dm-slider<br/>(widget_input)"]
-        D["dm-message<br/>(display)"]
-    end
-
-    subgraph "Hidden Topology Injected by Pass 4.5"
-        B["__dm_bridge<br/>(dm bridge --run-id ...)"]
-    end
-
-    S -->|"dm_bridge_output_internal"| B
-    B -->|"dm_bridge_to_display"| D
-
-    style B fill:#f9f,stroke:#333,stroke-dasharray: 5 5
-```
-
-### Final Form of the Bridge Node
-
-After injection is complete, the `__dm_bridge` node is appended to the end of `DmGraph.nodes`, with the following structure:
-
-| Field | Value | Description |
-|-------|-------|-------------|
-| `yaml_id` | `__dm_bridge` | Hidden identifier, not visible from the user's perspective |
-| `node_id` | `dm` | Points to the dm CLI itself |
-| `resolved_path` | Absolute path to the dm CLI executable | Resolved by `resolve_dm_cli_exe` |
-| `args` | `bridge --run-id <run_id>` | Bridge subcommand |
-| `env.DM_CAPABILITIES_JSON` | Serialized `Vec<HiddenBridgeNodeSpec>` | Interaction capability declarations from all nodes |
-| `inputs` | Port mappings from each display node | Bridge receives display content |
-| `outputs` | Port list sent to each widget_input node | Bridge distributes UI control input |
-
-Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L453-L570), [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/bridge.rs#L1-L161)
-
-### Idempotency Protection
-
-Pass 4.5 checks whether a node with `yaml_id == "__dm_bridge"` already exists in `DmGraph` before execution. If it exists, it returns immediately without performing any operations. This guarantees the transpiler's idempotency -- even if accidentally called multiple times, no duplicate Bridge nodes will be produced. Additionally, if no nodes declare `widget_input` or `display` capabilities (i.e., `all_specs` is empty), the Bridge node will not be created either.
-
-Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L460-L517)
-
 ## Pass 5: Emit -- IR Serialization to Standard YAML
 
 The Emit stage is the endpoint of the pipeline, converting the enriched `DmGraph` IR back to `serde_yaml::Value`. For Managed nodes, it constructs a brand-new YAML Mapping, writing `id`, `path` (the resolved absolute path), `env` (the merged environment variable mapping), and all `extra_fields` (inputs, outputs, args, etc.) in sequence, ensuring that the emit order is consistent with field logic. External nodes use their stored raw mappings directly without any modifications.
@@ -329,7 +272,7 @@ The transpiler uses **accumulated diagnostics** rather than short-circuit error 
 | `InvalidPortSchema` | Port Schema cannot be parsed | Warning (type check skipped) |
 | `IncompatiblePortSchema` | Output port and input port types are incompatible | Warning (runtime may error) |
 
-Diagnostic messages include both `yaml_id` (the node's ID in YAML) and `node_id` (the node identifier) for dual-level localization, making it easy for users to quickly pinpoint issues. Notably, `inject_runtime_env` and `inject_dm_bridge` do not produce diagnostics -- the former is a deterministic operation, and the failure modes of the latter (dm.json unreadable) are already captured during the `resolve_paths` stage.
+Diagnostic messages include both `yaml_id` (the node's ID in YAML) and `node_id` (the node identifier) for dual-level localization, making it easy for users to quickly pinpoint issues. Notably, `inject_runtime_env` does not produce diagnostics because it is a deterministic operation.
 
 Sources: [error.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/error.rs#L1-L62), [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/mod.rs#L71-L74)
 
@@ -358,7 +301,7 @@ sequenceDiagram
     Service->>Service: Generate run_id, create directory layout
     Service->>FS: Save dataflow.yml (snapshot)
     Service->>Transpile: transpile_graph_for_run(home, snapshot, run_id)
-    Transpile->>Transpile: Parse -> Validate -> Resolve -> Schema -> Merge -> Inject -> Bridge -> Emit
+    Transpile->>Transpile: Parse -> Validate -> Resolve -> Schema -> Merge -> Inject -> Emit
     Transpile-->>Service: TranspileResult { yaml }
     Service->>FS: Save dataflow.transpiled.yml
     Service->>Dora: dora start transpiled.yml
@@ -383,7 +326,7 @@ The transpiler is the bridge in the backend architecture that connects dataflow 
 
 1. **Node Contract** -> [Node: dm.json Contract and Executable Unit](4-jie-dian-node-dm-json-qi-yue-yu-ke-zhi-xing-dan-yuan): Understand how the `executable`, `config_schema`, `ports`, and `capabilities` fields in `dm.json` are consumed by the transpiler.
 2. **Dataflow Format** -> [Dataflow: YAML Topology Definition and Node Connections](5-shu-ju-liu-dataflow-yaml-tuo-bu-ding-yi-yu-jie-dian-lian-jie): Understand the DM YAML `node:` / `config:` / `inputs:` syntax.
-3. **Interaction System** -> [Interaction System Architecture: dm-input / dm-message / Bridge Node Injection Principles](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li): Deep dive into how the Bridge node injected by Pass 4.5 drives UI controls and panels.
+3. **Interaction System** -> [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu): Deep dive into how SDK-driven interactive nodes communicate with dm-server.
 4. **Port Type System** -> [Port Schema and Port Type Validation](8-port-schema-yu-duan-kou-lei-xing-xiao-yan): Understand the Arrow type compatibility check used by Pass 2.5.
 5. **Runtime Invocation** -> [Runtime Service: Start Orchestration, Status Refresh, and CPU/Memory Metrics Collection](13-yun-xing-shi-fu-wu-qi-dong-bian-pai-zhuang-tai-shua-xin-yu-cpu-nei-cun-zhi-biao-cai-ji): Understand how transpilation results are consumed by `service_start`.
 6. **Configuration System** -> [Configuration System: DM_HOME Directory Structure and config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml): Understand the `DM_HOME` directory structure and node path resolution.

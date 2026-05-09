@@ -264,7 +264,7 @@ Common simple capability tags include:
 | `configurable` | The node accepts configuration parameters (has `config_schema`) |
 | `media` | The node processes media data (audio/video streams) |
 
-Structured capabilities (such as `widget_input`, `display`) are used to declare the node's binding relationship with the interaction system. The transpiler recognizes these capabilities and automatically injects a hidden **Bridge node** in the dataflow, routing control events from the web frontend to the node's input ports. For a detailed explanation of this mechanism, please refer to [Interaction System Architecture: dm-input / dm-message / Bridge Node Injection](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li).
+Structured capabilities (such as `widget_input`, `display`) are used to declare the node's binding relationship with the interaction system. In the current SDK-based architecture, interactive nodes communicate with dm-server directly through the Python SDK (`dm.Message()`) — each node sends widgets and polls for input independently, without any hidden intermediate node. For a detailed explanation, please refer to [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu).
 
 Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L71-L116), [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-button/dm.json#L25-L57)
 
@@ -348,8 +348,7 @@ When a user starts a dataflow, the transpiler executes a multi-stage pipeline to
 | 3 | **validate_port_schemas** | Reads port declarations from both endpoints' `dm.json` files and validates Arrow type compatibility |
 | 4 | **merge_config** | Reads `config_schema`, merges configuration values by four-layer priority, and injects into `env:` |
 | 5 | **inject_runtime_env** | Injects common environment variables such as `DM_RUN_ID`, `DM_NODE_ID`, `DM_RUN_OUT_DIR` |
-| 6 | **inject_dm_bridge** | Identifies structured capabilities and injects hidden Bridge nodes for interactive nodes |
-| 7 | **emit** | Outputs standard dora YAML with all `node:` replaced by `path:` |
+| 6 | **emit** | Outputs standard dora YAML with all `node:` replaced by `path:` |
 
 After transpilation is complete, the standard YAML is passed to the dora-rs coordinator (dora-coordinator), which is responsible for launching each node process.
 

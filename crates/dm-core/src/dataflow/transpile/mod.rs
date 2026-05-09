@@ -2,13 +2,11 @@
 ///
 /// The pipeline:
 /// 1. **parse**                  — YAML text  →  typed `DmGraph` IR
-/// 2. **validate_reserved**      — check for reserved node ID conflicts
-/// 3. **resolve_paths**          — `node:` → absolute `path:` via `dm.json`
-/// 4. **validate_port_schemas**  — check port schema compatibility
-/// 5. **merge_config**           — four-layer config merge → `env:`
-/// 6. **inject_dm_bridge**       — lower DM capability bindings into a hidden bridge node
-/// 7. **emit**                   — `DmGraph` → `serde_yaml::Value`
-mod bridge;
+/// 2. **resolve_paths**          — `node:` → absolute `path:` via `dm.json`
+/// 3. **validate_port_schemas**  — check port schema compatibility
+/// 4. **merge_config**           — four-layer config merge → `env:`
+/// 5. **inject_runtime_env**     — add DM runtime context to managed nodes
+/// 6. **emit**                   — `DmGraph` → `serde_yaml::Value`
 mod context;
 mod error;
 mod model;
@@ -58,15 +56,11 @@ pub fn transpile_graph_for_run(
         let mut graph = passes::parse(&content)
             .with_context(|| format!("Failed to parse yaml at {}", yaml_path.display()))?;
 
-        // Validate
-        passes::validate_reserved(&ctx, &graph, &mut diags);
-
         // Transform
         passes::resolve_paths(&ctx, &mut graph, &mut diags);
         passes::validate_port_schemas(&ctx, &graph, &mut diags);
         passes::merge_config(&ctx, &mut graph, &mut diags);
         passes::inject_runtime_env(&ctx, &mut graph);
-        passes::inject_dm_bridge(&ctx, &mut graph, &mut diags);
 
         // Log diagnostics as warnings
         for d in &diags {

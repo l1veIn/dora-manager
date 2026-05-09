@@ -274,7 +274,7 @@ The transpilation pipeline's `inject_runtime_env` pass injects three **runtime e
 | `DM_NODE_ID` | `id` field in YAML | Node identifier within the dataflow |
 | `DM_RUN_OUT_DIR` | `DM_HOME/runs/<run_id>/out` | Node output artifacts directory |
 
-These variables enable nodes to be aware of their own context at runtime -- for example, the `dm-save` node knows where to write files via `DM_RUN_OUT_DIR`, and the `dm-input` node interacts with the frontend via `DM_SERVER_URL` (injected by the Bridge).
+These variables enable nodes to be aware of their own context at runtime -- for example, the `dm-save` node knows where to write files via `DM_RUN_OUT_DIR`, and the `dm-input` node interacts with the frontend via `DM_SERVER_URL`.
 
 Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L427-L450)
 

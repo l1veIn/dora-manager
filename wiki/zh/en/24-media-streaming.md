@@ -505,6 +505,6 @@ Sources: [dm-streaming-architecture.md](https://github.com/l1veIn/dora-manager/b
 
 ---
 
-**Prerequisites**: Understanding this document requires familiarity with the messaging system fundamentals covered in [Interaction System Architecture: dm-input / dm-message / Bridge Node Injection Principles](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li), as well as the run instance lifecycle covered in [Runtime Services: Startup Orchestration, Status Refresh, and CPU/Memory Metrics Collection](13-yun-xing-shi-fu-wu-qi-dong-bian-pai-zhuang-tai-shua-xin-yu-cpu-nei-cun-zhi-biao-cai-ji).
+**Prerequisites**: Understanding this document requires familiarity with the messaging system fundamentals covered in [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu), as well as the run instance lifecycle covered in [Runtime Services: Startup Orchestration, Status Refresh, and CPU/Memory Metrics Collection](13-yun-xing-shi-fu-wu-qi-dong-bian-pai-zhuang-tai-shua-xin-yu-cpu-nei-cun-zhi-biao-cai-ji).
 
 **Next steps**: For the complete field definitions of node installation and dm.json contracts, refer to [Built-in Nodes Overview: From Media Capture to AI Inference](7-nei-zhi-jie-dian-zong-lan-cong-mei-ti-cai-ji-dao-ai-tui-li); for the overall design of the frontend panel system, refer to [Runtime Workspace: Grid Layout, Panel System, and Real-time Log Viewing](19-yun-xing-gong-zuo-tai-wang-ge-bu-ju-mian-ban-xi-tong-yu-shi-shi-ri-zhi-cha-kan).

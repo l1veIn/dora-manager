@@ -330,12 +330,8 @@ esac
             dataflow_name: "demo".to_string(),
             dataflow_hash: "sha256:test".to_string(),
             started_at: "2026-03-09T00:00:00Z".to_string(),
-            node_count_expected: 3,
-            nodes_expected: vec![
-                "__dm_bridge".to_string(),
-                "display".to_string(),
-                "echo".to_string(),
-            ],
+            node_count_expected: 2,
+            nodes_expected: vec!["display".to_string(), "echo".to_string()],
             outcome: build_outcome(RunStatus::Running, None, None, None),
             ..RunInstance::default()
         };
@@ -349,7 +345,7 @@ esac
             .map(|node| node.id)
             .collect::<Vec<_>>();
 
-        assert_eq!(node_ids, vec!["__dm_bridge", "display", "echo"]);
+        assert_eq!(node_ids, vec!["display", "echo"]);
     }
 
     #[test]

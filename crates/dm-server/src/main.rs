@@ -83,7 +83,6 @@ struct ApiDoc;
 #[tokio::main]
 async fn main() {
     let home = dm_core::config::resolve_home(None).expect("Failed to resolve dm home");
-    configure_dm_cli_bridge_entrypoint();
 
     let events = EventStore::open(&home).expect("Failed to open event store");
     let config = dm_core::config::load_config(&home).expect("Failed to load dm config");
@@ -285,21 +284,6 @@ async fn main() {
         }
     });
 
-    // Unix domain socket for bridge IPC
-    let bridge_sock_path = state.home.join("bridge.sock");
-    let _ = std::fs::remove_file(&bridge_sock_path);
-    match tokio::net::UnixListener::bind(&bridge_sock_path) {
-        Ok(unix_listener) => {
-            let sock_home = state.home.clone();
-            let sock_tx = state.messages.clone();
-            tokio::spawn(async move {
-                handlers::bridge_socket::bridge_socket_loop(sock_home, sock_tx, unix_listener)
-                    .await;
-            });
-        }
-        Err(e) => eprintln!("[dm-server] warning: could not create bridge.sock: {e}"),
-    }
-
     axum::serve(listener, app).await.expect("Server error");
 }
 
@@ -318,41 +302,15 @@ fn configured_port() -> u16 {
     while let Some(arg) = args.next() {
         if arg == "--port" {
             let value = args.next().expect("--port requires a value");
-            port = value.parse::<u16>().expect("--port must be a valid u16 port");
+            port = value
+                .parse::<u16>()
+                .expect("--port must be a valid u16 port");
         } else if let Some(value) = arg.strip_prefix("--port=") {
-            port = value.parse::<u16>().expect("--port must be a valid u16 port");
+            port = value
+                .parse::<u16>()
+                .expect("--port must be a valid u16 port");
         }
     }
 
     port
-}
-
-fn configure_dm_cli_bridge_entrypoint() {
-    if let Ok(existing) = env::var(dm_core::util::DM_CLI_BIN_ENV_KEY) {
-        if !existing.trim().is_empty() {
-            eprintln!(
-                "[dm-server] using {}={} for bridge nodes",
-                dm_core::util::DM_CLI_BIN_ENV_KEY,
-                existing.trim()
-            );
-            return;
-        }
-    }
-
-    match dm_core::util::resolve_dm_cli_exe_from_path_or_sibling() {
-        Some(path) => {
-            env::set_var(dm_core::util::DM_CLI_BIN_ENV_KEY, &path);
-            eprintln!(
-                "[dm-server] using {}={} for bridge nodes",
-                dm_core::util::DM_CLI_BIN_ENV_KEY,
-                path.display()
-            );
-        }
-        None => {
-            eprintln!(
-                "[dm-server] warning: dm CLI binary was not found in PATH or next to dm-server; dataflows with interaction bridge capabilities may fail to start. Install dm or set {}=/absolute/path/to/dm.",
-                dm_core::util::DM_CLI_BIN_ENV_KEY
-            );
-        }
-    }
 }

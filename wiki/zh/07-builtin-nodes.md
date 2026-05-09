@@ -346,7 +346,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-che
 
 交互节点是 Dora Manager 的"双向桥梁"——它们让 Web UI 成为数据流的一等参与者。这些节点在 `dm.json` 的 `capabilities` 中声明了 `widget_input` 或 `display` 能力，标记它们参与交互系统。
 
-> 关于交互系统的完整架构，参见 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)。
+> 关于交互系统的完整架构，参见 [交互系统架构：SDK 双端口模型与消息服务](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu)。
 
 ### dm-button：按钮控件
 
@@ -555,6 +555,6 @@ Sources: [dm.json 示例](https://github.com/l1veIn/dora-manager/blob/main/nodes
 ## 延伸阅读
 
 - [Port Schema 与端口类型校验](8-port-schema-yu-duan-kou-lei-xing-xiao-yan) — 理解端口类型系统的设计原理与 Arrow 类型声明方式
-- [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) — 交互节点的运行时通信架构与 WebSocket 消息流
+- [交互系统架构：SDK 双端口模型与消息服务](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu) — 交互节点通过 SDK 与 dm-server 通信的完整架构
 - [自定义节点开发指南：dm.json 完整字段参考](9-zi-ding-yi-jie-dian-kai-fa-zhi-nan-dm-json-wan-zheng-zi-duan-can-kao) — 如何开发并注册自己的节点
 - [测试策略：单元测试、数据流集成测试与系统测试 CheckList](26-ce-shi-ce-lue-dan-yuan-ce-shi-shu-ju-liu-ji-cheng-ce-shi-yu-xi-tong-ce-shi-checklist) — 内置测试节点的使用场景

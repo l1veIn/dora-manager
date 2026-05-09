@@ -1,4 +1,4 @@
-Dora Manager's reactive widget system is a bidirectional communication architecture spanning from dataflow nodes to the Web UI—nodes declare widget forms (buttons, sliders, switches, etc.), the frontend dynamically renders based on snapshot data, and user interactions are injected back into the dataflow via a WebSocket + HTTP pipeline. This document breaks down the panel registry, snapshot-driven dynamic rendering, and the Bridge-relayed parameter injection pipeline layer by layer.
+Dora Manager's reactive widget system is a bidirectional communication architecture spanning from dataflow nodes to the Web UI—nodes declare widget forms (buttons, sliders, switches, etc.), the frontend dynamically renders based on snapshot data, and user interactions are injected back into the dataflow via the HTTP API. This document breaks down the panel registry, snapshot-driven dynamic rendering, and the SDK polling-based parameter injection pipeline layer by layer.
 
 Sources: [types.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/types.ts#L1-L147), [registry.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/registry.ts#L1-L80), [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/input/InputPanel.svelte#L1-L249)
 
@@ -6,15 +6,11 @@ Sources: [types.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib
 
 Before diving into the details of each layer, it is important to understand the four-layer architecture of the widget system and how data flows between them. The entire system follows a clear design principle: **the frontend has zero awareness of nodes**—it does not connect directly to dora nodes, but uses dm-server's message service as an intermediary layer.
 
-```mermaid
+```
 graph LR
     subgraph "Dora Dataflow Layer"
         WN[Widget Nodes<br/>dm-button / dm-slider / dm-text-input]
-        DN[Display Nodes<br/>dm-message]
-    end
-
-    subgraph "Bridge Process (dm-cli)"
-        BR[Bridge Serve<br/>Unix Socket ↔ DoraNode API]
+        DN[Display Nodes<br/>dm-display]
     end
 
     subgraph "dm-server (Rust)"
@@ -28,11 +24,8 @@ graph LR
         MP[MessagePanel<br/>Message History Display]
     end
 
-    WN -- "Receives input forwarded by Bridge" --> BR
-    BR -- "tag=widgets<br/>Register snapshots" --> MS
-    BR -- "tag=input<br/>Forward user input" --> MS
-    DN -- "display output" --> BR
-    BR -- "tag=text/chart/..." --> MS
+    WN -- "SDK msg.send/get<br/>HTTP API calls" --> MS
+    DN -- "SDK msg.send<br/>HTTP POST display" --> MS
     MS -- "broadcast" --> WS
     HTTP -- "REST" --> MS
     WS -- "Real-time notifications" --> IP
@@ -40,9 +33,9 @@ graph LR
     IP -- "POST /messages" --> HTTP
 ```
 
-**Key dataflow nodes**: A Widget Node (such as `dm-slider`) does not communicate directly with the frontend. It runs as a regular node within the dora dataflow, using the Bridge process (`dm-cli bridge` command) as an intermediary: one end of the Bridge connects to dora's `DoraNode` API, and the other end connects to dm-server via Unix Socket. dm-server persists all messages to SQLite and broadcasts change notifications via WebSocket.
+**Key dataflow nodes**: A Widget Node (such as `dm-slider`) communicates directly with dm-server via the Python SDK (`dm.Message()`). The SDK encapsulates all HTTP API calls — `msg.send()` sends display/registration messages, and `msg.get()` polls for user input. dm-server persists all messages to SQLite and broadcasts change notifications via WebSocket.
 
-Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L57-L193), [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L104-L161), [messages handler](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L223-L270)
+Sources: [\_message.py](https://github.com/l1veIn/dora-manager/blob/main/sdk/python/dm/_message.py#L1-L167), [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L104-L161), [messages handler](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L223-L270)
 
 ## Panel Registry
 
@@ -53,7 +46,7 @@ The panel registry is the core routing table of the frontend Workspace system—
 The system currently supports 6 panel types:
 
 | Panel Kind | Component | Data Source Mode | Supported Tags | Purpose |
-|---|---|---|---|---|
+|------------|-----------|-----------------|----------------|---------|
 | `message` | MessagePanel | `history` | `*` (all) | Streaming message history display |
 | `input` | InputPanel | `snapshot` | `widgets` | Interactive widget rendering |
 | `chart` | ChartPanel | `snapshot` | `chart` | Chart data visualization |
@@ -103,7 +96,7 @@ Workspace is the container component for all panels, using the **GridStack** lib
 
 ### Rendering Pipeline Architecture
 
-```mermaid
+```
 sequenceDiagram
     participant RP as Run Page (+page.svelte)
     participant WS as Workspace.svelte
@@ -138,47 +131,31 @@ The Workspace layout is persisted via `localStorage` under the key `dm-workspace
 
 Sources: [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/routes/runs/[id]/+page.svelte#L76-L84), [types.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/types.ts#L108-L146)
 
-## Bridge Relay and Widget Registration Protocol
+## Widget Registration Protocol: SDK Registration at Startup
 
-The reason widgets can be "auto-discovered" by the frontend is that **the Bridge process pushes `tag=widgets` snapshots to dm-server at startup**. This is the registration protocol of the entire widget system.
+The reason widgets can be "auto-discovered" by the frontend is that **SDK nodes push `tag=widgets` snapshots to dm-server via `msg.send("widgets", ...)` at startup**. This is the registration protocol of the entire widget system.
 
-### Transpiler Injects Bridge Nodes
+### SDK Registration of Widgets
 
-When a user runs `dm start` to launch a dataflow containing interactive nodes (such as `dm-slider`), the Transpiler's Pass 4.5 (`inject_dm_bridge`) scans the `capabilities` of all Managed nodes. Upon discovering nodes that declare `widget_input` or `display` capabilities, it automatically injects a hidden `__dm_bridge` node into the dataflow. Key environment variables for this Bridge node include:
+Interactive nodes (such as `dm-slider`) immediately call the SDK's `msg.send("widgets", ...)` during initialization to send widget descriptions:
 
-| Environment Variable | Value | Purpose |
-|---|---|---|
-| `DM_CAPABILITIES_JSON` | JSON array | Specifications of all nodes that need bridging |
-| `DM_BRIDGE_INPUT_PORT` | `dm_bridge_input_internal` | Mapping of Bridge output port to node |
-| `DM_BRIDGE_OUTPUT_ENV_KEY` | `dm_display_from_{id}` | Mapping of node output to Bridge |
-
-Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L456-L570), [bridge.rs (core)](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/bridge.rs#L10-L84)
-
-### Bridge Registers Widgets
-
-After the Bridge process starts, it constructs a widget description JSON for each node that declares the `widget_input` capability, and sends it to dm-server via the `push` action:
-
-```json
-{
-  "action": "push",
-  "from": "temperature",
-  "tag": "widgets",
-  "payload": {
+```python
+msg = dm.Message()
+msg.send("widgets", {
     "label": "Temperature (°C)",
     "widgets": {
-      "value": {
-        "type": "slider",
-        "label": "Temperature (°C)",
-        "min": -20, "max": 50, "step": 1, "default": 20
-      }
+        "value": {
+            "type": "slider",
+            "label": "Temperature (°C)",
+            "min": -20, "max": 50, "step": 1, "default": 20
+        }
     }
-  }
-}
+})
 ```
 
-The `widget_payload` function dispatches different widget description construction logic based on `node_id`. It currently has built-in support for automatic descriptions of the following node types: `dm-text-input` (input/textarea), `dm-button` (button), `dm-slider` (slider), `dm-input-switch` (switch). Unrecognized node types will generate an empty `widgets: {}`.
+The widget description JSON is sent to dm-server via the SDK's HTTP POST and stored as a `tag="widgets"` snapshot. The frontend retrieves all snapshots via `GET /api/runs/{id}/messages/snapshots` and filters for entries with `tag === "widgets"` for rendering.
 
-Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L244-L289)
+Sources: [dm_sdk_demo/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-sdk-demo/dm_sdk_demo/main.py#L1-L95), [\_message.py](https://github.com/l1veIn/dora-manager/blob/main/sdk/python/dm/_message.py#L1-L167)
 
 ### dm-server Snapshot Mechanism
 
@@ -191,7 +168,7 @@ ON CONFLICT(node_id, tag) DO UPDATE SET
     payload = excluded.payload, seq = excluded.seq, updated_at = excluded.updated_at
 ```
 
-This means that regardless of how many times the Bridge restarts or how many registration messages it sends, the frontend always retrieves the latest widget description for that node. `GET /api/runs/{id}/messages/snapshots` returns all snapshots, and the frontend filters for widget descriptions using `tag === "widgets"`.
+This means that regardless of how many times the node restarts or how many registration messages it sends, the frontend always retrieves the latest widget description for that node. `GET /api/runs/{id}/messages/snapshots` returns all snapshots, and the frontend filters for widget descriptions using `tag === "widgets"`.
 
 Sources: [message.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L138-L161), [message.rs snapshots](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L226-L243)
 
@@ -202,7 +179,7 @@ InputPanel is the frontend core of the widget system—it reads snapshot data wi
 ### Widget Type Mapping Table
 
 | `widget.type` | Component | Interaction Method | Output Type |
-|---|---|---|---|
+|--------------|-----------|-------------------|-------------|
 | `input` | ControlInput | Input box + Send button | `string` |
 | `textarea` | ControlTextarea | Multi-line text box + Cmd/Ctrl+Enter to send | `string` |
 | `button` | ControlButton | Single click trigger | `string` (constant `"clicked"`) |
@@ -238,19 +215,18 @@ Widget value resolution follows a three-level priority chain: `draftValues[key]`
 
 Sources: [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/input/InputPanel.svelte#L76-L104)
 
-## WebSocket Parameter Injection Full Pipeline
+## HTTP API Parameter Injection Full Pipeline
 
 When a user interacts with a widget in InputPanel and clicks send, the data travels through a complete frontend-to-backend pipeline to ultimately reach the dora dataflow node. Understanding this pipeline is key to troubleshooting issues where widgets "can't send" or nodes "don't receive."
 
 ### Send Pipeline Breakdown
 
-```mermaid
+```
 sequenceDiagram
     participant User as User Action
     participant IP as InputPanel
     participant RP as Run Page
     participant API as dm-server REST
-    participant BR as Bridge (dm-cli)
     participant Node as dora Widget Node
 
     User->>IP: Click Send / Drag Slider
@@ -261,9 +237,10 @@ sequenceDiagram
     API-->>RP: {seq: 42}
     RP->>RP: fetchNewInputValues() incremental refresh
     API->>API: broadcast MessageNotification → WebSocket clients
-    API->>BR: Unix Socket: {"action":"input","to":"temperature","value":25}
-    BR->>Node: node.send_output("dm_bridge_to_temperature", {value: 25})
-    Node->>Node: decode_bridge_payload → send_output("value", float64_array)
+    Note over Node,API: SDK Polling
+    Node->>API: GET /messages?tag=input&after_seq=N
+    API-->>Node: [{seq:42, payload:{to:"temperature",value:25}}]
+    Node->>Node: filter payload.to == yaml_id → send_output("value", float64)
 ```
 
 Key step breakdown:
@@ -272,13 +249,11 @@ Key step breakdown:
 
 **Step 2: Server Persistence** — The `push_message` handler calls `MessageService::push()`, writing the message to the `messages` history table and updating the `message_snapshots` snapshot table, then sending a `MessageNotification` via `broadcast::Sender`.
 
-**Step 3: Bridge Receives** — `bridge_socket_loop` in dm-server listens on the Unix Socket connection. When there is a new `tag=input` message, it looks up the full message body and forwards it to the Bridge process: `{"action":"input","to":"temperature","value":25}`.
+**Step 3: SDK Polling Retrieval** — The Widget Node's background thread polls dm-server via `msg.get(tag="input", after_seq=last_seq)`. When user input is available, the SDK returns new messages sorted by sequence number.
 
-**Step 4: Bridge Forwards to dora** — The Bridge process receives the `InputNotification`, looks up the `widget_specs` routing table to find the corresponding output port, constructs the `{"value": 25}` JSON, and sends it to the `dm_bridge_to_temperature` port via `DoraNode::send_output`.
+**Step 4: SDK Node Processing** — The node receives the messages, checks whether `payload.to` matches its own `yaml_id`. If matched, it extracts the `value` field, converts it to the appropriate Arrow type, and ultimately sends it to the next node in the dataflow via `node.send_output("value", ...)`.
 
-**Step 5: Widget Node Processing** — Taking `dm-slider` as an example, the node listens on the `dm_bridge_input_internal` port, decodes the JSON via `decode_bridge_payload`, extracts the `value` field and converts it to a `float64` Arrow array, and finally sends it to the next node in the dataflow via `node.send_output("value", ...)`.
-
-Sources: [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/input/InputPanel.svelte#L87-L104), [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/routes/runs/[id]/+page.svelte#L371-L383), [messages.rs handler](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L69-L97), [bridge_socket.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/bridge_socket.rs#L96-L113), [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L168-L187), [dm_slider main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L59-L76)
+Sources: [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/input/InputPanel.svelte#L87-L104), [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/routes/runs/[id]/+page.svelte#L371-L383), [messages.rs handler](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L69-L97), [\_message.py](https://github.com/l1veIn/dora-manager/blob/main/sdk/python/dm/_message.py#L1-L167), [dm_slider main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L59-L76)
 
 ### Real-time Refresh Mechanism
 
@@ -338,7 +313,7 @@ nodes:
       default_value: "true"
 ```
 
-Environment variables in each widget's `config` (such as `label`, `min_val`) are injected as environment variables during the Transpiler's configuration merge pass, and the Bridge reads these variables to construct widget descriptions.
+Configuration items in each widget's `config` (such as `label`, `min_val`) are injected as environment variables during the Transpiler's configuration merge pass. Node code reads these variables to construct widget descriptions and registers them via the SDK.
 
 Sources: [demo-interactive-widgets.yml](demos/demo-interactive-widgets.yml#L26-L63)
 
@@ -372,30 +347,47 @@ Interactive nodes must declare the `widget_input` capability in the `capabilitie
 }
 ```
 
-The binding with `channel: "register"` + `media: ["widgets"]` triggers the Bridge to send a widget registration snapshot at startup; the binding with `channel: "input"` + `port: "value"` defines which port user input is injected into the node through. The port name must match the port name used in `node.send_output` in the node's code.
+The binding with `channel: "register"` + `media: ["widgets"]` instructs the SDK node to send a widget registration snapshot at startup; the binding with `channel: "input"` + `port: "value"` defines which port user input is injected into the node through. The port name must match the port name used in `node.send_output` in the node's code.
 
-Sources: [dm-slider/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm.json#L25-L56), [bridge.rs (core)](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/bridge.rs#L46-L84)
+Sources: [dm-slider/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm.json#L25-L56)
 
-### Bridge Node Python Template
+### SDK Node Python Template
 
-All Widget Nodes follow a unified processing pattern—listen on the Bridge input port, decode the JSON payload, extract the value, and forward it to the dataflow output port:
+All Widget Nodes follow a unified processing pattern—use the SDK to register widgets, start a background thread to poll for input, and handle dora events:
 
 ```python
 def main():
-    bridge_input_port = os.getenv("DM_BRIDGE_INPUT_PORT", "dm_bridge_input_internal")
+    msg = dm.Message()
     node = Node()
+    yaml_id = os.environ.get("DM_NODE_ID", "unknown")
+
+    # Register widget at startup
+    msg.send("widgets", {
+        "label": os.environ.get("LABEL", "Widget"),
+        "widgets": {
+            "value": {"type": "slider", "min": 0, "max": 100}
+        }
+    })
+
+    # Start background thread to poll for user input
+    last_seq = 0
+    def poll():
+        nonlocal last_seq
+        while node.is_running():
+            messages = msg.get(tag="input", after_seq=last_seq)
+            for item in messages:
+                last_seq = item["seq"]
+                if item["payload"].get("to") == yaml_id:
+                    node.send_output("value", pa.array([float(item["payload"]["value"])]))
+            time.sleep(0.1)
+    threading.Thread(target=poll, daemon=True).start()
+
+    # Main loop — handle dora INPUT events
     for event in node:
-        if event["type"] != "INPUT" or event["id"] != bridge_input_port:
-            continue
-        payload = decode_bridge_payload(event["value"])
-        if payload is None:
-            continue
-        node.send_output("value", normalize_output(payload.get("value")))
+        ...
 ```
 
-`decode_bridge_payload` handles various encoding forms of Arrow data (single-element lists, UInt8Array byte sequences, etc.), uniformly converting them to a JSON dict. `normalize_output` converts Python types to the corresponding Arrow array types.
-
-Sources: [dm_slider/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L59-L79), [dm-button/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-button/dm_button/main.py#L60-L77)
+Sources: [dm-slider/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L59-L79), [dm-button/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-button/dm_button/main.py#L60-L77)
 
 ## Panel Addition and Terminal Injection
 
@@ -423,13 +415,13 @@ Sources: [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src
 ## Troubleshooting Common Issues
 
 | Symptom | Possible Cause | Troubleshooting Direction |
-|---|---|---|
-| InputPanel displays "No input controls available" | Bridge has not registered widgets | Check if `GET /snapshots` returns a snapshot with `tag=widgets`; check Bridge process logs |
-| Node does not respond after widget interaction | Bridge routing table is missing | Check Bridge logs for `routed input ->` output; confirm `DM_CAPABILITIES_JSON` includes the node |
+|---------|---------------|---------------------------|
+| InputPanel displays "No input controls available" | SDK node has not registered widgets | Check if `GET /snapshots` returns a snapshot with `tag=widgets`; check if node called `msg.send("widgets", ...)` at startup |
+| Node does not respond after widget interaction | SDK polling is not receiving messages | Check SDK node logs; verify `msg.get()` `after_seq` parameter is correct; check WebSocket notifications |
 | Widget value resets to default | `inputValues` not loaded | Check if `GET /messages?tag=input` returns historical input messages |
 | WebSocket frequently disconnects | Server restart or network issues | Check the WS connection status in the browser DevTools Network panel; confirm reconnection logic is working |
-| Widget type displays "Unsupported" | `widget.type` not in the mapping table | Check if the Bridge's `widget_payload` function generates the correct widget description for that node type |
+| Widget type displays "Unsupported" | `widget.type` not in the mapping table | Check that `widget.type` in the `msg.send("widgets", ...)` payload is correct |
 
 ---
 
-**Next reading**: After understanding the widget system, you can continue to explore [Interactive System Architecture: dm-input / dm-message / Bridge Node Injection Principles](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) for a deeper look at the Bridge's bidirectional communication mechanism, or check out [Run Workspace: Grid Layout, Panel System, and Real-time Log Viewing](19-yun-xing-gong-zuo-tai-wang-ge-bu-ju-mian-ban-xi-tong-yu-shi-shi-ri-zhi-cha-kan) for an overview of the panel system's overall layout design.
+**Next reading**: After understanding the widget system, you can continue to explore [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu) for a deeper look at the SDK's bidirectional communication mechanism, or check out [Run Workspace: Grid Layout, Panel System, and Real-time Log Viewing](19-yun-xing-gong-zuo-tai-wang-ge-bu-ju-mian-ban-xi-tong-yu-shi-shi-ri-zhi-cha-kan) for an overview of the panel system's overall layout design.
