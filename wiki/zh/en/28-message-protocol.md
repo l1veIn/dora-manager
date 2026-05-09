@@ -269,6 +269,98 @@ MessageItem.svelte checks for `entry.payload.embed`:
 - Present → use the embed render pipeline (card layout)
 - Absent → fall back to traditional tag+payload rendering
 
+## Widget Management API
+
+`msg.widgets` provides widget registration, update, removal, and listing operations.
+
+```python
+import dm
+
+msg = dm.Message()
+
+# Register a widget
+msg.widgets.register(
+    key="my-input",          # widget_key: unique identifier for input routing
+    type="input",            # widget type
+    label="Text to reverse", # display label
+    config={
+        "placeholder": "Type something...",
+    },
+)
+
+# Update widget configuration (disable, change label, recolor, hide, etc.)
+msg.widgets.update(key="my-input", disabled=True, label="Disabled Input")
+
+# Hide/remove a widget from the UI
+msg.widgets.remove(key="my-input")
+
+# List all registered widgets
+widgets = msg.widgets.list()
+for w in widgets:
+    print(w["key"], w["type"], w["label"])
+```
+
+## Message Filtering: get & subscribe
+
+Both `msg.get()` and `msg.subscribe()` support `widget_key` filtering in addition to `tag` and `from_`.
+
+### get() — Fetch message history
+
+```python
+import dm
+
+msg = dm.Message()
+
+# Fetch all input history for a specific widget
+inputs = msg.get(tag="input", widget_key="my-input")
+
+# Combined filters
+results = msg.get(
+    tag="text",
+    from_="ai-assistant",
+    widget_key="my-input",
+    after_seq=100,
+    limit=20,
+)
+```
+
+### subscribe() — Real-time subscription (WebSocket)
+
+```python
+import dm
+
+msg = dm.Message()
+
+# Subscribe to real-time input for a specific widget
+with msg.subscribe(tag="input", widget_key="my-input") as stream:
+    for event in stream:
+        value = event["payload"]["value"]
+        print(f"Received: {value}")
+
+# Traditional tag/from_ filtering still works
+with msg.subscribe(tag="text", from_="ai-assistant") as stream:
+    for event in stream:
+        print(event["payload"]["content"])
+```
+
+### How widget_key works
+
+When the user sends input from the Web UI, the frontend includes `widget_key` in the payload:
+
+```json
+{
+  "from": "web",
+  "tag": "input",
+  "payload": {
+    "widget_key": "my-input",
+    "value": "hello",
+    "output_id": "value"
+  }
+}
+```
+
+`msg.get(widget_key="my-input")` and `msg.subscribe(widget_key="my-input")` filter client-side by `payload.widget_key`. Multiple nodes can subscribe to different widget keys independently.
+
 ## Backward Compatibility
 
 No existing code needs modification. Embed is entirely optional. All of the following messages are valid:

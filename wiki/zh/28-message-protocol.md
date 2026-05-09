@@ -269,6 +269,98 @@ msg.send("text", {
 - 存在 → 使用 embed 渲染管线
 - 不存在 → 降级到现有 tag+payload 渲染
 
+## Widget 管理 API
+
+`msg.widgets` 提供控件注册、更新、删除和枚举操作。
+
+```python
+import dm
+
+msg = dm.Message()
+
+# 注册一个控件
+msg.widgets.register(
+    key="my-input",          # widget_key：唯一标识，用于输入路由和订阅
+    type="input",            # 控件类型
+    label="Text to reverse", # 显示名称
+    config={
+        "placeholder": "Type something...",
+    },
+)
+
+# 更新控件的配置
+msg.widgets.update(key="my-input", disabled=True, label="Disabled Input")
+
+# 隐藏/删除控件
+msg.widgets.remove(key="my-input")
+
+# 枚举所有已注册的控件
+widgets = msg.widgets.list()
+for w in widgets:
+    print(w["key"], w["type"], w["label"])
+```
+
+## 消息过滤：get 与 subscribe
+
+`msg.get()` 和 `msg.subscribe()` 不仅支持 `tag` 和 `from_` 过滤，还新增了 `widget_key` 参数：
+
+### get() — 获取历史消息
+
+```python
+import dm
+
+msg = dm.Message()
+
+# 获取某个 widget 的所有输入历史
+inputs = msg.get(tag="input", widget_key="my-input")
+
+# 按多个条件组合过滤
+results = msg.get(
+    tag="text",
+    from_="ai-assistant",
+    widget_key="my-input",
+    after_seq=100,
+    limit=20,
+)
+```
+
+### subscribe() — 实时订阅（WebSocket）
+
+```python
+import dm
+
+msg = dm.Message()
+
+# 订阅某个 widget 的实时输入（非轮询，走 WebSocket）
+with msg.subscribe(tag="input", widget_key="my-input") as stream:
+    for event in stream:
+        value = event["payload"]["value"]
+        print(f"Received: {value}")
+
+# 传统的 tag/from_ 过滤仍然可用
+with msg.subscribe(tag="text", from_="ai-assistant") as stream:
+    for event in stream:
+        print(event["payload"]["content"])
+```
+
+### widget_key 的工作原理
+
+前端发送用户输入时，payload 中带 `widget_key` 字段：
+
+```json
+{
+  "from": "web",
+  "tag": "input",
+  "payload": {
+    "widget_key": "my-input",
+    "value": "hello",
+    "output_id": "value"
+  }
+}
+```
+
+`msg.get(widget_key="my-input")` 和 `msg.subscribe(widget_key="my-input")` 在客户端按 `payload.widget_key` 过滤，只返回匹配的消息。多个节点可以各自订阅不同的 widget_key，互不干扰。
+
 ## 向后兼容
 
 所有现有代码无需修改。embed 是完全可选的。以下消息全部有效：
