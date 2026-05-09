@@ -41,6 +41,11 @@ LAST_SEQ = 0
 MSG_LOCK = threading.Lock()
 
 
+# ── Demo state ──
+COUNTER = 0
+CHAT_HISTORY: list[str] = []
+
+
 def handle_signal(signum, frame):
     global RUNNING
     RUNNING = False
@@ -52,12 +57,82 @@ signal.signal(signal.SIGTERM, handle_signal)
 
 def on_new_message(msg: dm.Message, payload: dict):
     """Called when a new input message arrives."""
+    global COUNTER, CHAT_HISTORY
     value = payload.get("value", "")
     if not value:
         return
+    COUNTER += 1
+    CHAT_HISTORY.append(value)
+    if len(CHAT_HISTORY) > 10:
+        CHAT_HISTORY.pop(0)
     reversed_str = value[::-1]
-    eprint(f"[dm-sdk-demo] reversed '{value}' -> '{reversed_str}'")
+    word_count = len(value.split())
+    eprint(f"[dm-sdk-demo] #{COUNTER} '{value}' -> '{reversed_str}'")
+
+    # ── Send 1: Simple text (legacy style) ──
     msg.send("text", {"content": f"**Reversed:** {reversed_str}"}, from_="dm-sdk-demo")
+
+    # ── Send 2: Rich embed card ──
+    msg.send(
+        "text",
+        {
+            "content": f"Embed: {value}",
+            "embed": {
+                "author": {"name": "SDK Demo", "icon": "🧪"},
+                "title": f"Input #{COUNTER}",
+                "body": value,
+                "body_formatted": f"**Reversed:** {reversed_str}  \nWord count: **{word_count}**",
+                "body_format": "markdown",
+                "color": "blue" if word_count < 5 else "purple",
+                "fields": [
+                    {"name": "Original", "value": value, "inline": True},
+                    {"name": "Reversed", "value": reversed_str, "inline": True},
+                    {"name": "Word Count", "value": str(word_count), "inline": True},
+                ],
+                "footer": {"text": f"message #{COUNTER} via dm-sdk-demo"},
+                "side": "left",
+            },
+        },
+        from_="dm-sdk-demo",
+    )
+
+    # ── Send 3: Chat-style (right side, user-like) ──
+    msg.send(
+        "text",
+        {
+            "content": value,
+            "embed": {
+                "body": value,
+                "side": "right",
+                "width": "compact",
+                "color": "gray",
+                "timestamp": "absolute",
+            },
+        },
+        from_="dm-sdk-demo",
+    )
+
+    # ── Send 4: Stats embed every 3 messages ──
+    if COUNTER % 3 == 0:
+        msg.send(
+            "text",
+            {
+                "content": f"Stats after #{COUNTER}",
+                "embed": {
+                    "author": {"name": "SDK Demo Stats", "icon": "📊"},
+                    "color": "green",
+                    "fields": [
+                        {"name": "Total Inputs", "value": str(COUNTER), "inline": True},
+                        {"name": "History Size", "value": f"{len(CHAT_HISTORY)}/10", "inline": True},
+                        {"name": "Last Input", "value": CHAT_HISTORY[-1] if CHAT_HISTORY else "—", "inline": False},
+                    ],
+                    "actions": [
+                        {"label": "Reset Counter", "url": "#", "style": "button"},
+                    ],
+                },
+            },
+            from_="dm-sdk-demo",
+        )
 
 
 def subscriber_loop(msg: dm.Message):
