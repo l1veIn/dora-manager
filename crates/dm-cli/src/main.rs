@@ -1,4 +1,3 @@
-mod bridge;
 mod cmd;
 mod display;
 
@@ -103,13 +102,6 @@ enum Commands {
     Runs {
         #[command(subcommand)]
         command: Option<RunsCommands>,
-    },
-
-    #[command(hide = true)]
-    Bridge {
-        /// Run ID to serve bridge for
-        #[arg(long)]
-        run_id: String,
     },
 
     /// Pass-through: run any dora CLI command with the active version
@@ -353,8 +345,6 @@ async fn main() -> Result<()> {
             }) => cmd::runs::logs(&home, run_id, node_id, follow).await?,
             Some(RunsCommands::Clean { keep }) => cmd::runs::clean(&home, keep)?,
         },
-
-        Commands::Bridge { run_id } => bridge::bridge_serve(&home, &run_id).await?,
 
         Commands::Passthrough { args } => {
             let code = dm_core::passthrough(&home, &args, cli.verbose).await?;

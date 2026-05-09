@@ -1,10 +1,20 @@
 import json
 import os
 import signal
+import sys
 from pathlib import Path
 
-import pyarrow as pa
 from dora import Node
+
+# Add SDK to path for development
+SDK_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sdk", "python"
+)
+SDK_PATH = os.path.normpath(SDK_PATH)
+if os.path.isdir(SDK_PATH) and SDK_PATH not in sys.path:
+    sys.path.insert(0, SDK_PATH)
+
+import dm  # noqa: E402
 
 
 RUNNING = True
@@ -84,13 +94,6 @@ def normalize_inline_content(content, render: str):
     return str(content)
 
 
-def emit_bridge(node: Node, output_port: str, tag: str, payload: dict):
-    node.send_output(
-        output_port,
-        pa.array([json.dumps({"tag": tag, "payload": payload}, ensure_ascii=False)]),
-    )
-
-
 def existing_message_path(raw_value, run_out_dir: str) -> str | None:
     if not isinstance(raw_value, str):
         return None
@@ -115,11 +118,11 @@ def main():
     signal.signal(signal.SIGINT, handle_stop)
 
     node_id = env_str("DM_NODE_ID", "dm-message")
-    bridge_output_port = env_str("DM_BRIDGE_OUTPUT_PORT", "dm_bridge_output_internal")
     run_out_dir = env_str("DM_RUN_OUT_DIR")
     label = env_str("LABEL") or node_id
     render_mode = env_str("RENDER", "auto")
 
+    msg = dm.Message()
     node = Node()
 
     for event in node:
@@ -134,28 +137,26 @@ def main():
         if existing_path:
             rel_path = normalize_relative(existing_path, run_out_dir)
             render = resolve_render(rel_path, render_mode)
-            emit_bridge(
-                node,
-                bridge_output_port,
+            msg.send(
                 render,
                 {
                     "label": label,
                     "kind": "file",
                     "file": rel_path,
                 },
+                from_=node_id,
             )
             continue
 
         render = resolve_inline_render(content, render_mode)
-        emit_bridge(
-            node,
-            bridge_output_port,
+        msg.send(
             render,
             {
                 "label": label,
                 "kind": "inline",
                 "content": normalize_inline_content(content, render),
             },
+            from_=node_id,
         )
 
 

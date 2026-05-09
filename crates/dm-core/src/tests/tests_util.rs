@@ -1,4 +1,3 @@
-use crate::test_support::env_lock;
 use crate::util;
 
 #[test]
@@ -25,7 +24,7 @@ fn human_size_mib() {
 
 #[test]
 fn check_command_found() {
-    let _guard = env_lock();
+    let _guard = crate::test_support::env_lock();
     // `sh` should exist on all unix systems
     let result = util::check_command("sh");
     assert!(result.is_some());
@@ -36,50 +35,6 @@ fn check_command_found() {
 fn check_command_not_found() {
     let result = util::check_command("this-command-definitely-does-not-exist-xyz-123");
     assert!(result.is_none());
-}
-
-#[test]
-fn resolve_dm_cli_exe_prefers_env_override() {
-    let _guard = env_lock();
-    let original = std::env::var_os(util::DM_CLI_BIN_ENV_KEY);
-    std::env::set_var(util::DM_CLI_BIN_ENV_KEY, "/tmp/custom-dm");
-
-    assert_eq!(
-        util::resolve_dm_cli_exe(),
-        std::path::PathBuf::from("/tmp/custom-dm")
-    );
-
-    if let Some(value) = original {
-        std::env::set_var(util::DM_CLI_BIN_ENV_KEY, value);
-    } else {
-        std::env::remove_var(util::DM_CLI_BIN_ENV_KEY);
-    }
-}
-
-#[test]
-#[cfg(not(target_os = "windows"))]
-fn resolve_dm_cli_exe_uses_path_before_fallback() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let _guard = env_lock();
-    let original_dm_cli_bin = std::env::var_os(util::DM_CLI_BIN_ENV_KEY);
-    std::env::remove_var(util::DM_CLI_BIN_ENV_KEY);
-
-    let tmp = tempfile::TempDir::new().unwrap();
-    let dm = tmp.path().join("dm");
-    std::fs::write(&dm, "#!/bin/sh\nexit 0\n").unwrap();
-    let mut perms = std::fs::metadata(&dm).unwrap().permissions();
-    perms.set_mode(0o755);
-    std::fs::set_permissions(&dm, perms).unwrap();
-    let _path_guard = crate::test_support::set_path(tmp.path().as_os_str());
-
-    assert_eq!(util::resolve_dm_cli_exe(), dm);
-
-    if let Some(value) = original_dm_cli_bin {
-        std::env::set_var(util::DM_CLI_BIN_ENV_KEY, value);
-    } else {
-        std::env::remove_var(util::DM_CLI_BIN_ENV_KEY);
-    }
 }
 
 #[test]
@@ -105,7 +60,7 @@ fn is_valid_dora_binary_file() {
 
 #[test]
 fn get_command_version_works() {
-    let _guard = env_lock();
+    let _guard = crate::test_support::env_lock();
     // Test with `echo` which should return its argument
     let rt = tokio::runtime::Runtime::new().unwrap();
     let result = rt.block_on(util::get_command_version("echo", &["test-version-1.0"]));
