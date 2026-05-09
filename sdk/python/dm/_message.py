@@ -88,63 +88,12 @@ class WidgetManager:
             if s["tag"] == "widgets"
         ]
 
-    def subscribe(
-        self,
-        key: str,
-        *,
-        poll_interval: float = 0.5,
-    ):
-        """Yield input messages for a specific widget key.
-
-        Yields dicts with keys: value, output_id, seq, timestamp.
-
-        Usage::
-
-            for event in msg.widgets.subscribe(\"my-slider\"):
-                value = event[\"value\"]
-                process(value)
-        """
-        return _WidgetSubscription(self._msg, self, key, poll_interval=poll_interval)
-
-
-class _WidgetSubscription:
-    """Internal: generator wrapper for widget.key polling."""
-
-    def __init__(self, msg: Message, mgr: WidgetManager, key: str, *, poll_interval: float):
-        self._msg = msg
-        self._mgr = mgr
-        self._key = key
-        self._poll_interval = poll_interval
-        self._LAST_SEQ = 0
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> dict[str, Any]:
-        import time as _time
-
-        while True:
-            messages = self._msg.get(tag="input", after_seq=self._LAST_SEQ, limit=50)
-            for m in messages:
-                seq = m.get("seq", 0)
-                if seq > self._LAST_SEQ:
-                    self._LAST_SEQ = seq
-                payload = m.get("payload", {})
-                if isinstance(payload, dict) and payload.get("widget_key") == self._key:
-                    return {
-                        "value": payload.get("value"),
-                        "output_id": payload.get("output_id"),
-                        "seq": seq,
-                        "timestamp": m.get("timestamp"),
-                    }
-            _time.sleep(self._poll_interval)
-
 
 def _infer_widget_type(payload: dict[str, Any]) -> str | None:
-    widgets = payload.get("widgets", {})
-    if not widgets:
+    widgets_val = payload.get("widgets", {})
+    if not widgets_val:
         return None
-    first = next(iter(widgets.values()), {})
+    first = next(iter(widgets_val.values()), {})
     if isinstance(first, dict):
         return first.get("type")
     return None
@@ -308,11 +257,21 @@ class Message:
         *,
         tag: str | None = None,
         from_: str | None = None,
+        widget_key: str | None = None,
         after_seq: int | None = None,
         before_seq: int | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        """Get message history in ascending sequence order."""
+        """Get message history in ascending sequence order.
+
+        Args:
+            tag: Filter by tag (e.g. "input", "text")
+            from_: Filter by sender
+            widget_key: Filter by widget key (filters payload.widget_key)
+            after_seq: Only messages after this sequence number
+            before_seq: Only messages before this sequence number
+            limit: Max messages to return (default 100)
+        """
         params: dict[str, Any] = {"limit": limit}
         if tag is not None:
             params["tag"] = tag
@@ -330,7 +289,15 @@ class Message:
         )
         response.raise_for_status()
         data = response.json()
-        return data["messages"]
+        messages = data["messages"]
+
+        if widget_key is not None:
+            messages = [
+                m for m in messages
+                if m.get("payload", {}).get("widget_key") == widget_key
+            ]
+
+        return messages
 
     def snapshots(self) -> list[dict[str, Any]]:
         """Return latest message snapshots grouped by node_id and tag."""
@@ -346,28 +313,27 @@ class Message:
         *,
         tag: str | None = None,
         from_: str | None = None,
+        widget_key: str | None = None,
         timeout: float | None = None,
     ) -> MessageStream:
         """
         Subscribe to real-time messages via WebSocket.
 
         Returns a MessageStream context manager that yields messages as they arrive.
+        When widget_key is set, only messages matching that key are yielded.
 
-        Usage:
-            with msg.subscribe() as stream:
+        Usage::
+
+            with msg.subscribe(tag="input", widget_key="my-slider") as stream:
                 for event in stream:
-                    print(event)  # {"seq": ..., "from": ..., "tag": ..., "payload": ...}
-
-        The WebSocket connects to /api/runs/{run_id}/messages/ws on the dm-server.
-        The server pushes MessageNotification events: {run_id, seq, from, tag}.
-        After receiving a notification, the SDK fetches the full message payload via
-        GET /api/runs/{run_id}/messages?after_seq={seq - 1}&limit=1.
+                    print(event)  # only events with that widget_key
         """
         return MessageStream(
             self.run_id,
             self.server_url,
             tag=tag,
             from_=from_,
+            widget_key=widget_key,
             timeout=self.timeout if timeout is None else timeout,
         )
 

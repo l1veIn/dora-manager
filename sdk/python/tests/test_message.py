@@ -389,24 +389,80 @@ def test_widget_list_reads_snapshots(monkeypatch):
     assert widgets[1]["type"] == "button"
 
 
-def test_widget_subscribe_filters_by_key(monkeypatch):
-    class FakeWidgetMgr:
-        pass
+def test_subscribe_with_widget_key_filters_by_key(monkeypatch):
+    """Test that msg.subscribe(widget_key=...) filters messages on the client side."""
+    from dm._stream import MessageStream
 
-    def fake_get(url, params, timeout):
-        return Response({
+    class FakeStream:
+        def __init__(self):
+            self.notifications = [
+                '{"run_id":"run-1","seq":1,"from":"web","tag":"input"}',
+                '{"run_id":"run-1","seq":2,"from":"web","tag":"input"}',
+            ]
+            self._idx = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def __iter__(self):
+            return self
+
+        def recv(self, timeout=None):
+            if self._idx >= len(self.notifications):
+                raise ConnectionError("closed")
+            item = self.notifications[self._idx]
+            self._idx += 1
+            return item
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "dm._stream.connect",
+        lambda url, open_timeout=None, close_timeout=None: None,
+    )
+    monkeypatch.setattr(
+        "dm._message.requests.get",
+        lambda url, params=None, timeout=None: Response({
+            "messages": [
+                {"seq": 1, "from": "web", "tag": "input",
+                 "payload": {"widget_key": "other", "value": "no"}, "timestamp": 0},
+                {"seq": 2, "from": "web", "tag": "input",
+                 "payload": {"widget_key": "my-key", "value": "yes", "output_id": "val"}, "timestamp": 0},
+            ]
+        }),
+    )
+
+    # Direct test: MessageStream with widget_key filter
+    stream = MessageStream(
+        "run-1", "http://server",
+        tag="input", widget_key="my-key", timeout=4,
+    )
+    stream._ws = FakeStream()
+    monkeypatch.setattr("dm._stream.requests.get", lambda url, params=None, timeout=None: Response({
+        "messages": [{"seq": 2, "from": "web", "tag": "input",
+                       "payload": {"widget_key": "my-key", "value": "yes", "output_id": "val"},
+                       "timestamp": 0}]
+    }))
+
+    message = next(stream)
+    assert message["payload"]["value"] == "yes"
+    assert message["payload"]["output_id"] == "val"
+
+    # Test that msg.get() with widget_key also filters client-side
+    monkeypatch.setattr(
+        "dm._message.requests.get",
+        lambda url, params=None, timeout=None: Response({
             "messages": [
                 {"seq": 1, "payload": {"widget_key": "other", "value": "no"}},
-                {"seq": 2, "payload": {"widget_key": "my-key", "value": "yes", "output_id": "val"}},
+                {"seq": 2, "payload": {"widget_key": "my-key", "value": "yes"}},
             ]
-        })
-
-    monkeypatch.setattr("dm._message.requests.get", fake_get)
-
+        }),
+    )
     msg = Message(run_id="run-1", server_url="http://server")
-    sub = msg.widgets.subscribe("my-key", poll_interval=0.01)
-
-    event = next(sub)
-    assert event["value"] == "yes"
-    assert event["output_id"] == "val"
-    assert event["seq"] == 2
+    results = msg.get(tag="input", widget_key="my-key")
+    assert len(results) == 1
+    assert results[0]["payload"]["value"] == "yes"

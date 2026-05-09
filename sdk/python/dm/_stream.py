@@ -19,6 +19,8 @@ class MessageStream:
     {run_id, seq, from, tag}, fetches the full message via the REST API and
     yields it.
 
+    Supports filtering by tag, from_, and widget_key (client-side filter).
+
     Yields dicts with keys: seq, from, tag, payload, timestamp.
     """
 
@@ -29,12 +31,14 @@ class MessageStream:
         *,
         tag: str | None = None,
         from_: str | None = None,
+        widget_key: str | None = None,
         timeout: float | None = None,
     ):
         self.run_id = run_id
         self.server_url = normalize_url(server_url)
         self.tag = tag
         self.from_ = from_
+        self.widget_key = widget_key
         self.timeout = timeout
         self._ws: ClientConnection | None = None
 
@@ -67,11 +71,17 @@ class MessageStream:
                 continue
             if self.from_ is not None and message.get("from") != self.from_:
                 continue
+            if self.widget_key is not None:
+                payload = message.get("payload", {})
+                if not isinstance(payload, dict) or payload.get("widget_key") != self.widget_key:
+                    continue
             return message
 
     def _read_notification(self) -> dict[str, Any]:
         assert self._ws is not None
-        raw = self._ws.recv(timeout=self.timeout)
+        # Use None for recv timeout (wait forever) — the timeout is for
+        # connection/open, not for per-message waiting
+        raw = self._ws.recv(timeout=None)
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8")
         notification = json.loads(raw)
