@@ -54,12 +54,31 @@ signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
 
 
+def input_value(event: dict):
+    """Return the widget value from either a full SDK message or a flat event."""
+    payload = event.get("payload")
+    if isinstance(payload, dict) and "value" in payload:
+        return payload.get("value")
+    return event.get("value")
+
+
+def send_reply(msg: dm.Message, tag: str, payload: dict) -> int | None:
+    try:
+        seq = msg.send(tag, payload, from_="dm-sdk-demo")
+    except Exception as exc:
+        eprint(f"[dm-sdk-demo] failed to send {tag!r} reply: {exc!r}")
+        return None
+    eprint(f"[dm-sdk-demo] sent {tag!r} reply, seq={seq}")
+    return seq
+
+
 def on_new_message(msg: dm.Message, event: dict):
     """Called when a new input event arrives from widget subscribe."""
     global COUNTER, CHAT_HISTORY
-    value = event.get("value", "")
-    if not value:
+    value = input_value(event)
+    if value is None or value == "":
         return
+    value = str(value)
     COUNTER += 1
     CHAT_HISTORY.append(value)
     if len(CHAT_HISTORY) > 10:
@@ -69,10 +88,11 @@ def on_new_message(msg: dm.Message, event: dict):
     eprint(f"[dm-sdk-demo] #{COUNTER} '{value}' -> '{reversed_str}'")
 
     # ── Send 1: Simple text (legacy style) ──
-    msg.send("text", {"content": f"**Reversed:** {reversed_str}"}, from_="dm-sdk-demo")
+    send_reply(msg, "text", {"content": f"**Reversed:** {reversed_str}"})
 
     # ── Send 2: Rich embed card ──
-    msg.send(
+    send_reply(
+        msg,
         "text",
         {
             "content": f"Embed: {value}",
@@ -92,11 +112,11 @@ def on_new_message(msg: dm.Message, event: dict):
                 "side": "left",
             },
         },
-        from_="dm-sdk-demo",
     )
 
     # ── Send 3: Chat-style (right side, user-like) ──
-    msg.send(
+    send_reply(
+        msg,
         "text",
         {
             "content": value,
@@ -108,12 +128,12 @@ def on_new_message(msg: dm.Message, event: dict):
                 "timestamp": "absolute",
             },
         },
-        from_="dm-sdk-demo",
     )
 
     # ── Send 4: Stats embed every 3 messages ──
     if COUNTER % 3 == 0:
-        msg.send(
+        send_reply(
+            msg,
             "text",
             {
                 "content": f"Stats after #{COUNTER}",
@@ -130,7 +150,6 @@ def on_new_message(msg: dm.Message, event: dict):
                     ],
                 },
             },
-            from_="dm-sdk-demo",
         )
 
 
@@ -153,13 +172,34 @@ def main():
 
     # Send a startup message
     msg.send("text", {"content": "✅ SDK Demo node started — type something to reverse"}, from_="dm-sdk-demo")
+    eprint("[dm-sdk-demo] startup text sent")
 
-    # Keep the main thread alive (dora node convention) + subscribe
+    # Diagnostic: force-send a test message
+    test_seq = msg.send("text", {"content": "🔴 TEST MESSAGE — visible?"}, from_="dm-sdk-demo")
+    eprint(f"[dm-sdk-demo] test message sent, seq={test_seq}")
+
+    # Diagnostic: show existing messages
+    existing = msg.get(tag="input", widget_key=WIDGET_KEY, limit=5)
+    if existing:
+        eprint(f"[dm-sdk-demo] found {len(existing)} existing input(s)")
+        for e in existing:
+            on_new_message(msg, {
+                "value": e.get("payload", {}).get("value"),
+                "output_id": e.get("payload", {}).get("output_id"),
+                "seq": e.get("seq"),
+                "timestamp": e.get("timestamp"),
+            })
+
+    # Keep the main thread alive (dora node convention) + subscribe via WebSocket
     node = Node()
-    for event in msg.widgets.subscribe(WIDGET_KEY):
-        if not RUNNING:
-            break
-        on_new_message(msg, event)
+    eprint("[dm-sdk-demo] subscribing for input...")
+    with msg.subscribe(tag="input", widget_key=WIDGET_KEY) as stream:
+        eprint("[dm-sdk-demo] subscribed, waiting for events...")
+        for event in stream:
+            eprint(f"[dm-sdk-demo] GOT EVENT: {event}")
+            if not RUNNING:
+                break
+            on_new_message(msg, event)
 
     RUNNING = False
     eprint("[dm-sdk-demo] shutting down")
