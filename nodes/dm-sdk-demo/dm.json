@@ -2,7 +2,7 @@
   "id": "dm-sdk-demo",
   "name": "dm-sdk-demo",
   "version": "0.1.0",
-  "installed_at": "1778310825",
+  "installed_at": "1778310997",
   "source": {
     "build": "pip install -e .",
     "github": null
