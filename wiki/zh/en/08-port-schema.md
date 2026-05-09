@@ -327,8 +327,7 @@ Pass 2:   Resolve Paths -- node: -> absolute path:
 Pass 1.6: Validate Port Schemas -- port schema compatibility check <- here
 Pass 3:   Merge Config -- four-layer config merge -> env:
 Pass 4:   Inject Runtime Env -- inject runtime environment variables
-Pass 5:   Inject DM Bridge -- Bridge node injection
-Pass 6:   Emit -- DmGraph -> dora YAML
+Pass 5:   Emit -- DmGraph -> dora YAML
 ```
 
 Note that `validate_port_schemas` executes **after** `resolve_paths` -- this is because schema parsing needs to know the node's disk path (for the `base_dir` of `$ref` references), and path information is only determined during the `resolve_paths` phase.

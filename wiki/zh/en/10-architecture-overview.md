@@ -28,13 +28,10 @@ graph TD
     CORE -->|"spawn process"| DORA
     CORE -->|"read/write persistence"| FS
     CORE -->|"Release download"| GH
-    SRV -->|"Unix Socket IPC"| CLI
     SRV -.->|"rust-embed embeds"| WEB["Web Frontend SvelteKit"]
 ```
 
-The core design constraint is very clear: **there is no direct dependency between dm-cli and dm-server**. Both are merely consumers of dm-core, providing differentiated access experiences for terminal users and web browsers respectively. The only exception is the Bridge IPC mechanism (via Unix Socket), which allows the Bridge process in dm-cli to establish a real-time communication channel with dm-server at runtime.
-
-For nodes using the SDK (declaring `"needs": ["dm-server"]`), the Python SDK (`dm.Message`) establishes a direct WebSocket connection to dm-server without routing through a Bridge node. SDK nodes can subscribe to messages, invoke functions, and send results, with all communication happening on the DM Plane.
+The core design constraint is very clear: **there is no direct dependency between dm-cli and dm-server**. Both are merely consumers of dm-core, providing differentiated access experiences for terminal users and web browsers respectively.
 
 Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.toml), [crates/dm-cli/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/Cargo.toml#L15), [crates/dm-server/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/Cargo.toml#L15)
 
@@ -159,7 +156,6 @@ dm (clap Parser)
 │   ├── delete
 │   ├── logs [--follow]
 │   └── clean
-├── bridge         ← (hidden) Bridge IPC service
 └── --             ← Pass-through to native dora CLI
 ```
 
@@ -179,17 +175,6 @@ Commands::Doctor => {
 The entire handler has only 3 lines of effective code. The `display.rs` module is responsible for rendering the structured data returned by dm-core into colored terminal output, without containing any conditional branching logic or state judgment.
 
 Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L186-L265), [crates/dm-cli/src/display.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/display.rs#L1-L65)
-
-### Bridge Process: dm-cli's Special Role
-
-dm-cli contains a special `bridge` command (hidden, not exposed to users). The Bridge process runs as a node within a dora dataflow, responsible for building an IPC bridge between the dora event system and dm-server. It maintains a persistent connection with dm-server via Unix Socket (`~/.dm/bridge.sock`), enabling bidirectional message forwarding:
-
-- **Uplink direction**: Forwards output events from dora nodes (such as text messages from `dm-message` or stream metadata from `dm-mjpeg`) to dm-server
-- **Downlink direction**: Injects user input from the web frontend (such as button clicks, slider changes) back into the dora dataflow
-
-This makes dm-cli not only a terminal tool for direct user interaction, but also a critical **communication intermediary** role during the run instance lifecycle.
-
-Sources: [crates/dm-cli/src/bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L57-L193)
 
 ## dm-server: HTTP Access Layer
 
@@ -260,15 +245,6 @@ dm-server has two **server-exclusive modules** that do not exist in dm-core. The
 
 Sources: [crates/dm-server/src/services/media.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/media.rs#L70-L106), [crates/dm-server/src/services/message.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L104-L161)
 
-### Bridge Socket: IPC Channel Between dm-server and dm-cli
-
-dm-server creates a Unix Domain Socket (`~/.dm/bridge.sock`) at startup for receiving real-time connections from the dm-cli Bridge process. `bridge_socket_loop` performs a two-phase handshake for each connection in the main loop:
-
-1. **Initialization phase**: Reads the `{"action":"init","run_id":"..."}` message and binds the connection to a specific run instance
-2. **Bidirectional forwarding phase**: Uses `tokio::select!` to simultaneously listen for upstream messages (reading from Bridge and writing to the interaction database) and downstream notifications (reading from the broadcast channel and writing back to Bridge)
-
-Sources: [crates/dm-server/src/handlers/bridge_socket.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/bridge_socket.rs#L28-L123)
-
 ### Background Tasks
 
 In addition to the main HTTP service, dm-server starts an **idle monitoring coroutine** that checks every 30 seconds whether there are active run instances. When all runs have ended, it automatically executes `dm_core::auto_down_if_idle` to release dora runtime resources. This is a resource optimization strategy -- in the web panel scenario, users may forget to manually run `dm down`, and idle auto-shutdown avoids unnecessary resource consumption.
@@ -323,7 +299,6 @@ sequenceDiagram
     participant CLI as dm-cli
     participant Core as dm-core
     participant Dora as dora-rs Runtime
-    participant Bridge as dm-cli Bridge
     participant Server as dm-server
 
     User->>CLI: dm start demo.yml
@@ -334,21 +309,14 @@ sequenceDiagram
     Core->>Core: transpile_graph(yaml)
     Core->>Core: start_run_from_file()
     Core->>Dora: dora start transpiled.yml
-    Note over Core: Simultaneously start Bridge process
-    CLI->>Bridge: bridge_serve(home, run_id)
-    Bridge->>Server: Unix Socket connect
-    Bridge->>Server: {"action":"init","run_id":"..."}
-    Bridge->>Dora: DoraNode::init_from_env()
+    Note over Core: SDK nodes communicate directly with dm-server
     loop During run
-        Dora->>Bridge: Event::Input (node output)
-        Bridge->>Server: push message
+        Core->>Server: SDK nodes send/poll messages
         Server-->>Server: broadcast → WebSocket → Frontend
-        Server->>Bridge: input notification
-        Bridge->>Dora: node.send_output()
     end
 ```
 
-Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L364-L385), [crates/dm-cli/src/bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L57-L193), [crates/dm-server/src/handlers/bridge_socket.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/bridge_socket.rs#L28-L123)
+Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L364-L385)
 
 ## Further Reading
 

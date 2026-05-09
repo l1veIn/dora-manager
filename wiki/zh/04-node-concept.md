@@ -264,7 +264,7 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-mjp
 | `configurable` | 节点接受配置参数（拥有 `config_schema`） |
 | `media` | 节点处理媒体数据（音视频流） |
 
-结构化能力（如 `widget_input`、`display`）用于声明节点与交互系统的绑定关系。转译器会识别这些能力，并在数据流中自动注入一个隐藏的 **Bridge 节点**，将 Web 前端的控件事件路由到节点的输入端口。这部分机制的详细说明请参阅 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)。
+结构化能力（如 `widget_input`、`display`）用于声明节点与交互系统的绑定关系。节点在初始化时通过 dm SDK 注册控件到 dm-server，不再需要隐藏 bridge 节点。这部分机制的详细说明请参阅 [交互系统架构：SDK 双端口模型与消息服务](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu)。
 
 Sources: [model.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/node/model.rs#L71-L116), [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-button/dm.json#L25-L57)
 

@@ -1,4 +1,4 @@
-Dora Manager 的响应式控件系统是一套从数据流节点到 Web UI 的双向通信架构——节点声明控件形态（按钮、滑块、开关等），前端根据快照数据动态渲染，用户操作通过 WebSocket + HTTP 管线注入回数据流。本文将逐层拆解控件注册表（Panel Registry）、快照驱动的动态渲染、以及 Bridge 中继的参数注入全链路。
+Dora Manager 的响应式控件系统是一套从数据流节点到 Web UI 的双向通信架构——节点声明控件形态（按钮、滑块、开关等），前端根据快照数据动态渲染，用户操作通过 HTTP API 注入回数据流。本文将逐层拆解控件注册表（Panel Registry）、快照驱动的动态渲染、以及 SDK 轮询参数注入全链路。
 
 Sources: [types.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/types.ts#L1-L147), [registry.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/registry.ts#L1-L80), [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/input/InputPanel.svelte#L1-L249)
 
@@ -6,15 +6,11 @@ Sources: [types.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib
 
 在深入各层细节之前，需要理解控件系统的四层架构以及数据在各层间的流转方式。整个系统遵循一个清晰的设计原则：**前端对节点零感知**——它不直接连接 dora 节点，而是通过 dm-server 的消息服务作为中间层。
 
-```mermaid
+```
 graph LR
     subgraph "Dora 数据流层"
         WN[Widget Nodes<br/>dm-button / dm-slider / dm-text-input]
-        DN[Display Nodes<br/>dm-message]
-    end
-
-    subgraph "Bridge 进程 (dm-cli)"
-        BR[Bridge Serve<br/>Unix Socket ↔ DoraNode API]
+        DN[Display Nodes<br/>dm-display]
     end
 
     subgraph "dm-server (Rust)"
@@ -28,11 +24,8 @@ graph LR
         MP[MessagePanel<br/>消息历史展示]
     end
 
-    WN -- "接收 Bridge 转发的输入" --> BR
-    BR -- "tag=widgets<br/>注册快照" --> MS
-    BR -- "tag=input<br/>转发用户输入" --> MS
-    DN -- "display 输出" --> BR
-    BR -- "tag=text/chart/..." --> MS
+    WN -- "SDK msg.send/get<br/>HTTP API 调用" --> MS
+    DN -- "SDK msg.send<br/>HTTP POST 展示" --> MS
     MS -- "broadcast" --> WS
     HTTP -- "REST" --> MS
     WS -- "实时通知" --> IP
@@ -40,9 +33,9 @@ graph LR
     IP -- "POST /messages" --> HTTP
 ```
 
-**数据流关键节点**：Widget Node（如 `dm-slider`）本身不直接与前端通信。它在 dora 数据流中作为普通节点运行，通过 Bridge 进程（`dm-cli bridge` 命令）作为中介：Bridge 一端连接 dora 的 `DoraNode` API，另一端通过 Unix Socket 连接 dm-server。dm-server 将所有消息持久化到 SQLite 并通过 WebSocket 广播变更通知。
+**数据流关键节点**：Widget Node（如 `dm-slider`）通过 Python SDK (`dm.Message()`) 直接与 dm-server 通信。SDK 封装了所有 HTTP API 调用——`msg.send()` 发送展示/注册消息，`msg.get()` 轮询用户输入。dm-server 将所有消息持久化到 SQLite 并通过 WebSocket 广播变更通知。
 
-Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L57-L193), [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L104-L161), [messages handler](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L223-L270)
+Sources: [\_message.py](https://github.com/l1veIn/dora-manager/blob/main/sdk/python/dm/_message.py#L1-L167), [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L104-L161), [messages handler](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L223-L270)
 
 ## 控件注册表（Panel Registry）
 
@@ -53,7 +46,7 @@ Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 系统当前支持 6 种面板类型：
 
 | Panel Kind | 组件 | 数据源模式 | 支持的 Tag | 用途 |
-|---|---|---|---|---|
+|------------|------|-----------|-----------|------|
 | `message` | MessagePanel | `history` | `*`（全部） | 消息历史流式展示 |
 | `input` | InputPanel | `snapshot` | `widgets` | 交互控件渲染 |
 | `chart` | ChartPanel | `snapshot` | `chart` | 图表数据可视化 |
@@ -103,7 +96,7 @@ Workspace 是所有面板的容器组件，使用 **GridStack** 库实现拖拽�
 
 ### 渲染管线架构
 
-```mermaid
+```
 sequenceDiagram
     participant RP as Run Page (+page.svelte)
     participant WS as Workspace.svelte
@@ -138,47 +131,31 @@ Workspace 布局通过 `localStorage` 按 `dm-workspace-layout-{run.name}` 键�
 
 Sources: [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/routes/runs/[id]/+page.svelte#L76-L84), [types.ts](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/types.ts#L108-L146)
 
-## Bridge 中继与控件注册协议
+## Widget 注册协议：节点启动时 SDK 注册
 
-控件之所以能被前端「自动发现」，核心在于 **Bridge 进程在启动时向 dm-server 推送 `tag=widgets` 快照**。这是整个控件系统的注册协议。
+控件之所以能被前端「自动发现」，核心在于 **SDK 节点在启动时通过 `msg.send("widgets", ...)` 向 dm-server 推送控件快照**。这是整个控件系统的注册协议。
 
-### Transpiler 注入 Bridge 节点
+### SDK 注册控件
 
-当用户执行 `dm start` 启动一个包含交互节点（如 `dm-slider`）的数据流时，Transpiler 的 Pass 4.5（`inject_dm_bridge`）会扫描所有 Managed 节点的 `capabilities`，发现声明了 `widget_input` 或 `display` 能力的节点后，自动注入一个隐藏的 `__dm_bridge` 节点到数据流中。这个 Bridge 节点的关键环境变量包括：
+交互节点（如 `dm-slider`）在初始化时立即调用 SDK 的 `msg.send("widgets", ...)` 发送控件描述：
 
-| 环境变量 | 值 | 作用 |
-|---|---|---|
-| `DM_CAPABILITIES_JSON` | JSON 数组 | 所有需要桥接的节点规格 |
-| `DM_BRIDGE_INPUT_PORT` | `dm_bridge_input_internal` | Bridge 输出端口到节点的映射 |
-| `DM_BRIDGE_OUTPUT_ENV_KEY` | `dm_display_from_{id}` | 节点输出到 Bridge 的映射 |
-
-Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L456-L570), [bridge.rs (core)](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/bridge.rs#L10-L84)
-
-### Bridge 注册控件
-
-Bridge 进程启动后，会为每个声明了 `widget_input` 能力的节点构造一个控件描述 JSON，并通过 `push` 动作发送给 dm-server：
-
-```json
-{
-  "action": "push",
-  "from": "temperature",
-  "tag": "widgets",
-  "payload": {
+```python
+msg = dm.Message()
+msg.send("widgets", {
     "label": "Temperature (°C)",
     "widgets": {
-      "value": {
-        "type": "slider",
-        "label": "Temperature (°C)",
-        "min": -20, "max": 50, "step": 1, "default": 20
-      }
+        "value": {
+            "type": "slider",
+            "label": "Temperature (°C)",
+            "min": -20, "max": 50, "step": 1, "default": 20
+        }
     }
-  }
-}
+})
 ```
 
-`widget_payload` 函数根据 `node_id` 分派不同的控件描述构造逻辑。目前已内置支持以下节点的自动描述：`dm-text-input`（input/textarea）、`dm-button`（button）、`dm-slider`（slider）、`dm-input-switch`（switch）。未内置的节点类型将生成空的 `widgets: {}`。
+控件描述 JSON 通过 SDK 的 HTTP POST 发送到 dm-server，存储为 `tag="widgets"` 的快照。前端通过 `GET /api/runs/{id}/messages/snapshots` 获取所有快照并过滤出 `tag === "widgets"` 的条目用于渲染。
 
-Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L244-L289)
+Sources: [dm_sdk_demo/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-sdk-demo/dm_sdk_demo/main.py#L1-L95), [\_message.py](https://github.com/l1veIn/dora-manager/blob/main/sdk/python/dm/_message.py#L1-L167)
 
 ### dm-server 快照机制
 
@@ -191,7 +168,7 @@ ON CONFLICT(node_id, tag) DO UPDATE SET
     payload = excluded.payload, seq = excluded.seq, updated_at = excluded.updated_at
 ```
 
-这意味着无论 Bridge 重启多少次、发送多少次注册消息，前端获取的始终是该节点最新的控件描述。`GET /api/runs/{id}/messages/snapshots` 返回所有快照，前端通过 `tag === "widgets"` 过滤出控件描述。
+这意味着无论节点重启多少次、发送多少次注册消息，前端获取的始终是该节点最新的控件描述。`GET /api/runs/{id}/messages/snapshots` 返回所有快照，前端通过 `tag === "widgets"` 过滤出控件描述。
 
 Sources: [message.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L138-L161), [message.rs snapshots](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L226-L243)
 
@@ -202,7 +179,7 @@ InputPanel 是控件系统的前端核心——它读取 `tag=widgets` 的快照
 ### 控件类型映射表
 
 | `widget.type` | 组件 | 交互方式 | 输出类型 |
-|---|---|---|---|
+|--------------|------|---------|---------|
 | `input` | ControlInput | 输入框 + Send 按钮 | `string` |
 | `textarea` | ControlTextarea | 多行文本框 + Cmd/Ctrl+Enter 发送 | `string` |
 | `button` | ControlButton | 单次点击触发 | `string`（常量 `"clicked"`） |
@@ -238,19 +215,18 @@ Sources: [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/we
 
 Sources: [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/input/InputPanel.svelte#L76-L104)
 
-## WebSocket 参数注入全链路
+## HTTP API 参数注入全链路
 
 当用户在 InputPanel 中操作控件并点击发送时，数据经过一条完整的前后端链路最终到达 dora 数据流节点。理解这条链路是排查控件「发不出去」或「节点收不到」问题的关键。
 
 ### 发送链路详解
 
-```mermaid
+```
 sequenceDiagram
     participant User as 用户操作
     participant IP as InputPanel
     participant RP as Run Page
     participant API as dm-server REST
-    participant BR as Bridge (dm-cli)
     participant Node as dora Widget Node
 
     User->>IP: 点击 Send / 滑动 Slider
@@ -261,9 +237,10 @@ sequenceDiagram
     API-->>RP: {seq: 42}
     RP->>RP: fetchNewInputValues() 增量刷新
     API->>API: broadcast MessageNotification → WebSocket clients
-    API->>BR: Unix Socket: {"action":"input","to":"temperature","value":25}
-    BR->>Node: node.send_output("dm_bridge_to_temperature", {value: 25})
-    Node->>Node: decode_bridge_payload → send_output("value", float64_array)
+    Note over Node,API: SDK 轮询
+    Node->>API: GET /messages?tag=input&after_seq=N
+    API-->>Node: [{seq:42, payload:{to:"temperature",value:25}}]
+    Node->>Node: filter payload.to == yaml_id → send_output("value", float64)
 ```
 
 关键步骤分解：
@@ -272,13 +249,11 @@ sequenceDiagram
 
 **步骤 2：服务端持久化** — `push_message` handler 调用 `MessageService::push()`，将消息写入 `messages` 历史表并更新 `message_snapshots` 快照表，然后通过 `broadcast::Sender` 发送 `MessageNotification`。
 
-**步骤 3：Bridge 接收** — `bridge_socket_loop` 在 dm-server 中监听 Unix Socket 连接。当有新的 `tag=input` 消息时，它查找完整的消息体并转发给 Bridge 进程：`{"action":"input","to":"temperature","value":25}`。
+**步骤 3：SDK 轮询获取** — Widget Node 的后台线程通过 `msg.get(tag="input", after_seq=last_seq)` 轮询 dm-server。当用户输入可用时，SDK 返回按序列号排序的新消息列表。
 
-**步骤 4：Bridge 转发到 dora** — Bridge 进程收到 `InputNotification`，查找 `widget_specs` 路由表找到对应的输出端口，构造 `{"value": 25}` JSON 并通过 `DoraNode::send_output` 发送到 `dm_bridge_to_temperature` 端口。
+**步骤 4：SDK 节点处理** — 节点收到消息后，检查 `payload.to` 是否匹配自身的 `yaml_id`。如果匹配，提取 `value` 字段并转换为适当的 Arrow 类型，最终通过 `node.send_output("value", ...)` 发送到数据流的下一个节点。
 
-**步骤 5：Widget Node 处理** — 以 `dm-slider` 为例，节点监听 `dm_bridge_input_internal` 端口，通过 `decode_bridge_payload` 解码 JSON，提取 `value` 字段并转换为 `float64` Arrow 数组，最终通过 `node.send_output("value", ...)` 发送到数据流的下一个节点。
-
-Sources: [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/input/InputPanel.svelte#L87-L104), [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/routes/runs/[id]/+page.svelte#L371-L383), [messages.rs handler](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L69-L97), [bridge_socket.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/bridge_socket.rs#L96-L113), [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L168-L187), [dm_slider main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L59-L76)
+Sources: [InputPanel.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/lib/components/workspace/panels/input/InputPanel.svelte#L87-L104), [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src/routes/runs/[id]/+page.svelte#L371-L383), [messages.rs handler](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L69-L97), [\_message.py](https://github.com/l1veIn/dora-manager/blob/main/sdk/python/dm/_message.py#L1-L167), [dm_slider main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L59-L76)
 
 ### 实时刷新机制
 
@@ -338,7 +313,7 @@ nodes:
       default_value: "true"
 ```
 
-每个控件的 `config` 中的环境变量（如 `label`、`min_val`）会在 Transpiler 的配置合并 Pass 中被注入为环境变量，Bridge 读取这些变量构造控件描述。
+每个控件的 `config` 中的配置项（如 `label`、`min_val`）会在 Transpiler 的配置合并 Pass 中被注入为环境变量，节点代码读取这些变量构造控件描述并通过 SDK 注册。
 
 Sources: [demo-interactive-widgets.yml](demos/demo-interactive-widgets.yml#L26-L63)
 
@@ -372,30 +347,47 @@ Sources: [demo-interactive-widgets.yml](demos/demo-interactive-widgets.yml#L26-L
 }
 ```
 
-`channel: "register"` + `media: ["widgets"]` 的 binding 触发 Bridge 在启动时发送控件注册快照；`channel: "input"` + `port: "value"` 的 binding 定义了用户输入通过哪个端口注入到节点。端口号必须与节点代码中 `node.send_output` 的端口名一致。
+`channel: "register"` + `media: ["widgets"]` 的 binding 指示 SDK 节点在启动时发送控件注册快照；`channel: "input"` + `port: "value"` 的 binding 定义了用户输入通过哪个端口注入到节点。端口号必须与节点代码中 `node.send_output` 的端口名一致。
 
-Sources: [dm-slider/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm.json#L25-L56), [bridge.rs (core)](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/bridge.rs#L46-L84)
+Sources: [dm-slider/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm.json#L25-L56)
 
-### Bridge 节点 Python 模板
+### SDK 节点 Python 模板
 
-所有 Widget Node 遵循统一的处理模式——监听 Bridge 输入端口、解码 JSON payload、提取 value、转发到数据流输出端口：
+所有 Widget Node 遵循统一的处理模式——使用 SDK 注册控件、启动后台线程轮询输入、处理 dora 事件：
 
 ```python
 def main():
-    bridge_input_port = os.getenv("DM_BRIDGE_INPUT_PORT", "dm_bridge_input_internal")
+    msg = dm.Message()
     node = Node()
+    yaml_id = os.environ.get("DM_NODE_ID", "unknown")
+
+    # 启动时注册控件
+    msg.send("widgets", {
+        "label": os.environ.get("LABEL", "Widget"),
+        "widgets": {
+            "value": {"type": "slider", "min": 0, "max": 100}
+        }
+    })
+
+    # 启动后台线程轮询用户输入
+    last_seq = 0
+    def poll():
+        nonlocal last_seq
+        while node.is_running():
+            messages = msg.get(tag="input", after_seq=last_seq)
+            for item in messages:
+                last_seq = item["seq"]
+                if item["payload"].get("to") == yaml_id:
+                    node.send_output("value", pa.array([float(item["payload"]["value"])]))
+            time.sleep(0.1)
+    threading.Thread(target=poll, daemon=True).start()
+
+    # 主循环——处理 dora INPUT 事件
     for event in node:
-        if event["type"] != "INPUT" or event["id"] != bridge_input_port:
-            continue
-        payload = decode_bridge_payload(event["value"])
-        if payload is None:
-            continue
-        node.send_output("value", normalize_output(payload.get("value")))
+        ...
 ```
 
-`decode_bridge_payload` 处理 Arrow 数据的多种编码形式（单元素列表、UInt8Array 字节序列等），统一转换为 JSON dict。`normalize_output` 将 Python 类型转换为对应的 Arrow 数组类型。
-
-Sources: [dm_slider/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L59-L79), [dm-button/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-button/dm_button/main.py#L60-L77)
+Sources: [dm-slider/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L59-L79), [dm-button/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-button/dm_button/main.py#L60-L77)
 
 ## 面板添加与终端注入
 
@@ -423,13 +415,13 @@ Sources: [+page.svelte](https://github.com/l1veIn/dora-manager/blob/main/web/src
 ## 常见问题排查
 
 | 症状 | 可能原因 | 排查方向 |
-|---|---|---|
-| InputPanel 显示 "No input controls available" | Bridge 未注册控件 | 检查 `GET /snapshots` 是否返回 `tag=widgets` 的快照；检查 Bridge 进程日志 |
-| 控件操作后节点无反应 | Bridge 路由表缺失 | 检查 Bridge 日志是否有 `routed input ->` 输出；确认 `DM_CAPABILITIES_JSON` 包含该节点 |
+|------|---------|---------|
+| InputPanel 显示 "No input controls available" | SDK 节点未注册控件 | 检查 `GET /snapshots` 是否返回 `tag=widgets` 的快照；检查节点启动时是否调用了 `msg.send("widgets", ...)` |
+| 控件操作后节点无反应 | SDK 轮询未收到消息 | 检查 SDK 节点日志；确认 `msg.get()` 的 `after_seq` 参数正确；检查 WebSocket 通知 |
 | 控件值重置为默认值 | `inputValues` 未加载 | 检查 `GET /messages?tag=input` 是否返回历史输入消息 |
 | WebSocket 频繁断连 | 服务端重启或网络问题 | 检查浏览器 DevTools Network 面板的 WS 连接状态；确认重连逻辑正常 |
-| 控件类型显示 "Unsupported" | `widget.type` 不在映射表 | 检查 Bridge 的 `widget_payload` 函数是否为该节点类型生成了正确的控件描述 |
+| 控件类型显示 "Unsupported" | `widget.type` 不在映射表 | 检查 `msg.send("widgets", ...)` 的 payload 中 `widget.type` 是否正确 |
 
 ---
 
-**下一步阅读**：理解了控件系统后，可以继续探索 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) 以深入 Bridge 的双向通信机制，或查看 [运行工作台：网格布局、面板系统与实时日志查看](19-yun-xing-gong-zuo-tai-wang-ge-bu-ju-mian-ban-xi-tong-yu-shi-shi-ri-zhi-cha-kan) 了解面板系统的整体布局设计。
+**下一步阅读**：理解了控件系统后，可以继续探索 [交互系统架构：SDK 双端口模型与消息服务](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu) 以深入 SDK 的双向通信机制，或查看 [运行工作台：网格布局、面板系统与实时日志查看](19-yun-xing-gong-zuo-tai-wang-ge-bu-ju-mian-ban-xi-tong-yu-shi-shi-ri-zhi-cha-kan) 了解面板系统的整体布局设计。

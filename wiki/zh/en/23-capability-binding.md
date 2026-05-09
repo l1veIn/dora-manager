@@ -1,4 +1,4 @@
-Capability Binding is the core mechanism in Dora Manager that explicitly associates **node declaration metadata** with **runtime behavioral roles**. It answers a fundamental architectural question: when interactive nodes (control inputs, content displays) exist in the dataflow, how can the system grant these nodes DM platform-specific runtime capabilities without polluting the dora data plane topology? This article provides an in-depth analysis of the capability declaration model (the `capabilities` field in `dm.json`), the type system (the union design of Tag and Detail), the runtime projection path (the transpiler's hidden bridge injection), and the complete lifecycle -- from node authors declaring in JSON, to the transpiler automatically weaving implicit bridge nodes, to the bridge process communicating with dm-server via Unix Socket.
+Capability Binding is the core mechanism in Dora Manager that explicitly associates **node declaration metadata** with **runtime behavioral roles**. It answers a fundamental architectural question: when interactive nodes (control inputs, content displays) exist in the dataflow, how can the system grant these nodes DM platform-specific runtime capabilities without polluting the dora data plane topology? This article provides an in-depth analysis of the capability declaration model (the `capabilities` field in `dm.json`), the type system (the union design of Tag and Detail), the runtime role binding, and the complete lifecycle -- from node authors declaring in JSON, to the transpiler resolving capability bindings, to SDK nodes communicating with dm-server via HTTP API.
 
 Sources: [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/dm-capability-binding-v0.md#L1-L231), [panel-ontology-memo.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/panel-ontology-memo.md#L1-L327)
 
@@ -135,97 +135,90 @@ Unlike the structured `widget_input` and `display`, Tag-type capabilities exist 
 | `"configurable"` | The node has a `config_schema` and supports four-layer config merging | Most built-in nodes |
 | `"media"` | The node involves media processing (audio/video/image streams) | `dm-microphone`, `dm-mjpeg`, `dm-stream-publish` |
 
-Tags are not projected by the transpiler into bridge channels -- they are primarily used by dataflow inspection logic (e.g., the `inspect` module uses the `media` tag to determine whether the dataflow requires a media backend) and for frontend classification display.
+Tags are primarily used by dataflow inspection logic (e.g., the `inspect` module uses the `media` tag to determine whether the dataflow requires a media backend) and for frontend classification display.
 
 Sources: [inspect.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/inspect.rs#L147-L160), [dm-microphone/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-microphone/dm.json#L7-L9)
 
-## Runtime Projection: the Transpiler's Hidden Bridge Injection
+## Runtime Projection: SDK Node Capability Self-Description
 
-This is the most ingenious part of Capability Binding -- the transformation from static declarations to runtime behavior occurs in **Pass 4.5** of the transpiler pipeline.
+This is where Capability Binding transforms from static declaration to runtime behavior. Unlike the old Bridge injection pattern (which has been removed), the current architecture has **no implicit hidden bridge nodes**. Instead, node capability declarations are self-described at runtime directly through the **dm Python SDK**.
 
-### Position in the Transpiler Pipeline
+### SDK Node Startup Flow
 
-The transpiler pipeline executes in the following order:
+Interactive nodes (such as `dm-slider`, `dm-display`) perform capability self-description through the SDK at startup:
 
-```mermaid
-flowchart TD
-    P1["Pass 1: Parse<br/>YAML → DmGraph IR"] --> P1_5["Pass 1.5: Validate Reserved"]
-    P1_5 --> P2["Pass 2: Resolve Paths<br/>node: → path:"]
-    P2 --> P1_6["Pass 1.6: Validate Port Schemas"]
-    P1_6 --> P3["Pass 3: Merge Config<br/>Four-layer merge → env:"]
-    P3 --> P4["Pass 4: Inject Runtime Env<br/>DM_RUN_ID / DM_NODE_ID"]
-    P4 --> P4_5["Pass 4.5: Inject DM Bridge<br/>⚡ Capability Binding Projection"]
-    P4_5 --> P5["Pass 5: Emit<br/>DmGraph → YAML"]
+1. **Read runtime environment variables**: The SDK's `dm.Message()` retrieves runtime context from `DM_RUN_ID` and `DM_NODE_ID` environment variables
+2. **Register widgets**: The node sends widget descriptions via `msg.send("widgets", payload)` to dm-server, and the frontend auto-discovers them through the snapshot API
+3. **Start input polling**: Input nodes start a background thread that polls for user input via `msg.get(tag="input", after_seq=...)`
+4. **Handle dora events**: The node processes dora data plane events normally in its main loop
 
-    style P4_5 fill:#f9f,stroke:#333,stroke-width:2px
+```python
+def main():
+    msg = dm.Message()
+    node = Node()
+    yaml_id = os.environ.get("DM_NODE_ID", "unknown")
+
+    # Register widgets at startup -- capability self-description
+    msg.send("widgets", {
+        "label": "Temperature (°C)",
+        "widgets": {
+            "value": {
+                "type": "slider",
+                "min": -20, "max": 50, "step": 1, "default": 20
+            }
+        }
+    })
+
+    # Start background thread to poll for user input
+    last_seq = 0
+    def poll():
+        nonlocal last_seq
+        while node.is_running():
+            messages = msg.get(tag="input", after_seq=last_seq)
+            for item in messages:
+                last_seq = item["seq"]
+                if item["payload"].get("to") == yaml_id:
+                    node.send_output("value", pa.array([float(item["payload"]["value"])]))
+            time.sleep(0.1)
+    threading.Thread(target=poll, daemon=True).start()
+
+    for event in node:
+        ...
 ```
 
-`inject_dm_bridge` executes after path resolution and config merging are complete, because at this point all managed nodes' `dm.json` metadata has been loaded and environment variables have been merged.
+### Architecture Comparison: Bridge Injection vs SDK Self-Description
 
-Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/mod.rs#L1-L84), [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L452-L570)
+| Dimension | Old Bridge Architecture (removed) | New SDK Architecture |
+|-----------|----------------------------------|---------------------|
+| **Communication** | Unix Socket bidirectional relay | HTTP API (REST + polling) |
+| **Implicit nodes** | `__dm_bridge` hidden node | No implicit nodes |
+| **Registration** | Transpiler injected implicit ports and env vars | SDK `msg.send("widgets", ...)` at startup |
+| **Input routing** | Bridge process deserialize -> Arrow conversion -> dora send_output | SDK background thread `msg.get()` polling -> `node.send_output` |
+| **Input injection port** | `DM_BRIDGE_INPUT_PORT` env var | No special port needed (routes via tag and payload.to) |
+| **Display routing** | Show port -> Bridge process -> Unix Socket -> dm-server | `msg.send()` -> HTTP POST -> dm-server |
+| **Widget registration** | Bridge auto-extracts node env vars at startup | Each node independently calls `msg.send("widgets", ...)` |
+| **Runtime environment** | `DM_BRIDGE_OUTPUT_PORT`, `DM_CAPABILITIES_JSON`, `bridge.sock` | Only `DM_RUN_ID`, `DM_NODE_ID` |
 
-### Complete Bridge Node Injection Process
+### Binding Declaration to SDK Behavior Mapping
 
-The work of `inject_dm_bridge` can be broken down into the following steps:
+The binding fields declared in `dm.json` directly map to SDK behavior patterns:
 
-**Step 1: Collect binding specs**. Iterate over all managed nodes, load their `dm.json`, and call `build_bridge_node_spec` to extract bindings from the `widget_input` and `display` families. Only nodes containing these two families produce specs; nodes with only Tag-type capabilities are skipped.
+- **`channel = "register"`** + `media = ["widgets"]`: The node calls `msg.send("widgets", payload)` at startup to register widget descriptions
+- **`channel = "input"`** + `port = "value"`: The node starts a background thread, polls via `msg.get(tag="input", ...)`, filters `payload.to == yaml_id`, performs type conversion, and outputs from the declared `port`
+- **`display` family + `channel = "message"`**: When the node receives a dora INPUT event, it pushes content to dm-server via `msg.send(tag, payload)`
 
-**Step 2: Inject implicit ports and edges for each interactive node**. For each node that produces a spec:
+Each SDK node independently performs these operations without relying on any intermediate proxy node.
 
-- If the node has `display` family bindings, inject a `dm_bridge_output_internal` output port and set the `DM_BRIDGE_OUTPUT_ENV_KEY` environment variable to that port name. This allows the node's runtime code to know which port to send display content to.
-- If the node has `widget_input` family bindings, inject a `dm_bridge_input_internal` input mapping (pointing to the hidden bridge's output) and set the `DM_BRIDGE_INPUT_ENV_KEY` environment variable to that port name. This allows the node's runtime code to know which port to receive widget input from.
-
-**Step 3: Create the hidden bridge node**. Serialize all collected specs into JSON and pass them to the bridge process via the `DM_CAPABILITIES_JSON` environment variable. The bridge node itself uses the `dm` CLI's `bridge` subcommand as its executable, with a `yaml_id` of `__dm_bridge`, invisible to the user.
-
-```mermaid
-flowchart LR
-    subgraph "User-visible YAML Topology"
-        S["dm-slider<br/>(widget_input)"]
-        D["dm-message<br/>(display)"]
-    end
-
-    subgraph "Transpiler-injected Implicit Layer"
-        B["__dm_bridge<br/>(hidden system node)"]
-    end
-
-    subgraph "DM Interaction Plane"
-        SVR["dm-server<br/>+ Unix Socket"]
-        WEB["Web Browser"]
-    end
-
-    S -- "dm_bridge_input_internal" --> B
-    B -- "dm_bridge_to_slider" --> S
-    D -- "dm_bridge_output_internal" --> B
-    B -- "Unix Socket" --> SVR
-    SVR -- "WebSocket" --> WEB
-
-    style B fill:#ff9,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
-```
-
-Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L456-L570), [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/bridge.rs#L46-L84)
-
-### Bridge Process Runtime Behavior
-
-When `dora` launches the transpiled YAML, `__dm_bridge` runs as a regular dora node. It deserializes all binding specs from the `DM_CAPABILITIES_JSON` environment variable and then performs the following key tasks:
-
-**Input-side routing**: When a dora event arrives at a display-related port, the bridge decodes the payload into JSON, attaches source node information, and pushes it to dm-server via Unix Socket. The server stores it in the run-scoped SQLite database and notifies the frontend via WebSocket.
-
-**Output-side routing**: When dm-server receives a frontend user input and passes it to the bridge via Unix Socket, the bridge matches the corresponding widget spec based on the `InputNotification.to` field, converts the JSON value to an Arrow type (`StringArray`, `Float64Array`, `BooleanArray`, etc.), and sends it to the corresponding node's input port via dora's `send_output`.
-
-**Widget registration**: Upon startup, the bridge automatically extracts the environment variables of `widget_input` nodes (`LABEL`, `DEFAULT_VALUE`, `PLACEHOLDER`, etc.) from the binding specs, constructs widget definition JSON, and pushes it to dm-server via Unix Socket to complete widget registration.
-
-Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L57-L193), [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L237-L355)
+Sources: [dm-slider/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L82-L118), [dm-display/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-display/dm_display/main.py#L115-L168), [_message.py](https://github.com/l1veIn/dora-manager/blob/main/sdk/python/dm/_message.py#L1-L136), [dm-sdk-demo/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-sdk-demo/dm_sdk_demo/main.py#L84-L138)
 
 ## End-to-End Example: Binding Projection in demo-interactive-widgets
 
-Using `demos/demo-interactive-widgets.yml` as an example, this dataflow contains four `widget_input` nodes (`dm-slider`, `dm-button`, `dm-text-input`, `dm-input-switch`) and four `display` nodes (`dm-message`). During transpilation:
+Using `demos/demo-interactive-widgets.yml` as an example, this dataflow contains four `widget_input` nodes (`dm-slider`, `dm-button`, `dm-text-input`, `dm-input-switch`) and four `display` nodes (`dm-message`). Node bindings take effect automatically at runtime through the SDK:
 
-1. **Pass 2** parses all nodes' `dm.json` and confirms executable paths
-2. **Pass 3** merges each node's config (e.g., `label: "Temperature (°C)"`) into environment variables
-3. **Pass 4.5** detects that 8 nodes carry `widget_input` or `display` capability families, injects implicit port mappings for each node, collects 8 `HiddenBridgeBindingSpec` entries, and creates the `__dm_bridge` node
-4. **Pass 5** produces the final YAML, with `__dm_bridge` appearing as the 13th node, but the user never wrote it in the original YAML
-
-After startup, the bridge automatically registers the four widget types (slider, button, input, switch), establishes display channels, and completes the full projection from "static JSON declaration" to "runtime bidirectional interaction".
+1. **Startup phase**: Each node reads `DM_NODE_ID` from the environment and registers widget descriptions via `msg.send("widgets", payload)`
+2. **Input polling**: Input nodes start background threads that poll for user input via `msg.get(tag="input", after_seq=...)`
+3. **Display push**: Display nodes push content to dm-server via `msg.send(tag, payload)` when receiving dora INPUT events
+4. **Frontend consumption**: The frontend retrieves all registered widget descriptions through the snapshot API and dynamically renders the user interaction interface
 
 Sources: [demo-interactive-widgets.yml](demos/demo-interactive-widgets.yml#L1-L129), [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L456-L570)
 
@@ -235,13 +228,13 @@ If you are developing a custom node and want it to participate in the DM interac
 
 **Declaration location**: Add structured objects to the `capabilities` array in `dm.json`. If your node needs widget input capability, add the `widget_input` family; if it needs display capability, add the `display` family. Also keep the `"configurable"` Tag to support config merging.
 
-**Port alignment**: The `port` field in a binding must match the port ID declared in the `dm.json` `ports` array. For example, the port referenced by the `channel = "input"` binding in the `widget_input` family must be a port of `direction: "output"` type -- because from the bridge's perspective, user input values need to be sent **to** that node's output port through the dora data plane.
+**Port alignment**: The `port` field in a binding must match the port ID declared in the `dm.json` `ports` array. For example, the port referenced by the `channel = "input"` binding in the `widget_input` family must be a port of `direction: "output"` type -- because user input values need to be sent **to** that node's output port through the dora data plane.
 
 Sources: [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/dm-capability-binding-v0.md#L136-L191), [dm-text-input/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-text-input/dm.json#L63-L77)
 
 ## Further Reading
 
-- [Interaction System Architecture: dm-input / dm-message / Bridge Node Injection Principles](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) -- understanding the specific implementation details of interactive nodes and HTTP/WebSocket communication patterns
+- [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu) -- understanding the specific implementation details of interactive nodes and HTTP/WebSocket communication patterns
 - [Dataflow Transpiler: Multi-Pass Pipeline and Four-Layer Config Merging](11-transpiler) -- the complete context of capability binding within the overall transpiler pipeline
-- [Reactive Widgets: Widget Registry, Dynamic Rendering, and WebSocket Parameter Injection](20-xiang-ying-shi-kong-jian-widgets-kong-jian-zhu-ce-biao-dong-tai-xuan-ran-yu-websocket-can-shu-zhu-ru) -- how the frontend consumes widget definitions registered by the bridge
+- [Reactive Widgets: Widget Registry, Dynamic Rendering, and WebSocket Parameter Injection](20-xiang-ying-shi-kong-jian-widgets-kong-jian-zhu-ce-biao-dong-tai-xuan-ran-yu-websocket-can-shu-zhu-ru) -- how the frontend consumes widget definitions registered by the SDK
 - [Custom Node Development Guide: Complete dm.json Field Reference](9-zi-ding-yi-jie-dian-kai-fa-zhi-nan-dm-json-wan-zheng-zi-duan-can-kao) -- the position and syntax of the `capabilities` field within the complete `dm.json`

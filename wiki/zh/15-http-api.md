@@ -4,7 +4,7 @@ Sources: [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-se
 
 ## 服务启动与全局架构
 
-dm-server 在启动时执行四项初始化：解析 `DM_HOME` 目录并加载配置、打开事件存储（SQLite）、初始化媒体运行时（MediaMTX 桥接）、构建 Axum 路由表并绑定监听端口（端口可通过 `--port` 参数或 `DM_SERVER_PORT` 环境变量配置，默认 3210）。此外它还启动两个后台任务——每 30 秒的空闲监控器（自动 `dora down`）和一个 Unix Domain Socket 监听器（`$DM_HOME/bridge.sock`），用于与数据流内的 Bridge 节点进行 IPC 通信。
+dm-server 在启动时执行初始化：解析 `DM_HOME` 目录并加载配置、打开事件存储（SQLite）、初始化媒体运行时（MediaMTX 桥接）、构建 Axum 路由表并绑定监听端口（端口可通过 `--port` 参数或 `DM_SERVER_PORT` 环境变量配置，默认 3210）。此外它还启动一个后台空闲监控器（每 30 秒自动 `dora down`）。
 
 Sources: [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L79-L269)
 
@@ -199,7 +199,7 @@ Sources: [events.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 
 ## WebSocket 实时通道
 
-dm-server 提供三个 WebSocket 端点和一个 Unix Domain Socket IPC 通道，覆盖运行时监控、交互消息和 Bridge 节点通信。
+dm-server 提供三个 WebSocket 端点，覆盖运行时监控和交互消息通信。
 
 ```mermaid
 graph TB
@@ -209,18 +209,13 @@ graph TB
         WS_Node["/api/runs/{id}/messages/ws/{node_id}<br/>节点定向通道"]
     end
     
-    subgraph "Unix Socket"
-        Bridge["$DM_HOME/bridge.sock<br/>Bridge IPC"]
-    end
-    
     subgraph "广播中枢"
         BC["broadcast::Sender<br/>&lt;MessageNotification&gt;"]
     end
     
     WS_Msg -.->|subscribe| BC
     WS_Node -.->|subscribe + replay| BC
-    Bridge -->|push| BC
-    BC -->|forward input| Bridge
+    BC -.->|forward input via REST| WS_Node
     
     WS_Run -->|fs watcher + polling| Logs["日志文件"]
     WS_Run -->|1s interval| Metrics["指标采集"]
@@ -252,28 +247,14 @@ Sources: [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/d
 
 ### 节点定向 WebSocket — `/api/runs/{id}/messages/ws/{node_id}?since=N`
 
-这是面向特定节点的**回放 + 实时**通道，主要用于 Bridge 节点接收来自前端的用户输入。连接建立时：
+这是面向特定节点的**回放 + 实时**通道，主要用于 SDK 节点接收来自前端的用户输入。连接建立时：
 
 1. **历史回放**：查询 `since` 序列号之后、`target_to == node_id` 的所有消息，逐条发送
 2. **实时订阅**：订阅广播通道，过滤 `run_id` 匹配且 `from == "web"` 且 `tag == "input"` 的新消息，转发给该节点
 
-这种"先回放再订阅"的设计确保 Bridge 节点在短暂断连后能恢复未接收的输入。
+这种"先回放再订阅"的设计确保节点在短暂断连后能恢复未接收的输入。
 
 Sources: [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L272-L360)
-
-### Bridge Unix Domain Socket — `$DM_HOME/bridge.sock`
-
-非 HTTP 的 IPC 通道，由 dm-server 在启动时创建。数据流中的 Bridge 节点（由转译器注入）通过此 socket 与服务端通信。协议为**行分隔 JSON**，包含两种消息：
-
-| 动作 | 方向 | 格式 |
-|------|------|------|
-| **`init`** | Bridge → Server | `{"action":"init","run_id":"..."}` |
-| **`push`** | Bridge → Server | `{"action":"push","from":"...","tag":"...","payload":{...},"timestamp":...}` |
-| **`input`** | Server → Bridge | `{"action":"input","to":"...","value":...}` |
-
-Bridge 连接后先发送 `init` 声明 `run_id`，随后双向通信：Bridge 推送来自节点的 `display`/`stream` 消息，服务端转发用户 `input` 消息给 Bridge。
-
-Sources: [bridge_socket.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/bridge_socket.rs#L1-L174)
 
 ## Swagger 文档与 OpenAPI 规范
 
@@ -348,4 +329,4 @@ dm-server 的 API 设计体现了以下架构决策：
 
 ---
 
-**下一步阅读**：了解服务端如何管理持久化配置，参阅 [配置体系：DM_HOME 目录结构与 config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml)；了解前端如何消费这些 API 构建 UI，参阅 [SvelteKit 项目结构：路由设计、API 通信层与状态管理](17-sveltekit-xiang-mu-jie-gou-lu-you-she-ji-api-tong-xin-ceng-yu-zhuang-tai-guan-li)；了解交互消息在 Bridge 节点中的完整流转，参阅 [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)。
+**下一步阅读**：了解服务端如何管理持久化配置，参阅 [配置体系：DM_HOME 目录结构与 config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml)；了解前端如何消费这些 API 构建 UI，参阅 [SvelteKit 项目结构：路由设计、API 通信层与状态管理](17-sveltekit-xiang-mu-jie-gou-lu-you-she-ji-api-tong-xin-ceng-yu-zhuang-tai-guan-li)；了解交互消息的完整流转，参阅 [交互系统架构：SDK 双端口模型与消息服务](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu)。

@@ -249,8 +249,7 @@ flowchart LR
     C --> D["4. Validate Port Schemas<br/><small>Verify port type compatibility</small>"]
     D --> E["5. Merge Config<br/><small>Four-layer config merge → env</small>"]
     E --> F["6. Inject Runtime Env<br/><small>DM_RUN_ID and other runtime vars</small>"]
-    F --> G["7. Inject Bridge<br/><small>Capability binding nodes</small>"]
-    G --> H["8. Emit<br/><small>DmGraph → standard YAML</small>"]
+    F --> G["7. Emit<br/><small>DmGraph → standard YAML</small>"]
 ```
 
 A brief description of each pass's responsibilities:
@@ -263,8 +262,7 @@ A brief description of each pass's responsibilities:
 | 4. Validate Port Schemas | `validate_port_schemas()` | Checks Arrow type compatibility between upstream output ports and downstream input ports along connections declared in `inputs` |
 | 5. Merge Config | `merge_config()` | Performs priority-based config merging (inline config > node config file > schema defaults), writes results into `env` |
 | 6. Inject Runtime Env | `inject_runtime_env()` | Injects runtime environment variables such as `DM_RUN_ID`, `DM_NODE_ID`, `DM_RUN_OUT_DIR` |
-| 7. Inject Bridge | `inject_dm_bridge()` | Injects hidden bridge nodes for nodes with capability bindings, implementing interaction system bridging |
-| 8. Emit | `emit()` | Serializes the `DmGraph` IR into standard dora-rs consumable YAML format |
+| 7. Emit | `emit()` | Serializes the `DmGraph` IR into standard dora-rs consumable YAML format |
 
 Diagnostic information during transpilation (such as uninstalled nodes, incompatible port types) does not interrupt the pipeline. Instead, it is collected as a `TranspileDiagnostic` list and output to stderr in a unified manner, allowing users to review and fix all issues at once.
 

@@ -43,7 +43,7 @@ The `dm-core` crate is the most densely tested module, with unit tests distribut
 |---------------|------|------------|--------------------------|
 | **Configuration system** | `tests/tests_config.rs` | 13 | `resolve_home` priority, `save/load` round-trip, automatic directory creation |
 | **Node management** | `tests/tests_node.rs` | 15 | Node CRUD, scaffolding generation, built-in node protection, file tree filtering |
-| **Dataflow transpilation** | `tests/tests_dataflow.rs` | 16 | Path resolution, Bridge injection, config_schema default injection, unknown node preservation |
+| **Dataflow transpilation** | `tests/tests_dataflow.rs` | 16 | Path resolution, config_schema default injection, unknown node preservation |
 | **Run lifecycle** | `runs/service_tests.rs` | 10 | Start failure, status refresh, stop success/failure/timeout, restart strategy |
 | **Schema validation** | `node/schema/tests.rs` | 29 | dm.json field parsing, port declarations, capabilities structure |
 | **Type serialization** | `tests/tests_types.rs` | 11 | JSON round-trip for `EnvItem`, `DoctorReport`, `InstallProgress`, etc. |

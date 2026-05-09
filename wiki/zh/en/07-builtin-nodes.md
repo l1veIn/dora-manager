@@ -344,9 +344,9 @@ Sources: [dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-che
 
 ## Interactive Component Nodes
 
-Interactive nodes are Dora Manager's "two-way bridge" — they make the Web UI a first-class participant in the dataflow. These nodes declare `widget_input` or `display` capabilities in the `capabilities` field of `dm.json`, marking them as participants in the interactive system.
+Interactive nodes make the Web UI a first-class participant in the dataflow. These nodes declare `widget_input` or `display` capabilities in the `capabilities` field of `dm.json`, marking them as participants in the interactive system.
 
-> For the complete architecture of the interactive system, see [Interactive System Architecture: dm-input / dm-message / Bridge Node Injection Principles](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li).
+> For the complete architecture of the interactive system, see [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu).
 
 ### dm-button: Button Widget
 
@@ -555,6 +555,6 @@ Sources: [dm.json example](https://github.com/l1veIn/dora-manager/blob/main/node
 ## Further Reading
 
 - [Port Schema and Port Type Validation](8-port-schema-yu-duan-kou-lei-xing-xiao-yan) — Understanding the design principles of the port type system and Arrow type declarations
-- [Interactive System Architecture: dm-input / dm-message / Bridge Node Injection Principles](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li) — Runtime communication architecture and WebSocket message flow of interactive nodes
+- [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu) — Runtime communication architecture and WebSocket message flow of interactive nodes
 - [Custom Node Development Guide: Complete dm.json Field Reference](9-zi-ding-yi-jie-dian-kai-fa-zhi-nan-dm-json-wan-zheng-zi-duan-can-kao) — How to develop and register your own nodes
 - [Testing Strategy: Unit Tests, Dataflow Integration Tests, and System Test CheckList](26-ce-shi-ce-lue-dan-yuan-ce-shi-shu-ju-liu-ji-cheng-ce-shi-yu-xi-tong-ce-shi-checklist) — Use cases of built-in test nodes

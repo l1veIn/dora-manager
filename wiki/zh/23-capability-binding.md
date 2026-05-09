@@ -1,4 +1,4 @@
-Capability Binding 是 Dora Manager 中将**节点声明元数据**与**运行时行为角色**显式关联的核心机制。它回答了一个根本性的架构问题：当数据流中存在交互类节点（控件输入、内容展示）时，系统如何在不污染 dora 数据平面拓扑的前提下，让这些节点获得 DM 平台特有的运行时能力？本文将深入剖析 capability 的声明模型（`dm.json` 中的 `capabilities` 字段）、类型系统（Tag 与 Detail 的联合体设计）、运行时降维路径（transpiler 的 hidden bridge 注入），以及完整的生命周期——从节点作者在 JSON 中声明，到转译器自动编织隐式 bridge 节点，再到 bridge 进程与 dm-server 的 Unix Socket 通信。
+Capability Binding 是 Dora Manager 中将**节点声明元数据**与**运行时行为角色**显式关联的核心机制。它回答了一个根本性的架构问题：当数据流中存在交互类节点（控件输入、内容展示）时，系统如何在不污染 dora 数据平面拓扑的前提下，让这些节点获得 DM 平台特有的运行时能力？本文将深入剖析 capability 的声明模型（`dm.json` 中的 `capabilities` 字段）、类型系统（Tag 与 Detail 的联合体设计）、运行时角色绑定，以及完整的生命周期——从节点作者在 JSON 中声明，到转译器自动解析能力绑定，再到 SDK 节点通过 HTTP API 与 dm-server 通信。
 
 Sources: [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/dm-capability-binding-v0.md#L1-L231), [panel-ontology-memo.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/panel-ontology-memo.md#L1-L327)
 
@@ -135,97 +135,90 @@ Sources: [dm-message/dm.json](https://github.com/l1veIn/dora-manager/blob/main/n
 | `"configurable"` | 节点拥有 `config_schema`，支持四层配置合并 | 绝大多数内置节点 |
 | `"media"` | 节点涉及媒体处理（音频/视频/图像流） | `dm-microphone`、`dm-mjpeg`、`dm-stream-publish` |
 
-Tag 不被转译器降维为 bridge 通道——它们主要用于数据流检查逻辑（如 `inspect` 模块通过 `media` 标签判断数据流是否需要媒体后端）和前端分类展示。
+Tag 主要用于数据流检查逻辑（如 `inspect` 模块通过 `media` 标签判断数据流是否需要媒体后端）和前端分类展示。
 
 Sources: [inspect.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/inspect.rs#L147-L160), [dm-microphone/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-microphone/dm.json#L7-L9)
 
-## 运行时降维：Transpiler 的 Hidden Bridge 注入
+## 运行时降维：SDK 节点的能力自描述
 
-这是 Capability Binding 最精巧的部分——从静态声明到运行时行为的转化发生在转译管线的 **Pass 4.5** 中。
+这是 Capability Binding 从静态声明到运行时行为的关键转化。与旧的 Bridge 注入模式不同，当前架构中**没有隐式注入的 hidden bridge 节点**，节点的能力声明直接通过 **dm Python SDK** 在运行时自描述。
 
-### 转译管线中的位置
+### SDK 节点启动流程
 
-转译管线的执行顺序如下：
+交互节点（如 `dm-slider`、`dm-display`）启动时，SDK 自动完成能力自描述：
 
-```mermaid
-flowchart TD
-    P1["Pass 1: Parse<br/>YAML → DmGraph IR"] --> P1_5["Pass 1.5: Validate Reserved"]
-    P1_5 --> P2["Pass 2: Resolve Paths<br/>node: → path:"]
-    P2 --> P1_6["Pass 1.6: Validate Port Schemas"]
-    P1_6 --> P3["Pass 3: Merge Config<br/>四层合并 → env:"]
-    P3 --> P4["Pass 4: Inject Runtime Env<br/>DM_RUN_ID / DM_NODE_ID"]
-    P4 --> P4_5["Pass 4.5: Inject DM Bridge<br/>⚡ Capability Binding 降维"]
-    P4_5 --> P5["Pass 5: Emit<br/>DmGraph → YAML"]
+1. **读取运行时环境变量**：SDK 的 `dm.Message()` 从 `DM_RUN_ID` 和 `DM_NODE_ID` 环境变量获取运行时上下文
+2. **注册控件**：节点通过 `msg.send("widgets", payload)` 将 dm.json 中声明的控件形态注册到 dm-server，前端通过快照 API 自动发现
+3. **启动输入轮询**：输入型节点启动后台线程，通过 `msg.get(tag="input", after_seq=...)` 轮询用户输入
+4. **处理 dora 事件**：节点正常处理 dora 数据平面的事件循环
 
-    style P4_5 fill:#f9f,stroke:#333,stroke-width:2px
+```python
+def main():
+    msg = dm.Message()
+    node = Node()
+    yaml_id = os.environ.get("DM_NODE_ID", "unknown")
+
+    # 启动时注册控件——能力自描述
+    msg.send("widgets", {
+        "label": "Temperature (°C)",
+        "widgets": {
+            "value": {
+                "type": "slider",
+                "min": -20, "max": 50, "step": 1, "default": 20
+            }
+        }
+    })
+
+    # 启动后台线程轮询用户输入
+    last_seq = 0
+    def poll():
+        nonlocal last_seq
+        while node.is_running():
+            messages = msg.get(tag="input", after_seq=last_seq)
+            for item in messages:
+                last_seq = item["seq"]
+                if item["payload"].get("to") == yaml_id:
+                    node.send_output("value", pa.array([float(item["payload"]["value"])]))
+            time.sleep(0.1)
+    threading.Thread(target=poll, daemon=True).start()
+
+    for event in node:
+        ...
 ```
 
-`inject_dm_bridge` 在路径解析和配置合并完成之后执行，因为此时所有受管节点的 `dm.json` 元数据已被加载，环境变量也已合并完成。
+### 架构对比：Bridge 注入 vs SDK 自描述
 
-Sources: [mod.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/mod.rs#L1-L84), [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L452-L570)
+| 维度 | 旧 Bridge 架构（已移除） | 新 SDK 架构 |
+|------|--------------------------|------------|
+| **通信方式** | Unix Socket 双向中继 | HTTP API (REST + 轮询) |
+| **隐式节点** | `__dm_bridge` hidden 节点 | 无隐式节点 |
+| **注册机制** | 转译器注入隐式端口和环境变量 | SDK 启动时 `msg.send("widgets", ...)` |
+| **输入路由** | Bridge 进程反序列化 → Arrow 转换 → dora send_output | SDK 后台线程 `msg.get()` 轮询 → `node.send_output` |
+| **输入注入端口** | `DM_BRIDGE_INPUT_PORT` 环境变量 | 无需特殊端口（通过 tag 和 payload.to 路由） |
+| **展示路由** | Show 端口 → Bridge 进程 → Unix Socket → dm-server | `msg.send()` → HTTP POST → dm-server |
+| **控件注册** | Bridge 启动时自动提取节点 env vars | 每个节点独立 `msg.send("widgets", ...)` |
+| **运行环境** | `DM_BRIDGE_OUTPUT_PORT`, `DM_CAPABILITIES_JSON`, `bridge.sock` | 仅 `DM_RUN_ID`, `DM_NODE_ID` |
 
-### Bridge 节点注入的完整流程
+### dm.json 中的 Binding 声明与 SDK 行为映射
 
-`inject_dm_bridge` 的工作可以分解为以下步骤：
+节点在 `dm.json` 中声明的 binding 字段直接对应 SDK 的行为模式：
 
-**第一步：收集绑定规格**。遍历所有受管节点，加载其 `dm.json`，调用 `build_bridge_node_spec` 提取 `widget_input` 和 `display` 族的绑定。只有包含这两种族的节点才会产生规格；仅包含 Tag 类型能力的节点被跳过。
+- **`channel = "register"`** + `media = ["widgets"]`：节点启动时调用 `msg.send("widgets", payload)` 注册控件描述
+- **`channel = "input"`** + `port = "value"`：节点启动后台线程，通过 `msg.get(tag="input", ...)` 轮询并过滤 `payload.to == yaml_id`，类型转换后从声明的 `port` 输出
+- **`display` 族 + `channel = "message"`**：节点在收到 dora INPUT 事件时，通过 `msg.send(tag, payload)` 推送到 dm-server
 
-**第二步：为每个交互节点注入隐式端口和边**。对每个产生规格的节点：
+每个 SDK 节点独立完成上述操作，不依赖任何中间代理节点。
 
-- 若节点拥有 `display` 族绑定，则为其注入一个 `dm_bridge_output_internal` 输出端口，并将 `DM_BRIDGE_OUTPUT_ENV_KEY` 环境变量设为该端口名。这使节点的运行时代码知道将展示内容发送到哪个端口。
-- 若节点拥有 `widget_input` 族绑定，则为其注入一个 `dm_bridge_input_internal` 输入映射（指向 hidden bridge 的输出），并将 `DM_BRIDGE_INPUT_ENV_KEY` 环境变量设为该端口名。这使节点的运行时代码知道从哪个端口接收控件输入。
-
-**第三步：创建 hidden bridge 节点**。将所有收集到的规格序列化为 JSON，通过 `DM_CAPABILITIES_JSON` 环境变量传递给 bridge 进程。Bridge 节点本身使用 `dm` CLI 的 `bridge` 子命令作为可执行文件，其 `yaml_id` 为 `__dm_bridge`，对用户不可见。
-
-```mermaid
-flowchart LR
-    subgraph "用户可见的 YAML 拓扑"
-        S["dm-slider<br/>(widget_input)"]
-        D["dm-message<br/>(display)"]
-    end
-
-    subgraph "转译器注入的隐式层"
-        B["__dm_bridge<br/>(hidden system node)"]
-    end
-
-    subgraph "DM 交互平面"
-        SVR["dm-server<br/>+ Unix Socket"]
-        WEB["Web 浏览器"]
-    end
-
-    S -- "dm_bridge_input_internal" --> B
-    B -- "dm_bridge_to_slider" --> S
-    D -- "dm_bridge_output_internal" --> B
-    B -- "Unix Socket" --> SVR
-    SVR -- "WebSocket" --> WEB
-
-    style B fill:#ff9,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
-```
-
-Sources: [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L456-L570), [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/bridge.rs#L46-L84)
-
-### Bridge 进程的运行时行为
-
-当 `dora` 启动转译后的 YAML 时，`__dm_bridge` 作为普通 dora 节点运行。它通过 `DM_CAPABILITIES_JSON` 环境变量反序列化所有绑定规格，然后执行以下关键工作：
-
-**输入侧路由**：当 dora 事件到达 display 相关端口时，bridge 将载荷解码为 JSON，附加来源节点信息，通过 Unix Socket 推送给 dm-server，由 server 存储到 run-scoped SQLite 数据库并通过 WebSocket 通知前端。
-
-**输出侧路由**：当 dm-server 收到前端用户输入并通过 Unix Socket 传递给 bridge 时，bridge 根据 `InputNotification.to` 字段匹配对应的 widget 规格，将 JSON 值转换为 Arrow 类型（`StringArray`、`Float64Array`、`BooleanArray` 等），通过 `dora` 的 `send_output` 发送到对应节点的输入端口。
-
-**控件注册**：bridge 启动时自动从绑定规格中提取 `widget_input` 节点的环境变量（`LABEL`、`DEFAULT_VALUE`、`PLACEHOLDER` 等），构造 widget 定义 JSON 并通过 Unix Socket 推送给 dm-server，完成控件注册。
-
-Sources: [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L57-L193), [bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L237-L355)
+Sources: [dm-slider/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-slider/dm_slider/main.py#L82-L118), [dm-display/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-display/dm_display/main.py#L115-L168), [\\_message.py](https://github.com/l1veIn/dora-manager/blob/main/sdk/python/dm/_message.py#L1-L136), [dm-sdk-demo/main.py](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-sdk-demo/dm_sdk_demo/main.py#L84-L138)
 
 ## 端到端示例：demo-interactive-widgets 的 Binding 降维
 
-以 `demos/demo-interactive-widgets.yml` 为例，该数据流包含四个 `widget_input` 节点（`dm-slider`、`dm-button`、`dm-text-input`、`dm-input-switch`）和四个 `display` 节点（`dm-message`）。转译过程中：
+以 `demos/demo-interactive-widgets.yml` 为例，该数据流包含四个 `widget_input` 节点（`dm-slider`、`dm-button`、`dm-text-input`、`dm-input-switch`）和四个 `display` 节点（`dm-message`）。节点的 Binding 声明在运行时通过 SDK 自动生效：
 
-1. **Pass 2** 解析所有节点的 `dm.json`，确认可执行路径
-2. **Pass 3** 合并每个节点的 config（如 `label: "Temperature (°C)"`）到环境变量
-3. **Pass 4.5** 检测到 8 个节点携带 `widget_input` 或 `display` 能力族，为每个节点注入隐式端口映射，收集 8 份 `HiddenBridgeBindingSpec`，创建 `__dm_bridge` 节点
-4. **Pass 5** 产出最终 YAML，`__dm_bridge` 作为第 13 个节点出现，但用户在原始 YAML 中从未编写过它
-
-Bridge 启动后自动注册四种控件（slider、button、input、switch），建立 display 通道，完成从"静态 JSON 声明"到"运行时双向交互"的完整降维。
+1. **启动阶段**：每个节点启动时，SDK 从环境中读取 `DM_NODE_ID`，通过 `msg.send("widgets", payload)` 注册控件描述
+2. **输入轮询**：输入节点启动后台线程，通过 `msg.get(tag="input", after_seq=...)` 轮询用户输入
+3. **展示推送**：展示节点收到 dora INPUT 事件时，通过 `msg.send(tag, payload)` 推送到 dm-server
+4. **前端消费**：前端通过快照 API 获取所有已注册的控件描述，动态渲染用户交互界面
 
 Sources: [demo-interactive-widgets.yml](demos/demo-interactive-widgets.yml#L1-L129), [passes.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-core/src/dataflow/transpile/passes.rs#L456-L570)
 
@@ -235,13 +228,13 @@ Sources: [demo-interactive-widgets.yml](demos/demo-interactive-widgets.yml#L1-L1
 
 **声明位置**：在 `dm.json` 的 `capabilities` 数组中添加结构化对象。如果你的节点需要控件输入能力，添加 `widget_input` 族；如果需要展示能力，添加 `display` 族。同时保留 `"configurable"` Tag 以支持配置合并。
 
-**端口对齐**：binding 中的 `port` 字段必须与 `dm.json` 的 `ports` 数组中声明的端口 ID 一致。例如，`widget_input` 族中 `channel = "input"` 的绑定所引用的端口必须是 `direction: "output"` 类型的端口——因为从 bridge 的视角看，用户输入值需要通过 dora 数据平面发送**到**该节点的输出端口。
+**端口对齐**：binding 中的 `port` 字段必须与 `dm.json` 的 `ports` 数组中声明的端口 ID 一致。例如，`widget_input` 族中 `channel = "input"` 的绑定所引用的端口必须是 `direction: "output"` 类型的端口——因为用户输入值需要通过 dora 数据平面从该端口输出。SDK 节点中 `node.send_output(port, value)` 的端口名必须与 binding 中声明的 `port` 一致。
 
 Sources: [dm-capability-binding-v0.md](https://github.com/l1veIn/dora-manager/blob/main/docs/design/dm-capability-binding-v0.md#L136-L191), [dm-text-input/dm.json](https://github.com/l1veIn/dora-manager/blob/main/nodes/dm-text-input/dm.json#L63-L77)
 
 ## 延伸阅读
 
-- [交互系统架构：dm-input / dm-message / Bridge 节点注入原理](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li)——理解交互节点的具体实现细节与 HTTP/WebSocket 通信模式
+- [交互系统架构：SDK 双端口模型与消息服务](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu)——理解交互节点的具体实现细节与 HTTP/WebSocket 通信模式
 - [数据流转译器（Transpiler）：多 Pass 管线与四层配置合并](11-shu-ju-liu-zhuan-yi-qi-transpiler-duo-pass-guan-xian-yu-si-ceng-pei-zhi-he-bing)——capability binding 在整体转译管线中的完整上下文
-- [响应式控件（Widgets）：控件注册表、动态渲染与 WebSocket 参数注入](20-xiang-ying-shi-kong-jian-widgets-kong-jian-zhu-ce-biao-dong-tai-xuan-ran-yu-websocket-can-shu-zhu-ru)——前端如何消费 bridge 注册的控件定义
+- [响应式控件（Widgets）：控件注册表、动态渲染与 WebSocket 参数注入](20-xiang-ying-shi-kong-jian-widgets-kong-jian-zhu-ce-biao-dong-tai-xuan-ran-yu-websocket-can-shu-zhu-ru)——前端如何消费 SDK 注册的控件定义
 - [自定义节点开发指南：dm.json 完整字段参考](9-zi-ding-yi-jie-dian-kai-fa-zhi-nan-dm-json-wan-zheng-zi-duan-can-kao)——`capabilities` 字段在完整 `dm.json` 中的位置与写法

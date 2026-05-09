@@ -4,7 +4,7 @@ Sources: [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-se
 
 ## Service Startup and Global Architecture
 
-On startup, dm-server performs four initializations: parsing the `DM_HOME` directory and loading configuration, opening the event store (SQLite), initializing the media runtime (MediaMTX bridge), and building the Axum router table and binding the listening port (configurable with the `--port` argument or the `DM_SERVER_PORT` environment variable, default 3210). Additionally, it starts two background tasks -- an idle monitor that runs every 30 seconds (auto `dora down`) and a Unix Domain Socket listener (`$DM_HOME/bridge.sock`) for IPC communication with Bridge nodes within the dataflow.
+On startup, dm-server performs four initializations: parsing the `DM_HOME` directory and loading configuration, opening the event store (SQLite), initializing the media runtime (MediaMTX bridge), and building the Axum router table and binding the listening port (configurable with the `--port` argument or the `DM_SERVER_PORT` environment variable, default 3210). Additionally, it starts an idle monitor that runs every 30 seconds (auto `dora down`).
 
 Sources: [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L79-L269)
 
@@ -21,7 +21,7 @@ pub struct AppState {
 }
 ```
 
-`broadcast::Sender<MessageNotification>` is the core broadcast hub of the interaction system -- any message from REST pushes, WebSocket input, or Bridge IPC is fanned out to all subscribed WebSocket clients through this channel.
+`broadcast::Sender<MessageNotification>` is the core broadcast hub of the interaction system -- any message from REST pushes or WebSocket input is fanned out to all subscribed WebSocket clients through this channel.
 
 Sources: [state.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/state.rs#L1-L25), [main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/main.rs#L90-L95)
 
@@ -164,7 +164,7 @@ Sources: [runs.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-se
 | Method | Path | Purpose | Key Parameters |
 |--------|------|---------|----------------|
 | GET | `/api/runs/{id}/interaction` | Interaction summary (input controls + stream list) | Path: `id` |
-| POST | `/api/runs/{id}/messages` | Push message (from Bridge or frontend) | `PushMessageRequest { from, tag, payload, timestamp? }` |
+| POST | `/api/runs/{id}/messages` | Push message (from SDK or frontend) | `PushMessageRequest { from, tag, payload, timestamp? }` |
 | GET | `/api/runs/{id}/messages` | Query message history | Query: `after_seq`, `before_seq`, `from`, `tag`, `limit`, `desc` |
 | GET | `/api/runs/{id}/messages/snapshots` | Get the latest snapshots for each node | Path: `id` |
 | GET | `/api/runs/{id}/streams` | List all stream descriptors | Path: `id` |
@@ -199,7 +199,7 @@ Sources: [events.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-
 
 ## WebSocket Real-Time Channels
 
-dm-server provides three WebSocket endpoints and one Unix Domain Socket IPC channel, covering runtime monitoring, interactive messaging, and Bridge node communication.
+dm-server provides three WebSocket endpoints, covering runtime monitoring and interactive messaging.
 
 ```mermaid
 graph TB
@@ -209,18 +209,12 @@ graph TB
         WS_Node["/api/runs/{id}/messages/ws/{node_id}<br/>Node-Directed Channel"]
     end
 
-    subgraph "Unix Socket"
-        Bridge["$DM_HOME/bridge.sock<br/>Bridge IPC"]
-    end
-
     subgraph "Broadcast Hub"
         BC["broadcast::Sender<br/>&lt;MessageNotification&gt;"]
     end
 
     WS_Msg -.->|subscribe| BC
     WS_Node -.->|subscribe + replay| BC
-    Bridge -->|push| BC
-    BC -->|forward input| Bridge
 
     WS_Run -->|fs watcher + polling| Logs["Log Files"]
     WS_Run -->|1s interval| Metrics["Metrics Collection"]
@@ -252,28 +246,14 @@ Sources: [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/d
 
 ### Node-Directed WebSocket -- `/api/runs/{id}/messages/ws/{node_id}?since=N`
 
-This is a **replay + real-time** channel targeted at a specific node, primarily used by Bridge nodes to receive user input from the frontend. Upon connection establishment:
+This is a **replay + real-time** channel targeted at a specific node, primarily used by SDK nodes to receive user input from the frontend. Upon connection establishment:
 
 1. **Historical replay**: Queries all messages after sequence number `since` where `target_to == node_id`, sending them one by one
 2. **Real-time subscription**: Subscribes to the broadcast channel, filters new messages where `run_id` matches and `from == "web"` and `tag == "input"`, and forwards them to the node
 
-This "replay first, then subscribe" design ensures that Bridge nodes can recover missed input after a brief disconnection.
+This "replay first, then subscribe" design ensures that nodes can recover missed input after a brief disconnection.
 
 Sources: [messages.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/messages.rs#L272-L360)
-
-### Bridge Unix Domain Socket -- `$DM_HOME/bridge.sock`
-
-A non-HTTP IPC channel created by dm-server at startup. Bridge nodes within the dataflow (injected by the transpiler) communicate with the server through this socket. The protocol is **newline-delimited JSON**, consisting of two message types:
-
-| Action | Direction | Format |
-|--------|-----------|--------|
-| **`init`** | Bridge -> Server | `{"action":"init","run_id":"..."}` |
-| **`push`** | Bridge -> Server | `{"action":"push","from":"...","tag":"...","payload":{...},"timestamp":...}` |
-| **`input`** | Server -> Bridge | `{"action":"input","to":"...","value":...}` |
-
-After connecting, the Bridge first sends `init` to declare the `run_id`, followed by bidirectional communication: the Bridge pushes `display`/`stream` messages from the node, and the server forwards user `input` messages to the Bridge.
-
-Sources: [bridge_socket.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/bridge_socket.rs#L1-L174)
 
 ## Swagger Documentation and OpenAPI Specification
 
@@ -348,4 +328,4 @@ The API design of dm-server reflects the following architectural decisions:
 
 ---
 
-**Next reading**: To understand how the server manages persistent configuration, see [Configuration System: DM_HOME Directory Structure and config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml); to understand how the frontend consumes these APIs to build the UI, see [SvelteKit Project Structure: Route Design, API Communication Layer, and State Management](17-sveltekit-xiang-mu-jie-gou-lu-you-she-ji-api-tong-xin-ceng-yu-zhuang-tai-guan-li); to understand the complete flow of interaction messages in Bridge nodes, see [Interaction System Architecture: dm-input / dm-message / Bridge Node Injection Principles](22-jiao-hu-xi-tong-jia-gou-dm-input-dm-message-bridge-jie-dian-zhu-ru-yuan-li).
+**Next reading**: To understand how the server manages persistent configuration, see [Configuration System: DM_HOME Directory Structure and config.toml](16-pei-zhi-ti-xi-dm_home-mu-lu-jie-gou-yu-config-toml); to understand how the frontend consumes these APIs to build the UI, see [SvelteKit Project Structure: Route Design, API Communication Layer, and State Management](17-sveltekit-xiang-mu-jie-gou-lu-you-she-ji-api-tong-xin-ceng-yu-zhuang-tai-guan-li); to understand the complete flow of interaction messages, see [Interaction System Architecture: SDK Dual-Port Model and Message Service](22-jiao-hu-xi-tong-jia-gou-sdk-shuang-duan-kou-mo-xing-yu-xiao-xi-fu-wu).

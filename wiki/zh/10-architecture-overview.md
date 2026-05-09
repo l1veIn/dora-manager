@@ -28,13 +28,10 @@ graph TD
     CORE -->|"spawn 进程"| DORA
     CORE -->|"读写持久化"| FS
     CORE -->|"Release 下载"| GH
-    SRV -->|"Unix Socket IPC"| CLI
     SRV -.->|"rust-embed 嵌入"| WEB["Web 前端 SvelteKit"]
 ```
 
-核心设计约束非常明确：**dm-cli 与 dm-server 之间不存在直接依赖**。两者都只是 dm-core 的消费者，分别面向终端用户和 Web 浏览器提供差异化的接入体验。唯一例外是 Bridge IPC 机制（通过 Unix Socket），它让 dm-cli 中的 Bridge 进程在运行时与 dm-server 建立实时通信通道。
-
-对于使用 SDK 的节点（声明 `"needs": ["dm-server"]`），它们通过 Python SDK (`dm.Message`) 与 dm-server 直接建立 WebSocket 连接，无需 Bridge 节点中转。SDK 节点可以订阅消息、调用函数、发送结果，所有通信发生在 DM Plane 上。
+核心设计约束非常明确：**dm-cli 与 dm-server 之间不存在直接依赖**。两者都只是 dm-core 的消费者，分别面向终端用户和 Web 浏览器提供差异化的接入体验。
 
 Sources: [Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/Cargo.toml), [crates/dm-cli/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/Cargo.toml#L15), [crates/dm-server/Cargo.toml](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/Cargo.toml#L15)
 
@@ -159,7 +156,6 @@ dm (clap Parser)
 │   ├── delete
 │   ├── logs [--follow]
 │   └── clean
-├── bridge         ← (隐藏) Bridge IPC 服务
 └── --             ← 透传到原生 dora CLI
 ```
 
@@ -179,17 +175,6 @@ Commands::Doctor => {
 整个 handler 只有 3 行有效代码。`display.rs` 模块负责将 dm-core 返回的结构化数据渲染为带颜色的终端输出，不包含任何条件分支逻辑或状态判断。
 
 Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L186-L265), [crates/dm-cli/src/display.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/display.rs#L1-L65)
-
-### Bridge 进程：dm-cli 的特殊角色
-
-dm-cli 中有一个特殊的 `bridge` 命令（隐藏，不暴露给用户）。Bridge 进程作为 dora 数据流中的一个节点运行，负责在 dora 事件系统和 dm-server 之间搭建 IPC 桥梁。它通过 Unix Socket（`~/.dm/bridge.sock`）与 dm-server 保持长连接，实现双向消息转发：
-
-- **上行方向**：将 dora 节点的输出事件（如 `dm-message` 的文本消息、`dm-mjpeg` 的流元数据）转发给 dm-server
-- **下行方向**：将来自 Web 前端的用户输入（如按钮点击、滑块变化）注入回 dora 数据流
-
-这使得 dm-cli 不仅是用户直接交互的终端工具，还在运行实例生命周期中扮演关键的**通信中介**角色。
-
-Sources: [crates/dm-cli/src/bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L57-L193)
 
 ## dm-server：HTTP 接入层
 
@@ -260,15 +245,6 @@ dm-server 拥有两个 dm-core 中不存在的**服务端专属模块**，它们
 
 Sources: [crates/dm-server/src/services/media.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/media.rs#L70-L106), [crates/dm-server/src/services/message.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/services/message.rs#L104-L161)
 
-### Bridge Socket：dm-server 与 dm-cli 的 IPC 通道
-
-dm-server 在启动时创建一个 Unix Domain Socket（`~/.dm/bridge.sock`），用于接收 dm-cli Bridge 进程的实时连接。`bridge_socket_loop` 在主循环中对每个连接执行两阶段握手：
-
-1. **初始化阶段**：读取 `{"action":"init","run_id":"..."}` 消息，绑定连接到特定运行实例
-2. **双向转发阶段**：通过 `tokio::select!` 同时监听上行消息（从 Bridge 读取并写入交互数据库）和下行通知（从广播通道读取并写回 Bridge）
-
-Sources: [crates/dm-server/src/handlers/bridge_socket.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/bridge_socket.rs#L28-L123)
-
 ### 后台任务
 
 dm-server 在主 HTTP 服务之外还启动了一个**空闲监控协程**，每 30 秒检查是否有活跃运行实例。当所有运行结束后，它会自动执行 `dm_core::auto_down_if_idle` 释放 dora 运行时资源。这是一种资源优化策略——在 Web 面板场景中，用户可能忘记手动 `dm down`，空闲自动关闭避免了无谓的资源占用。
@@ -323,7 +299,6 @@ sequenceDiagram
     participant CLI as dm-cli
     participant Core as dm-core
     participant Dora as dora-rs Runtime
-    participant Bridge as dm-cli Bridge
     participant Server as dm-server
 
     User->>CLI: dm start demo.yml
@@ -334,21 +309,14 @@ sequenceDiagram
     Core->>Core: transpile_graph(yaml)
     Core->>Core: start_run_from_file()
     Core->>Dora: dora start transpiled.yml
-    Note over Core: 同时启动 Bridge 进程
-    CLI->>Bridge: bridge_serve(home, run_id)
-    Bridge->>Server: Unix Socket connect
-    Bridge->>Server: {"action":"init","run_id":"..."}
-    Bridge->>Dora: DoraNode::init_from_env()
+    Note over Core: SDK 节点直接与 dm-server 通信
     loop 运行期间
-        Dora->>Bridge: Event::Input (节点输出)
-        Bridge->>Server: push message
+        Core->>Server: SDK 节点发送/轮询消息
         Server-->>Server: broadcast → WebSocket → 前端
-        Server->>Bridge: input notification
-        Bridge->>Dora: node.send_output()
     end
 ```
 
-Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L364-L385), [crates/dm-cli/src/bridge.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/bridge.rs#L57-L193), [crates/dm-server/src/handlers/bridge_socket.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-server/src/handlers/bridge_socket.rs#L28-L123)
+Sources: [crates/dm-cli/src/main.rs](https://github.com/l1veIn/dora-manager/blob/main/crates/dm-cli/src/main.rs#L364-L385)
 
 ## 延伸阅读
 
