@@ -1,6 +1,6 @@
 """Python SDK for dora-manager."""
 
-from ._message import Message
+from ._message import Message, WidgetManager
 from ._stream import MessageStream
 from ._service import (
     MethodNotFoundError,
@@ -12,6 +12,7 @@ from ._service import (
 
 __all__ = [
     "Message",
+    "WidgetManager",
     "MessageStream",
     "MethodNotFoundError",
     "Service",

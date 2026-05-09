@@ -19,7 +19,6 @@ import json
 import os
 import signal
 import sys
-import threading
 import time
 
 import pyarrow as pa
@@ -37,9 +36,9 @@ import dm  # noqa: E402
 
 
 RUNNING = True
-LAST_SEQ = 0
-MSG_LOCK = threading.Lock()
 
+# ── Widget configuration ──
+WIDGET_KEY = "sdk-demo-input"
 
 # ── Demo state ──
 COUNTER = 0
@@ -55,10 +54,10 @@ signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
 
 
-def on_new_message(msg: dm.Message, payload: dict):
-    """Called when a new input message arrives."""
+def on_new_message(msg: dm.Message, event: dict):
+    """Called when a new input event arrives from widget subscribe."""
     global COUNTER, CHAT_HISTORY
-    value = payload.get("value", "")
+    value = event.get("value", "")
     if not value:
         return
     COUNTER += 1
@@ -135,27 +134,6 @@ def on_new_message(msg: dm.Message, payload: dict):
         )
 
 
-def subscriber_loop(msg: dm.Message):
-    """Background thread: listen for input messages via SDK pull loop."""
-    global LAST_SEQ, RUNNING
-    while RUNNING:
-        try:
-            with MSG_LOCK:
-                new_msgs = msg.get(tag="input", after_seq=LAST_SEQ, limit=20)
-                for m in new_msgs:
-                    seq = m.get("seq", 0)
-                    if seq > LAST_SEQ:
-                        LAST_SEQ = seq
-                    payload = m.get("payload", {})
-                    target = payload.get("to", "")
-                    if target != "dm-sdk-demo":
-                        continue
-                    on_new_message(msg, payload)
-        except Exception as e:
-            eprint(f"[dm-sdk-demo] poll error: {e}")
-        time.sleep(0.5)
-
-
 def main():
     global RUNNING
 
@@ -163,50 +141,25 @@ def main():
     msg = dm.Message()
     eprint(f"[dm-sdk-demo] starting, run_id={msg.run_id}")
 
-    # Register widgets in the Web UI
-    # This replicates what bridge.rs does on init via Unix socket
-    msg.send(
-        "widgets",
-        {
-            "label": "SDK Demo",
-            "widgets": {
-                "value": {
-                    "type": "input",
-                    "label": "Text to reverse",
-                    "default": "",
-                    "placeholder": "Type something and press Enter...",
-                }
-            },
-        },
-        from_="dm-sdk-demo",
-    )
-
-    # Register widget metadata for the UI
-    msg.send(
-        "widget-register",
-        {
-            "node_id": "input-text",
-            "type": "text-input",
-            "label": "Text to reverse",
+    # Register widget using the new WidgetManager API
+    msg.widgets.register(
+        key=WIDGET_KEY,
+        type="input",
+        label="Text to reverse",
+        config={
             "placeholder": "Type something and press Enter...",
         },
-        from_="dm-sdk-demo",
     )
 
     # Send a startup message
     msg.send("text", {"content": "✅ SDK Demo node started — type something to reverse"}, from_="dm-sdk-demo")
 
-    # Start background poller for input messages
-    poller = threading.Thread(target=subscriber_loop, args=(msg,), daemon=True)
-    poller.start()
-
-    # Keep the main thread alive (dora node convention)
+    # Keep the main thread alive (dora node convention) + subscribe
     node = Node()
-    for event in node:
+    for event in msg.widgets.subscribe(WIDGET_KEY):
         if not RUNNING:
             break
-        # We could process dora events here, but this demo is SDK-only
-        time.sleep(0.1)
+        on_new_message(msg, event)
 
     RUNNING = False
     eprint("[dm-sdk-demo] shutting down")
