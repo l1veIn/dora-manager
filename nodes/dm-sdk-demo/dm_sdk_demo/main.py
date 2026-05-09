@@ -148,7 +148,7 @@ def subscriber_loop(msg: dm.Message):
                         LAST_SEQ = seq
                     payload = m.get("payload", {})
                     target = payload.get("to", "")
-                    if target != "input-text":
+                    if target != "dm-sdk-demo":
                         continue
                     on_new_message(msg, payload)
         except Exception as e:
