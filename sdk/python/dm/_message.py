@@ -10,6 +10,146 @@ from ._stream import MessageStream
 from ._util import detect_caller_id, env_or_default, normalize_url
 
 
+class WidgetManager:
+    """Manage interaction widgets for a dora-manager run."""
+
+    def __init__(self, msg: Message):
+        self._msg = msg
+        self._LAST_SEQ = 0
+
+    def register(
+        self,
+        key: str,
+        type: str,
+        label: str,
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> "WidgetManager":
+        """Register a new widget or update an existing one.
+
+        Args:
+            key: Unique widget key (used for input routing and subscription)
+            type: Widget type (\"input\", \"textarea\", \"button\", \"slider\",
+                  \"switch\", \"select\", \"radio\", \"checkbox\")
+            label: Display label shown in the UI
+            config: Additional widget configuration (min, max, step,
+                   placeholder, options, default, disabled, hidden, etc.)
+        """
+        payload: dict[str, Any] = {
+            "label": label,
+            "widget_key": key,
+            "widgets": {
+                "value": {
+                    "type": type,
+                    "label": label,
+                    **(config or {}),
+                }
+            },
+        }
+        self._msg.send("widgets", payload)
+        return self
+
+    def update(self, key: str, **config: Any) -> "WidgetManager":
+        """Update an existing widget's configuration.
+
+        Common config fields:
+        - disabled: bool — grey out the control
+        - hidden: bool — remove from UI
+        - label: str — change display name
+        - color: str — card accent color
+        - placeholder, min, max, step, options, etc.
+        """
+        payload: dict[str, Any] = {
+            "widget_key": key,
+            "widget_update": True,
+            "config": config,
+        }
+        self._msg.send("widgets", payload)
+        return self
+
+    def remove(self, key: str) -> "WidgetManager":
+        """Remove a widget from the UI."""
+        return self.update(key, hidden=True)
+
+    def list(self) -> list[dict[str, Any]]:
+        """Return all registered widgets from snapshots."""
+        snapshots = self._msg.snapshots()
+        return [
+            {
+                "key": s["payload"].get("widget_key", s["node_id"]),
+                "node_id": s["node_id"],
+                "label": s["payload"].get("label", s["node_id"]),
+                "type": _infer_widget_type(s["payload"]),
+                "disabled": s["payload"].get("widgets", {}).get("value", {}).get("disabled", False),
+                "hidden": s["payload"].get("widget_update") is True
+                         and s["payload"].get("config", {}).get("hidden", False),
+            }
+            for s in snapshots
+            if s["tag"] == "widgets"
+        ]
+
+    def subscribe(
+        self,
+        key: str,
+        *,
+        poll_interval: float = 0.5,
+    ):
+        """Yield input messages for a specific widget key.
+
+        Yields dicts with keys: value, output_id, seq, timestamp.
+
+        Usage::
+
+            for event in msg.widgets.subscribe(\"my-slider\"):
+                value = event[\"value\"]
+                process(value)
+        """
+        return _WidgetSubscription(self._msg, self, key, poll_interval=poll_interval)
+
+
+class _WidgetSubscription:
+    """Internal: generator wrapper for widget.key polling."""
+
+    def __init__(self, msg: Message, mgr: WidgetManager, key: str, *, poll_interval: float):
+        self._msg = msg
+        self._mgr = mgr
+        self._key = key
+        self._poll_interval = poll_interval
+        self._LAST_SEQ = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> dict[str, Any]:
+        import time as _time
+
+        while True:
+            messages = self._msg.get(tag="input", after_seq=self._LAST_SEQ, limit=50)
+            for m in messages:
+                seq = m.get("seq", 0)
+                if seq > self._LAST_SEQ:
+                    self._LAST_SEQ = seq
+                payload = m.get("payload", {})
+                if isinstance(payload, dict) and payload.get("widget_key") == self._key:
+                    return {
+                        "value": payload.get("value"),
+                        "output_id": payload.get("output_id"),
+                        "seq": seq,
+                        "timestamp": m.get("timestamp"),
+                    }
+            _time.sleep(self._poll_interval)
+
+
+def _infer_widget_type(payload: dict[str, Any]) -> str | None:
+    widgets = payload.get("widgets", {})
+    if not widgets:
+        return None
+    first = next(iter(widgets.values()), {})
+    if isinstance(first, dict):
+        return first.get("type")
+    return None
+
+
 class Message:
     """Message operations for a dora-manager run."""
 
@@ -31,6 +171,21 @@ class Message:
         self.run_id = run_id or env_or_default("DM_RUN_ID")
         if not self.run_id:
             raise RuntimeError("run_id is required or DM_RUN_ID must be set")
+        self._widget_manager: WidgetManager | None = None
+
+    @property
+    def widgets(self) -> WidgetManager:
+        """Access widget management API for this run.
+
+        Usage::
+
+            msg.widgets.register(key="my-input", type="input", label="My Input")
+            for event in msg.widgets.subscribe("my-input"):
+                print(event["value"])
+        """
+        if self._widget_manager is None:
+            self._widget_manager = WidgetManager(self)
+        return self._widget_manager
 
     def embed(
         self,

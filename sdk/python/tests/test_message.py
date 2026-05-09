@@ -289,3 +289,124 @@ def test_normalize_color_by_int():
 def test_normalize_color_unknown_falls_back_to_gray():
     from dm._message import _normalize_color
     assert _normalize_color("nonexistent") == 0x6B7280
+
+
+def test_widgets_property_returns_widget_manager():
+    msg = Message(run_id="run-1", server_url="http://server")
+    w = msg.widgets
+    from dm._message import WidgetManager
+    assert isinstance(w, WidgetManager)
+    assert w._msg is msg
+
+
+def test_widgets_property_is_singleton():
+    msg = Message(run_id="run-1", server_url="http://server")
+    assert msg.widgets is msg.widgets
+
+
+def test_widget_register_sends_widgets_tag(monkeypatch):
+    calls = {}
+
+    def fake_post(url, json, timeout):
+        calls.update(json=json)
+        return Response({"seq": 1})
+
+    monkeypatch.setattr("dm._message.requests.post", fake_post)
+
+    msg = Message(run_id="run-1", server_url="http://server")
+    msg.widgets.register(key="my-slider", type="slider", label="Temp",
+                          config={"min": 0, "max": 100})
+
+    assert calls["json"]["tag"] == "widgets"
+    payload = calls["json"]["payload"]
+    assert payload["widget_key"] == "my-slider"
+    assert payload["label"] == "Temp"
+    assert payload["widgets"]["value"]["type"] == "slider"
+    assert payload["widgets"]["value"]["min"] == 0
+    assert payload["widgets"]["value"]["max"] == 100
+
+
+def test_widget_update_sends_config(monkeypatch):
+    calls = []
+
+    def fake_post(url, json, timeout):
+        calls.append(json)
+        return Response({"seq": 1})
+
+    monkeypatch.setattr("dm._message.requests.post", fake_post)
+
+    msg = Message(run_id="run-1", server_url="http://server")
+    msg.widgets.update(key="my-slider", disabled=True, label="Disabled Temp")
+
+    payload = calls[0]["payload"]
+    assert payload["widget_key"] == "my-slider"
+    assert payload["widget_update"] is True
+    assert payload["config"]["disabled"] is True
+    assert payload["config"]["label"] == "Disabled Temp"
+
+
+def test_widget_remove_calls_update_with_hidden(monkeypatch):
+    calls = []
+
+    def fake_post(url, json, timeout):
+        calls.append(json)
+        return Response({"seq": 1})
+
+    monkeypatch.setattr("dm._message.requests.post", fake_post)
+
+    msg = Message(run_id="run-1", server_url="http://server")
+    msg.widgets.remove(key="my-slider")
+
+    payload = calls[0]["payload"]
+    assert payload["widget_key"] == "my-slider"
+    assert payload["config"]["hidden"] is True
+
+
+def test_widget_list_reads_snapshots(monkeypatch):
+    snapshots = [
+        {"node_id": "node-a", "tag": "widgets",
+         "payload": {"label": "Slider", "widget_key": "k1",
+                      "widgets": {"value": {"type": "slider"}}}},
+        {"node_id": "node-b", "tag": "widgets",
+         "payload": {"label": "Button", "widget_key": "k2",
+                      "widgets": {"value": {"type": "button"}}}},
+        {"node_id": "node-c", "tag": "text",
+         "payload": {"content": "hello"}},
+    ]
+
+    monkeypatch.setattr(
+        "dm._message.Message.snapshots",
+        lambda self: snapshots,
+    )
+
+    msg = Message(run_id="run-1", server_url="http://server")
+    widgets = msg.widgets.list()
+
+    assert len(widgets) == 2
+    assert widgets[0]["key"] == "k1"
+    assert widgets[0]["type"] == "slider"
+    assert widgets[1]["key"] == "k2"
+    assert widgets[1]["type"] == "button"
+
+
+def test_widget_subscribe_filters_by_key(monkeypatch):
+    class FakeWidgetMgr:
+        pass
+
+    def fake_get(url, params, timeout):
+        return Response({
+            "messages": [
+                {"seq": 1, "payload": {"widget_key": "other", "value": "no"}},
+                {"seq": 2, "payload": {"widget_key": "my-key", "value": "yes", "output_id": "val"}},
+            ]
+        })
+
+    monkeypatch.setattr("dm._message.requests.get", fake_get)
+
+    msg = Message(run_id="run-1", server_url="http://server")
+    sub = msg.widgets.subscribe("my-key", poll_interval=0.01)
+
+    event = next(sub)
+    assert event["value"] == "yes"
+    assert event["output_id"] == "val"
+    assert event["seq"] == 2
