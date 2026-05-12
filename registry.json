@@ -61,6 +61,22 @@
         "readiness"
       ]
     },
+    "dm-clipboard": {
+      "description": "Clipboard read/write utility node. Copies incoming text, reads the current clipboard, or monitors clipboard changes.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-clipboard"
+      },
+      "runtime": "python",
+      "category": "Builtin/Desktop Tools",
+      "tags": [
+        "builtin",
+        "desktop",
+        "clipboard",
+        "utility"
+      ]
+    },
     "dm-display": {
       "description": "Relay display messages to dm-server for the current run UI. Supports inline content (text/json) via the data port and artifact files via the path port.",
       "version": "0.1.0",
@@ -104,6 +120,54 @@
         "logic",
         "gate",
         "bool"
+      ]
+    },
+    "dm-hotkey": {
+      "description": "Global hotkey source node. Emits a trigger into the dataflow when the configured desktop shortcut is pressed.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-hotkey"
+      },
+      "runtime": "python",
+      "category": "Builtin/Desktop Tools",
+      "tags": [
+        "builtin",
+        "desktop",
+        "hotkey",
+        "input"
+      ]
+    },
+    "dm-notification": {
+      "description": "System notification utility node. Turns incoming text into a desktop notification and emits JSON status.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-notification"
+      },
+      "runtime": "python",
+      "category": "Builtin/Desktop Tools",
+      "tags": [
+        "builtin",
+        "desktop",
+        "notification",
+        "utility"
+      ]
+    },
+    "dm-open": {
+      "description": "Open files, folders, or URLs from a Dora dataflow and emit JSON status.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-open"
+      },
+      "runtime": "python",
+      "category": "Builtin/Desktop Tools",
+      "tags": [
+        "builtin",
+        "desktop",
+        "open",
+        "utility"
       ]
     },
     "dm-input-switch": {
@@ -224,6 +288,22 @@
         "screen",
         "capture",
         "image"
+      ]
+    },
+    "dm-screenshot": {
+      "description": "Triggered desktop screenshot node. Captures the screen to a run artifact and emits its path.",
+      "version": "0.1.0",
+      "source": {
+        "type": "local",
+        "path": "nodes/dm-screenshot"
+      },
+      "runtime": "python",
+      "category": "Builtin/Desktop Tools",
+      "tags": [
+        "builtin",
+        "desktop",
+        "screenshot",
+        "capture"
       ]
     },
     "dm-slider": {

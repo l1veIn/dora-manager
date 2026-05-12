@@ -1,0 +1,1 @@
+"""dm-screenshot node package."""

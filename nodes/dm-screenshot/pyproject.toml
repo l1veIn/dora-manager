@@ -1,0 +1,9 @@
+[project]
+name = "dm-screenshot"
+version = "0.1.0"
+description = "Triggered desktop screenshot node for Dora Manager."
+requires-python = ">=3.10"
+dependencies = ["dora-rs == 0.4.1", "pyarrow", "mss", "Pillow", "requests", "websockets"]
+
+[project.scripts]
+dm-screenshot = "dm_screenshot.main:main"

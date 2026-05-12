@@ -102,6 +102,11 @@ Sources: [README.md](https://github.com/l1veIn/dora-manager/blob/main/nodes/READ
 | 交互组件 | `dm-text-input` | Python | 文本输入控件 | `widget_input` |
 | 交互组件 | `dm-input-switch` | Python | 布尔开关控件 | `widget_input` |
 | 交互组件 | `dm-message` | Python | 内容展示（文本/图像/音频等） | `display` |
+| 桌面工具 | `dm-hotkey` | Python | 全局快捷键触发输入源 | `desktop_input` |
+| 桌面工具 | `dm-screenshot` | Python | 触发式屏幕截图并输出文件路径 | `desktop_capture` |
+| 桌面工具 | `dm-clipboard` | Python | 剪贴板读写与监听 | `desktop_io` |
+| 桌面工具 | `dm-notification` | Python | 系统通知输出 | `desktop_output` |
+| 桌面工具 | `dm-open` | Python | 打开文件、目录或 URL | `desktop_output` |
 | 存储 | `dm-save` | Python | 二进制文件持久化 | `configurable` |
 | 存储 | `dm-log` | Python | 追加式日志序列化 | `configurable` |
 | 存储 | `dm-recorder` | Python | 音频 WAV 录制 | `media` |
@@ -547,6 +552,8 @@ Sources: [qwen-dev.yml](https://github.com/l1veIn/dora-manager/blob/main/tests/d
 **存储家族模式**：`dm-save`/`dm-log`/`dm-recorder` 共享"写入文件 → 输出路径 → dm-message 展示"的链路，`DM_RUN_OUT_DIR` 环境变量统一管理输出目录。
 
 **交互控件模式**：`dm-button`/`dm-slider`/`dm-text-input`/`dm-input-switch` 都是纯输出节点，通过 `widget_input` capability 声明控件类型，由 Web UI 运行时自动渲染对应的 Widget。
+
+**桌面工具模式**：`dm-hotkey`、`dm-screenshot`、`dm-clipboard`、`dm-notification`、`dm-open` 把操作系统事件和动作显式暴露为 dataflow 端口，同时通过 SDK 向前端发布 armed、triggered、captured、copied、unavailable 等状态消息。底层 OS 访问当前由 Python adapter 完成，长期可以迁移到集中式 DM service，而 dataflow 中的节点语义保持不变。
 
 **Port Schema 声明**：Dora Manager 前缀（`dm-*`）的节点在 `dm.json` 的 `ports` 数组中声明了完整的 Arrow 类型 schema，而 Dora Hub 前缀（`dora-*`/`opencv-*`）的节点多为空数组，端口信息依赖 README 文档约定。关于端口校验的完整规范，参见 [Port Schema 与端口类型校验](8-port-schema-yu-duan-kou-lei-xing-xiao-yan)。
 

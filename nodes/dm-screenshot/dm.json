@@ -1,0 +1,210 @@
+{
+  "id": "dm-screenshot",
+  "name": "dm-screenshot",
+  "version": "0.1.0",
+  "installed_at": "1778587300",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Triggered desktop screenshot node. Captures the screen to a run artifact and emits its path.",
+  "executable": ".venv/bin/dm-screenshot",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Desktop Tools",
+    "tags": [
+      "builtin",
+      "desktop",
+      "screenshot",
+      "capture"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    {
+      "name": "widget_input",
+      "bindings": [
+        {
+          "role": "widget",
+          "channel": "register",
+          "media": [
+            "widgets"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "stop_aware"
+          ],
+          "description": "Registers a capture button for manual screenshot triggering."
+        }
+      ]
+    },
+    {
+      "name": "desktop_capture",
+      "bindings": [
+        {
+          "role": "source",
+          "port": "path",
+          "channel": "screenshot",
+          "media": [
+            "image"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "permissioned"
+          ],
+          "description": "Emits the saved screenshot path."
+        }
+      ]
+    }
+  ],
+  "needs": [
+    "dm-server"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": [
+      "macos",
+      "linux",
+      "windows"
+    ]
+  },
+  "ports": [
+    {
+      "id": "trigger",
+      "name": "trigger",
+      "direction": "input",
+      "description": "Optional trigger input for screenshot capture.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    },
+    {
+      "id": "path",
+      "name": "path",
+      "direction": "output",
+      "description": "Absolute path of the captured screenshot file.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    },
+    {
+      "id": "meta",
+      "name": "meta",
+      "direction": "output",
+      "description": "Screenshot metadata as JSON.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_screenshot/main.py",
+    "tests": [],
+    "examples": [
+      "demos/demo-desktop-tools.yml"
+    ]
+  },
+  "examples": [
+    {
+      "title": "Desktop tools demo",
+      "path": "demos/demo-desktop-tools.yml",
+      "description": "Use a hotkey to capture a screenshot, display it, copy its path, and notify the user."
+    }
+  ],
+  "config_schema": {
+    "mode": {
+      "default": "triggered",
+      "description": "Capture mode: once or triggered.",
+      "env": "MODE",
+      "x-widget": {
+        "type": "select",
+        "options": [
+          "once",
+          "triggered"
+        ]
+      }
+    },
+    "dir": {
+      "default": "screenshots",
+      "description": "Output directory relative to runs/:id/out/.",
+      "env": "DIR"
+    },
+    "region_mode": {
+      "default": "monitor",
+      "description": "Capture region mode: monitor or custom.",
+      "env": "REGION_MODE",
+      "x-widget": {
+        "type": "select",
+        "options": [
+          "monitor",
+          "custom"
+        ]
+      }
+    },
+    "monitor_index": {
+      "default": 1,
+      "description": "mss monitor index. 1 is usually the primary display; 0 captures all displays.",
+      "env": "MONITOR_INDEX"
+    },
+    "x": {
+      "default": 0,
+      "description": "Custom region left coordinate.",
+      "env": "X"
+    },
+    "y": {
+      "default": 0,
+      "description": "Custom region top coordinate.",
+      "env": "Y"
+    },
+    "width": {
+      "default": 1280,
+      "description": "Custom region width.",
+      "env": "WIDTH"
+    },
+    "height": {
+      "default": 720,
+      "description": "Custom region height.",
+      "env": "HEIGHT"
+    },
+    "output_format": {
+      "default": "png",
+      "description": "Screenshot format: png or jpeg.",
+      "env": "OUTPUT_FORMAT",
+      "x-widget": {
+        "type": "select",
+        "options": [
+          "png",
+          "jpeg"
+        ]
+      }
+    },
+    "send_frontend_preview": {
+      "default": true,
+      "description": "Send a preview message to the run UI after capture.",
+      "env": "SEND_FRONTEND_PREVIEW",
+      "x-widget": {
+        "type": "switch"
+      }
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

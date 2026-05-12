@@ -1,0 +1,174 @@
+{
+  "id": "dm-hotkey",
+  "name": "dm-hotkey",
+  "version": "0.1.0",
+  "installed_at": "1778587200",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Global hotkey source node. Emits a trigger into the dataflow when the configured desktop shortcut is pressed.",
+  "executable": ".venv/bin/dm-hotkey",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Desktop Tools",
+    "tags": [
+      "builtin",
+      "desktop",
+      "hotkey",
+      "input"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    {
+      "name": "widget_input",
+      "bindings": [
+        {
+          "role": "widget",
+          "channel": "register",
+          "media": [
+            "widgets"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "stop_aware"
+          ],
+          "description": "Registers an enable switch for the hotkey source."
+        }
+      ]
+    },
+    {
+      "name": "desktop_input",
+      "bindings": [
+        {
+          "role": "source",
+          "port": "trigger",
+          "channel": "hotkey",
+          "media": [
+            "pulse"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "permissioned"
+          ],
+          "description": "Emits a pulse when the configured global hotkey fires."
+        },
+        {
+          "role": "source",
+          "port": "event",
+          "channel": "hotkey",
+          "media": [
+            "json"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "permissioned"
+          ],
+          "description": "Emits hotkey event metadata as JSON."
+        }
+      ]
+    }
+  ],
+  "needs": [
+    "dm-server"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": [
+      "macos",
+      "linux",
+      "windows"
+    ]
+  },
+  "ports": [
+    {
+      "id": "trigger",
+      "name": "trigger",
+      "direction": "output",
+      "description": "Pulse emitted when the configured hotkey fires.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    },
+    {
+      "id": "event",
+      "name": "event",
+      "direction": "output",
+      "description": "JSON metadata for each hotkey event.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "description": "JSON-encoded hotkey event metadata.",
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_hotkey/main.py",
+    "tests": [],
+    "examples": [
+      "demos/demo-hotkey-trigger.yml"
+    ]
+  },
+  "examples": [
+    {
+      "title": "Hotkey trigger demo",
+      "path": "demos/demo-hotkey-trigger.yml",
+      "description": "Press a global hotkey and emit trigger/event outputs into the dataflow."
+    }
+  ],
+  "config_schema": {
+    "combo": {
+      "default": "cmd+shift+2",
+      "description": "Global hotkey combo. Examples: cmd+shift+2, ctrl+alt+h, shift+f8.",
+      "env": "COMBO",
+      "x-widget": {
+        "type": "input"
+      }
+    },
+    "label": {
+      "default": "Capture Hotkey",
+      "description": "Human-readable label shown in status messages and widgets.",
+      "env": "LABEL",
+      "x-widget": {
+        "type": "input"
+      }
+    },
+    "enabled": {
+      "default": true,
+      "description": "Whether the hotkey starts enabled.",
+      "env": "ENABLED",
+      "x-widget": {
+        "type": "switch"
+      }
+    },
+    "send_frontend_status": {
+      "default": true,
+      "description": "Send hotkey armed/triggered/error messages to the run UI.",
+      "env": "SEND_FRONTEND_STATUS",
+      "x-widget": {
+        "type": "switch"
+      }
+    },
+    "widget_key": {
+      "default": "",
+      "description": "Optional stable widget_key for the enable switch.",
+      "env": "WIDGET_KEY"
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

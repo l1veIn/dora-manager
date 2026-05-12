@@ -1,0 +1,9 @@
+[project]
+name = "dm-open"
+version = "0.1.0"
+description = "Open files, folders, or URLs from a Dora dataflow."
+requires-python = ">=3.10"
+dependencies = ["dora-rs == 0.4.1", "pyarrow", "requests"]
+
+[project.scripts]
+dm-open = "dm_open.main:main"

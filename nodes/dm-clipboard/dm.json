@@ -1,0 +1,153 @@
+{
+  "id": "dm-clipboard",
+  "name": "dm-clipboard",
+  "version": "0.1.0",
+  "installed_at": "1778587310",
+  "source": {
+    "build": "pip install -e .",
+    "github": null
+  },
+  "description": "Clipboard read/write utility node. Copies incoming text, reads the current clipboard, or monitors clipboard changes.",
+  "executable": ".venv/bin/dm-clipboard",
+  "maintainers": [
+    {
+      "name": "Dora Manager"
+    }
+  ],
+  "display": {
+    "category": "Builtin/Desktop Tools",
+    "tags": [
+      "builtin",
+      "desktop",
+      "clipboard",
+      "utility"
+    ]
+  },
+  "capabilities": [
+    "configurable",
+    {
+      "name": "desktop_io",
+      "bindings": [
+        {
+          "role": "sink",
+          "port": "text",
+          "channel": "clipboard",
+          "media": [
+            "text"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "permissioned"
+          ],
+          "description": "Copies incoming text to the system clipboard."
+        },
+        {
+          "role": "source",
+          "port": "value",
+          "channel": "clipboard",
+          "media": [
+            "text"
+          ],
+          "lifecycle": [
+            "run_scoped",
+            "permissioned"
+          ],
+          "description": "Emits clipboard content after writes, reads, or monitor changes."
+        }
+      ]
+    }
+  ],
+  "needs": [
+    "dm-server"
+  ],
+  "runtime": {
+    "language": "python",
+    "python": ">=3.10",
+    "platforms": [
+      "macos",
+      "linux",
+      "windows"
+    ]
+  },
+  "ports": [
+    {
+      "id": "text",
+      "name": "text",
+      "direction": "input",
+      "description": "Text to copy to the clipboard.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    },
+    {
+      "id": "value",
+      "name": "value",
+      "direction": "output",
+      "description": "Clipboard text value.",
+      "required": false,
+      "multiple": false,
+      "schema": {
+        "type": {
+          "name": "utf8"
+        }
+      }
+    }
+  ],
+  "files": {
+    "readme": "README.md",
+    "entry": "dm_clipboard/main.py",
+    "tests": [],
+    "examples": [
+      "demos/demo-desktop-tools.yml"
+    ]
+  },
+  "examples": [
+    {
+      "title": "Desktop tools demo",
+      "path": "demos/demo-desktop-tools.yml",
+      "description": "Copy the latest screenshot path to the system clipboard."
+    }
+  ],
+  "config_schema": {
+    "mode": {
+      "default": "write",
+      "description": "Clipboard mode: write, read, or monitor.",
+      "env": "MODE",
+      "x-widget": {
+        "type": "select",
+        "options": [
+          "write",
+          "read",
+          "monitor"
+        ]
+      }
+    },
+    "emit_on_start": {
+      "default": false,
+      "description": "Emit current clipboard value on startup.",
+      "env": "EMIT_ON_START",
+      "x-widget": {
+        "type": "switch"
+      }
+    },
+    "monitor_interval": {
+      "default": 0.5,
+      "description": "Polling interval in seconds for monitor mode.",
+      "env": "MONITOR_INTERVAL"
+    },
+    "send_frontend_status": {
+      "default": true,
+      "description": "Send clipboard status messages to the run UI.",
+      "env": "SEND_FRONTEND_STATUS",
+      "x-widget": {
+        "type": "switch"
+      }
+    }
+  },
+  "dynamic_ports": false,
+  "path": ""
+}

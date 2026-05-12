@@ -1,0 +1,9 @@
+[project]
+name = "dm-hotkey"
+version = "0.1.0"
+description = "Global hotkey source node for Dora Manager."
+requires-python = ">=3.10"
+dependencies = ["dora-rs == 0.4.1", "pyarrow", "pynput", "requests", "websockets"]
+
+[project.scripts]
+dm-hotkey = "dm_hotkey.main:main"

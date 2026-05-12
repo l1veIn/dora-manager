@@ -1,0 +1,1 @@
+"""dm-notification node package."""

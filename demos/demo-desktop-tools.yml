@@ -1,0 +1,57 @@
+# Demo: Desktop tool nodes
+#
+# Press the configured hotkey or the screenshot widget button to capture a
+# screenshot. The flow displays the screenshot, copies its path to the system
+# clipboard, and shows a desktop notification.
+#
+# Default shortcut:
+#   macOS: cmd+shift+2
+#   Linux/Windows users can edit combo to something like ctrl+alt+h.
+
+nodes:
+  - id: capture-hotkey
+    node: dm-hotkey
+    outputs:
+      - trigger
+    config:
+      combo: "cmd+shift+2"
+      label: "Screenshot Hotkey"
+
+  - id: screenshot
+    node: dm-screenshot
+    inputs:
+      trigger: capture-hotkey/trigger
+    outputs:
+      - path
+      - meta
+    config:
+      mode: triggered
+      dir: screenshots
+      output_format: png
+      send_frontend_preview: true
+
+  - id: display-screenshot
+    node: dm-display
+    inputs:
+      path: screenshot/path
+    config:
+      label: "Latest Screenshot"
+      render: image
+
+  - id: copy-screenshot-path
+    node: dm-clipboard
+    inputs:
+      text: screenshot/path
+    outputs:
+      - value
+    config:
+      mode: write
+
+  - id: notify-screenshot
+    node: dm-notification
+    inputs:
+      message: screenshot/path
+    outputs:
+      - status
+    config:
+      title: "Screenshot captured"

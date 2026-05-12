@@ -1,0 +1,26 @@
+# Demo: Global hotkey input
+#
+# Press the configured desktop shortcut to emit a trigger into the dataflow.
+# The hotkey node also sends status messages to the run UI.
+#
+# Default shortcut:
+#   macOS: cmd+shift+2
+#   Linux/Windows users can edit combo to something like ctrl+alt+h.
+
+nodes:
+  - id: capture-hotkey
+    node: dm-hotkey
+    outputs:
+      - trigger
+      - event
+    config:
+      combo: "cmd+shift+2"
+      label: "Capture Hotkey"
+
+  - id: display-hotkey-event
+    node: dm-display
+    inputs:
+      data: capture-hotkey/event
+    config:
+      label: "Hotkey Event"
+      render: json

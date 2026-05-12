@@ -1,0 +1,9 @@
+[project]
+name = "dm-clipboard"
+version = "0.1.0"
+description = "Clipboard read/write utility node for Dora Manager."
+requires-python = ">=3.10"
+dependencies = ["dora-rs == 0.4.1", "pyarrow", "pyperclip", "requests", "websockets"]
+
+[project.scripts]
+dm-clipboard = "dm_clipboard.main:main"
