@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{bail, Context, Result};
@@ -106,27 +106,13 @@ async fn install_local_python_node(node_path: &Path) -> Result<String> {
         .then_some(())
         .ok_or_else(|| anyhow::anyhow!("Failed to create virtual environment"))?;
 
-    let install_result = if use_uv {
-        Command::new("uv")
-            .args([
-                "pip",
-                "install",
-                "--python",
-                &format!("{}/bin/python", venv_path.display()),
-                "-e",
-                ".",
-            ])
-            .current_dir(node_path)
-            .status()
-    } else {
-        Command::new(format!("{}/bin/pip", venv_path.display()))
-            .args(["install", "-e", "."])
-            .current_dir(node_path)
-            .status()
-    };
+    let install_result = install_python_package(&venv_path, use_uv, ["-e", "."], Some(node_path));
 
     match install_result {
-        Ok(status) if status.success() => Ok("0.1.0".to_string()),
+        Ok(status) if status.success() => {
+            install_repo_python_sdk_if_available(node_path, &venv_path, use_uv)?;
+            Ok("0.1.0".to_string())
+        }
         Ok(_) => bail!("Failed to install local node via pip install -e ."),
         Err(err) => bail!("Failed to run pip install: {}", err),
     }
@@ -170,26 +156,94 @@ async fn install_python_node(meta: &Node, node_path: &Path) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("Failed to create virtual environment"))?;
 
     let package_spec = package_spec_from_build(meta);
-    let install_result = if use_uv {
-        Command::new("uv")
-            .args([
-                "pip",
-                "install",
-                "--python",
-                &format!("{}/bin/python", venv_path.display()),
-                &package_spec,
-            ])
-            .status()
-    } else {
-        Command::new(format!("{}/bin/pip", venv_path.display()))
-            .args(["install", &package_spec])
-            .status()
-    };
+    let install_result = install_python_package(&venv_path, use_uv, [&package_spec], None);
 
     match install_result {
         Ok(status) if status.success() => get_python_package_version(&venv_path, &package_spec),
         Ok(_) => bail!("Failed to install package: {}", package_spec),
         Err(err) => bail!("Failed to run pip install: {}", err),
+    }
+}
+
+fn install_python_package<I, S>(
+    venv_path: &Path,
+    use_uv: bool,
+    args: I,
+    current_dir: Option<&Path>,
+) -> std::io::Result<std::process::ExitStatus>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let mut command = if use_uv {
+        let mut command = Command::new("uv");
+        command
+            .arg("pip")
+            .arg("install")
+            .arg("--python")
+            .arg(venv_python_path(venv_path));
+        command
+    } else {
+        let mut command = Command::new(venv_pip_path(venv_path));
+        command.arg("install");
+        command
+    };
+
+    command.args(args);
+    if let Some(current_dir) = current_dir {
+        command.current_dir(current_dir);
+    }
+    command.status()
+}
+
+fn install_repo_python_sdk_if_available(
+    node_path: &Path,
+    venv_path: &Path,
+    use_uv: bool,
+) -> Result<()> {
+    let Some(sdk_path) = find_repo_python_sdk(node_path) else {
+        return Ok(());
+    };
+
+    let status = install_python_package(
+        venv_path,
+        use_uv,
+        ["-e".as_ref(), sdk_path.as_os_str()],
+        None,
+    )
+    .with_context(|| format!("Failed to install local dm SDK from {}", sdk_path.display()))?;
+
+    if !status.success() {
+        bail!("Failed to install local dm SDK from {}", sdk_path.display());
+    }
+
+    Ok(())
+}
+
+fn find_repo_python_sdk(node_path: &Path) -> Option<PathBuf> {
+    for ancestor in node_path.ancestors() {
+        let sdk_path = ancestor.join("sdk/python");
+        if sdk_path.join("pyproject.toml").exists() && sdk_path.join("dm/__init__.py").exists() {
+            return Some(sdk_path);
+        }
+    }
+
+    None
+}
+
+fn venv_python_path(venv_path: &Path) -> PathBuf {
+    if cfg!(windows) {
+        venv_path.join("Scripts/python.exe")
+    } else {
+        venv_path.join("bin/python")
+    }
+}
+
+fn venv_pip_path(venv_path: &Path) -> PathBuf {
+    if cfg!(windows) {
+        venv_path.join("Scripts/pip.exe")
+    } else {
+        venv_path.join("bin/pip")
     }
 }
 
@@ -284,8 +338,9 @@ mod tests {
     use crate::test_support::{clear_path, env_lock, set_path};
 
     use super::{
-        get_python_package_version, install_cargo_node, install_local_python_node, install_node,
-        install_python_node, package_spec_from_build, Node,
+        find_repo_python_sdk, get_python_package_version, install_cargo_node,
+        install_local_python_node, install_node, install_python_node, package_spec_from_build,
+        Node,
     };
 
     #[cfg(not(target_os = "windows"))]
@@ -346,6 +401,23 @@ mod tests {
             package_spec_from_build(&sample_node("dora-demo", "python build.py")),
             "dora-demo"
         );
+    }
+
+    #[test]
+    fn find_repo_python_sdk_walks_up_from_node_path() {
+        let dir = tempdir().unwrap();
+        let sdk_path = dir.path().join("sdk/python");
+        let node_path = dir.path().join("nodes/demo");
+        fs::create_dir_all(sdk_path.join("dm")).unwrap();
+        fs::create_dir_all(&node_path).unwrap();
+        fs::write(
+            sdk_path.join("pyproject.toml"),
+            "[project]\nname = \"dm\"\n",
+        )
+        .unwrap();
+        fs::write(sdk_path.join("dm/__init__.py"), "").unwrap();
+
+        assert_eq!(find_repo_python_sdk(&node_path), Some(sdk_path));
     }
 
     #[test]

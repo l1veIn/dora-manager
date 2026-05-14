@@ -530,7 +530,7 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
         anyhow::bail!("Graph file '{}' not found.", file_path.display());
     }
 
-    ensure_dm_server_for_dataflow(home, &file_path)?;
+    ensure_dm_server_for_dataflow(home, &file_path).await?;
 
     println!("{} Starting dataflow...", "🚀".green());
     let strategy = if force {
@@ -564,14 +564,14 @@ async fn cmd_start(home: &std::path::Path, verbose: bool, file: &str, force: boo
     Ok(())
 }
 
-fn ensure_dm_server_for_dataflow(
+async fn ensure_dm_server_for_dataflow(
     home: &std::path::Path,
     file_path: &std::path::Path,
 ) -> Result<()> {
     let yaml = std::fs::read_to_string(file_path)
         .with_context(|| format!("Failed to read graph yaml at {}", file_path.display()))?;
 
-    if !dataflow_requires_dm_server(home, &yaml) || dm_server_ready() {
+    if !dataflow_requires_dm_server(home, &yaml) || dm_server_ready().await {
         return Ok(());
     }
 
@@ -582,19 +582,20 @@ fn ensure_dm_server_for_dataflow(
 
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
-        if dm_server_ready() {
+        if dm_server_ready().await {
             return Ok(());
         }
-        std::thread::sleep(Duration::from_secs(1));
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
     anyhow::bail!("dm-server did not become ready within 30 seconds");
 }
 
-fn dm_server_ready() -> bool {
-    reqwest::blocking::get("http://127.0.0.1:3210/api/doctor")
-        .map(|response| response.status().is_success())
-        .unwrap_or(false)
+async fn dm_server_ready() -> bool {
+    match reqwest::get("http://127.0.0.1:3210/api/doctor").await {
+        Ok(response) => response.status().is_success(),
+        Err(_) => false,
+    }
 }
 
 fn dataflow_requires_dm_server(home: &std::path::Path, yaml: &str) -> bool {

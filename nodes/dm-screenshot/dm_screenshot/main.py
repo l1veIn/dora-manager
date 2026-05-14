@@ -137,12 +137,19 @@ def send_preview(msg: dm.Message, node_id: str, path: Path, run_out_dir: str, me
 
 
 def register_capture_button(msg: dm.Message, widget_key: str, label: str):
-    msg.widgets.register(
-        key=widget_key,
-        type="button",
-        label=label,
-        config={"value": "capture"},
-    )
+    try:
+        msg.widgets.register(
+            key=widget_key,
+            type="button",
+            label=label,
+            config={"value": "capture"},
+        )
+    except Exception as exc:
+        print(
+            f"[dm-screenshot] widget registration failed: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def subscribe_capture(msg: dm.Message, widget_key: str, events: queue.Queue):

@@ -58,6 +58,25 @@ def test_send_posts_message_and_returns_seq(monkeypatch):
     assert isinstance(calls["json"]["timestamp"], int)
 
 
+def test_send_retries_transient_server_errors(monkeypatch):
+    calls = []
+    responses = [Response({"error": "locked"}, status_code=500), Response({"seq": 43})]
+
+    def fake_post(url, json, timeout):
+        calls.append((url, json, timeout))
+        return responses.pop(0)
+
+    monkeypatch.setattr("dm._message.requests.post", fake_post)
+    monkeypatch.setattr("dm._message.time.sleep", lambda _seconds: None)
+
+    seq = Message(run_id="run-1", server_url="http://server").send(
+        "widgets", {"widgets": {}}, from_="node-a"
+    )
+
+    assert seq == 43
+    assert len(calls) == 2
+
+
 def test_get_builds_query_and_returns_messages(monkeypatch):
     calls = {}
 

@@ -243,14 +243,25 @@ class Message:
             body["payload"]["embed"] = merged
         elif self._default_embed is not None:
             body["payload"]["embed"] = dict(self._default_embed)
-        response = requests.post(
-            self._url("/messages"),
-            json=body,
-            timeout=self.timeout,
-        )
+        response = self._post_message(body)
         response.raise_for_status()
         data = response.json()
         return data["seq"]
+
+    def _post_message(self, body: dict[str, Any]) -> requests.Response:
+        last_response: requests.Response | None = None
+        for attempt in range(3):
+            response = requests.post(
+                self._url("/messages"),
+                json=body,
+                timeout=self.timeout,
+            )
+            if response.status_code < 500:
+                return response
+            last_response = response
+            if attempt < 2:
+                time.sleep(0.2 * (attempt + 1))
+        return last_response
 
     def get(
         self,

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
@@ -23,8 +24,10 @@ impl MessageService {
         let db_path = services::db_path(home, run_id);
         let conn = Connection::open(&db_path)
             .with_context(|| format!("Failed to open interaction db at {}", db_path.display()))?;
+        conn.busy_timeout(Duration::from_secs(5))?;
         conn.execute_batch(
             "PRAGMA journal_mode=WAL;
+             PRAGMA busy_timeout=5000;
              CREATE TABLE IF NOT EXISTS messages (
                 seq         INTEGER PRIMARY KEY AUTOINCREMENT,
                 node_id     TEXT NOT NULL,
